@@ -72,11 +72,6 @@ void GameOverScene::Update()
     if (failedTextSprite_) {
         failedTextSprite_->Update();
     }
-
-    // --- スプライトの更新 ---
-    for (const auto& sprite : sprites_) {
-        sprite->Update();
-    }
 }
 
 void GameOverScene::Draw()
@@ -96,11 +91,6 @@ void GameOverScene::Draw()
         if (failedTextSprite_) {
             failedTextSprite_->Draw();
         }
-
-        // Drawも同様
-        for (const auto& sprite : sprites_) {
-            sprite->Draw();
-        }
     }
 }
 
@@ -111,7 +101,6 @@ void GameOverScene::Finalize()
 
     backGroundSprite_.reset();
     failedTextSprite_.reset();
-    sprites_.clear();
 }
 
 void GameOverScene::UpdateGameCamera()

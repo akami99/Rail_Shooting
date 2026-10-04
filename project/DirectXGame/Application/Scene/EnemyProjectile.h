@@ -52,4 +52,8 @@ private:
     std::unique_ptr<Model> customModel_;
     Type type_ = Type::Normal;
     float trailRotation_ = 0.0f; // ライフリング回転角
+
+    const std::string bulletModelDirectory_ = "Resources/Assets/Models/ShootingScene/bullet";
+    const std::string bulletModelPath_ =
+        "bullet.obj";
 };

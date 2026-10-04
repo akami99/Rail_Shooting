@@ -69,7 +69,7 @@ void EnemyProjectile::Initialize(const Vector3& position, const Vector3& velocit
     if (type_ != Type::Normal) {
         // 属性弾用に個別のモデルインスタンスを作成
         customModel_ = std::make_unique<Model>();
-        customModel_->Initialize("Resources/Assets/Models/bullet", "bullet.obj");
+        customModel_->Initialize(bulletModelDirectory_, bulletModelPath_);
         
         if (type_ == Type::Blast) {
             customModel_->SetColor({1.0f, 0.8f, 0.0f, 1.0f}); // 黄色
@@ -79,7 +79,7 @@ void EnemyProjectile::Initialize(const Vector3& position, const Vector3& velocit
         
         object_->SetModel(customModel_.get());
     } else {
-        object_->SetModel("bullet.obj");
+        object_->SetModel(bulletModelPath_);
     }
     
     object_->SetTranslate(position_);

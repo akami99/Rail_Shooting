@@ -17,6 +17,9 @@ public:
     Token() {}
   };
 
+  // デフォルトテクスチャのパス
+  const std::string defaultTexturePath_ = "Resources/Textures/white.png";
+
 private: // namespace省略のためのusing宣言
 #pragma region using宣言
 
@@ -40,7 +43,7 @@ private: // メンバ変数
 
   // テクスチャデータ
   std::unordered_map<std::string, TextureData>
-      textureDatas_; // キーの順番を保つならunordered_mapの方が高速
+      textureDatas_; // キーの順番を保たないで良いならunordered_mapの方が高速
 
 public: // メンバ関数
   // コンストラクタ(隠蔽)

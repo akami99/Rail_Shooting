@@ -59,9 +59,12 @@ void ModelManager::LoadModel(const std::string &directoryPath,
         fullDirectoryPath = "Resources/Assets/Models/" + directoryPath;
     }
 
-    // 存在チェック (fullDirectoryPath + "/" + filePath)
-    if (!std::filesystem::exists(fullDirectoryPath + "/" + filePath)) {
-        Logger::Log("ERROR: Model file not found at: " + fullDirectoryPath + "/" + filePath);
+    // ファイルのフルパスを作成
+    std::string fullFilePath = fullDirectoryPath + "/" + filePath;
+
+    // 存在チェック
+    if (!std::filesystem::exists(fullFilePath)) {
+        Logger::Log("ERROR: Model file not found at: " + fullFilePath);
         assert(false && "Model file not found!");
     }
 
@@ -76,7 +79,7 @@ void ModelManager::LoadModel(const std::string &directoryPath,
   std::unique_ptr<Model> model = std::make_unique<Model>();
 
   model->Initialize(fullDirectoryPath, filePath);
-  Log("INFO: Loaded model at path: " + fullDirectoryPath + "/" + filePath + "\n");
+  Log("INFO: Loaded model at path: " + fullFilePath + "\n");
 
   // --- 4. モデルをマップコンテナに格納 ---
   // std::unique_ptr はコピー禁止なので、std::move() によって所有権を移譲する

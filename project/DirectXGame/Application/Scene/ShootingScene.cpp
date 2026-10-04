@@ -92,8 +92,8 @@ void ShootingScene::Initialize() {
   TextureManager::GetInstance()->LoadTexture("Particles/circle.png");
 
   // モデル読み込み
-  ModelManager::GetInstance()->LoadModel("enemy", enemyModel_);
-  ModelManager::GetInstance()->LoadModel("bullet", "bullet.obj");
+  ModelManager::GetInstance()->LoadModel(enemyModelDirectory_, enemyModel_);
+  ModelManager::GetInstance()->LoadModel(bulletModelDirectory_, bulletModel_);
 
   // 環境マップを敵モデルに適用
   Model *enemyModel = ModelManager::GetInstance()->FindModel(enemyModel_);
@@ -397,7 +397,7 @@ void ShootingScene::Initialize() {
       TextureManager::GetInstance()->GetSrvIndex("skybox.dds"));
 
   // フロアモデルをロード
-  ModelManager::GetInstance()->LoadModel("floor", floorModel_);
+  ModelManager::GetInstance()->LoadModel(floorModelDirectory_, floorModel_);
 
   // フロアオブジェクトの初期化
   floorObject_ = std::make_unique<Object3d>();
@@ -418,7 +418,7 @@ void ShootingScene::Initialize() {
 
       // 個別のモデルインスタンスを生成・ロード
       enemy.model = std::make_unique<Model>();
-      enemy.model->Initialize("Resources/Assets/Models/enemy", enemyModel_);
+      enemy.model->Initialize(enemyModelDirectory_, enemyModel_);
       // 初期状態として完全に消去された状態（Threshold = 1.0f）を設定
       enemy.model->SetDissolveMaskTexture("masks/noise0.png");
       enemy.model->SetDissolveParams(1, 1.0f, 0.05f, Vector3(1.0f, 0.4f, 0.3f));
@@ -1236,7 +1236,7 @@ void ShootingScene::Update() {
   POINT mousePos;
   GetCursorPos(&mousePos);
   ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
-  crosshair_->SetTranslate({(float)mousePos.x, (float)mousePos.y});
+  crosshair_->SetTranslate({static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
   crosshair_->Update();
   camera_->Update();
 
@@ -1265,8 +1265,8 @@ void ShootingScene::Update() {
     }
     ParticleManager::GetInstance()->Emit("AmmoSparkGroup", spawnPos, 1);
 
-    float x = (float)mousePos.x / Win32Window::kClientWidth * 2.0f - 1.0f;
-    float y = 1.0f - (float)mousePos.y / Win32Window::kClientHeight * 2.0f;
+    float x = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+    float y = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
     Matrix4x4 vp = camera_->GetViewProjectionMatrix();
     Matrix4x4 invVP = Inverse(vp);
     Vector3 nearPos = TransformPoint({x, y, 0.0f}, invVP);
@@ -1622,7 +1622,7 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
           comboItems.push_back("0: Start (0.0)");
         } else {
           comboItems.push_back(std::to_string(i) + ": Battle (" +
-                               std::to_string((int)sectionProgresses_[i]) +
+                               std::to_string(static_cast<int>(sectionProgresses_[i])) +
                                ")");
         }
       }

@@ -102,21 +102,21 @@ void LevelLoader::ParseObject(LevelData::ObjectData& objectData, const nlohmann:
 	// Engine:  左手系, Y-Up (DirectX標準)
 	
 	// Translation (X -> -X, Z -> Y, Y -> -Z)
-	objectData.translation.x = -(float)transform["translation"][0];
-	objectData.translation.y = (float)transform["translation"][2];
-	objectData.translation.z = -(float)transform["translation"][1];
+	objectData.translation.x = -static_cast<float>(transform["translation"][0]);
+	objectData.translation.y = static_cast<float>(transform["translation"][2]);
+	objectData.translation.z = -static_cast<float>(transform["translation"][1]);
 
 	// Rotation (度数法からラジアンへ変換し、符号を反転)
 	// Blenderの回転軸(X,Y,Z)をEngineの回転軸(X,Z,Y)に変換し、右手系から左手系への変換のため符号を調整
 	float toRad = 3.1415926535f / 180.0f;
-	objectData.rotation.x = -(float)transform["rotation"][0] * toRad;
-	objectData.rotation.y = -(float)transform["rotation"][2] * toRad;
-	objectData.rotation.z = (float)transform["rotation"][1] * toRad;
+	objectData.rotation.x = -(static_cast<float>(transform["rotation"][0]) * toRad);
+	objectData.rotation.y = -(static_cast<float>(transform["rotation"][2]) * toRad);
+	objectData.rotation.z = (static_cast<float>(transform["rotation"][1]) * toRad);
 
 	// Scaling (軸を入れ替え)
-	objectData.scaling.x = (float)transform["scaling"][0];
-	objectData.scaling.y = (float)transform["scaling"][2];
-	objectData.scaling.z = (float)transform["scaling"][1];
+	objectData.scaling.x = static_cast<float>(transform["scaling"][0]);
+	objectData.scaling.y = static_cast<float>(transform["scaling"][2]);
+	objectData.scaling.z = static_cast<float>(transform["scaling"][1]);
 
 	// --- ベジェ制御点のパース ---
 	if (jsonObject.contains("curve")) {
@@ -128,19 +128,19 @@ void LevelLoader::ParseObject(LevelData::ObjectData& objectData, const nlohmann:
 						LevelData::BezierControlPoint controlPt;
 						
 						const auto& co = pt["co"];
-						controlPt.co.x = -(float)co[0];
-						controlPt.co.y = (float)co[2];
-						controlPt.co.z = -(float)co[1];
+						controlPt.co.x = -static_cast<float>(co[0]);
+						controlPt.co.y = static_cast<float>(co[2]);
+						controlPt.co.z = -static_cast<float>(co[1]);
 
 						const auto& hl = pt["handle_left"];
-						controlPt.handleLeft.x = -(float)hl[0];
-						controlPt.handleLeft.y = (float)hl[2];
-						controlPt.handleLeft.z = -(float)hl[1];
+						controlPt.handleLeft.x = -static_cast<float>(hl[0]);
+						controlPt.handleLeft.y = static_cast<float>(hl[2]);
+						controlPt.handleLeft.z = -static_cast<float>(hl[1]);
 
 						const auto& hr = pt["handle_right"];
-						controlPt.handleRight.x = -(float)hr[0];
-						controlPt.handleRight.y = (float)hr[2];
-						controlPt.handleRight.z = -(float)hr[1];
+						controlPt.handleRight.x = -static_cast<float>(hr[0]);
+						controlPt.handleRight.y = static_cast<float>(hr[2]);
+						controlPt.handleRight.z = -static_cast<float>(hr[1]);
 
 						objectData.bezierPoints.push_back(controlPt);
 					}

@@ -157,10 +157,14 @@ private:
 
   // パス定数
   // 3Dモデルのファイルパス
+  const std::string enemyModelDirectory_ = "Resources/Assets/Models/ShootingScene/enemy";
   const std::string enemyModel_ = "enemy.obj";
+  const std::string bulletModelDirectory_ = "Resources/Assets/Models/ShootingScene/bullet";
+  const std::string bulletModel_ = "bullet.obj";
+  const std::string floorModelDirectory_ = "Resources/Assets/Models/ShootingScene/floor";
   const std::string floorModel_ = "floor.obj";
   // テクスチャファイルパスを保持
-  const std::string crosshairPath_ = "crosshair.png";
+  const std::string crosshairPath_ = "ui/crosshair.png";
   const std::string ringParticleGroupName_ = "RingShapeGroup";
 
   // レベルデータ

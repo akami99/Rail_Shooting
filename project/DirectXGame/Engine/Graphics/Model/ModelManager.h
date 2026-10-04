@@ -21,7 +21,7 @@ private: // namespace省略のためのusing宣言
   static std::unique_ptr<ModelManager> instance_;
 
   // モデルデータ
-  std::map<std::string, std::unique_ptr<Model>> models_;
+  std::map<std::string, std::unique_ptr<Model>> models_; // キーの順番を保つ
 
   public: // シングルトンインスタンス取得
     static ModelManager* GetInstance();

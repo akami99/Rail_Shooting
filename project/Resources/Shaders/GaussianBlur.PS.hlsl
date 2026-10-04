@@ -45,7 +45,7 @@ PixelShaderOutput main(VertexShaderOutput input)
             float2 offset = float2(x, y) * uvStepSize;
             float3 fetchColor = gTexture.Sample(gSampler, input.texcoord + offset).rgb;
             
-            float weight = gauss((float)x, (float)y, gSigma);
+            float weight = gauss(float(x), float(y), gSigma);
             sumColor += fetchColor * weight;
             totalWeight += weight;
         }

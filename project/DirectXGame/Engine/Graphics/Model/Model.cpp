@@ -519,6 +519,10 @@ void Model::LoadModelFile(const std::string &directoryPath,
         }
     }
 
+    if (modelData_.material.textureFilePath.empty()) {
+        modelData_.material.textureFilePath = TextureManager::GetInstance()->defaultTexturePath_;
+    }
+
     // --- ノードの解析 ---
     modelData_.rootNode = ReadNode(scene->mRootNode);
 

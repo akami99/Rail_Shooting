@@ -36,6 +36,9 @@ void MyGame::Initialize() {
   TextureManager::GetInstance()->LoadTexture("uvChecker.png");
   TextureManager::GetInstance()->LoadTexture("masks/noise0.png");
   TextureManager::GetInstance()->LoadTexture("masks/noise1.png");
+  // デフォルトテクスチャのロード（未ロード時の代替用）
+  TextureManager::GetInstance()->LoadTexture(
+      TextureManager::GetInstance()->defaultTexturePath_);
 
   // ポストプロセスマネージャの初期化
   PostProcessManager::GetInstance()->Initialize();

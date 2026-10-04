@@ -37,7 +37,6 @@ private:
     // ゲームオブジェクト(必ずスマートポインタにすること)
     std::unique_ptr<Sprite> backGroundSprite_;
     std::unique_ptr<Sprite> failedTextSprite_;
-    std::vector<std::unique_ptr<Sprite>> sprites_;
 
     // パーティクル設定など
     int currentBlendMode_ = 1;  // NormalBlend
