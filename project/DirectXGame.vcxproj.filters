@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Externals">
@@ -312,6 +312,9 @@
     <ClCompile Include="DirectXGame\Application\Scene\ClearScene.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="DirectXGame\Engine\Graphics\Swarm\SwarmManager.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DirectXGame\Engine\Audio\AudioManager.h">
@@ -467,6 +470,12 @@
     <ClInclude Include="DirectXGame\Application\Scene\ClearScene.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="DirectXGame\Engine\Graphics\Swarm\SwarmTypes.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="DirectXGame\Engine\Graphics\Swarm\SwarmManager.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\Shaders\Common.hlsli">
@@ -491,6 +500,18 @@
       <Filter>シェーダー ファイル\Object3d</Filter>
     </None>
     <None Include="Resources\Shaders\Utility\HSV.hlsli" />
+    <None Include="Resources\Shaders\Swarm\SwarmCommon.hlsli">
+      <Filter>シェーダー ファイル</Filter>
+    </None>
+    <None Include="Resources\Shaders\Swarm\SwarmSimulate.CS.hlsl">
+      <Filter>シェーダー ファイル</Filter>
+    </None>
+    <None Include="Resources\Shaders\Swarm\SwarmDraw.VS.hlsl">
+      <Filter>シェーダー ファイル</Filter>
+    </None>
+    <None Include="Resources\Shaders\Swarm\SwarmDraw.PS.hlsl">
+      <Filter>シェーダー ファイル</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Resources\Shaders\Object3d.PS.hlsl">

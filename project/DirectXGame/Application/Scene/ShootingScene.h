@@ -11,6 +11,7 @@
 #include "EnemyProjectile.h"
 #include "PostProcessManager.h"
 #include "RenderTexture.h"
+#include "Swarm/SwarmManager.h"
 
 class Model;
 
@@ -28,6 +29,7 @@ public:
   // ゲームオーバー/クリア演出フェーズ
   enum class Phase {
     Playing,          // 通常プレイ
+    SwarmBattle,      // レール終点でのスウォーム演出/戦闘
     GameOverVignette, // ビネットで覆っていく（ゲームオーバー）
     GameOverWait,     // 暗転維持
     RestartSmoothing, // リセット後スムージングを徐々に消す
@@ -96,6 +98,12 @@ private:
 
   // レベルから読み取った敵オブジェクト群
   std::vector<EnemyInfo> enemies_;
+
+  // スウォーム（空中群体制御）システム
+  std::unique_ptr<SwarmManager> swarmManager_;
+  SwarmManager::AttackCommand pendingSwarmAttack_;
+  bool hasPendingSwarmAttack_ = false;
+  float swarmBattleTimer_ = 0.0f;
 
   // 照準（スプライト）
   std::unique_ptr<Sprite> crosshair_;

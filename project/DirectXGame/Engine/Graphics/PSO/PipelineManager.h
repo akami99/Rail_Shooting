@@ -139,6 +139,15 @@ public: // メンバ関数
     // HSV用 PSOを生成して返す関数
     ComPtr<ID3D12PipelineState> CreateHSVPSO();
 
+    // Compute PSOを生成して返す関数
+    ComPtr<ID3D12PipelineState> CreateComputePSO(
+        ID3D12RootSignature* rootSignature,
+        IDxcBlob* computeShaderBlob);
+
+    // Compute用RootSignatureを生成して返す関数
+    ComPtr<ID3D12RootSignature> CreateComputeRootSignature(
+        const D3D12_ROOT_SIGNATURE_DESC& desc);
+
     // ゲッター
 
     // SpriteCommon用

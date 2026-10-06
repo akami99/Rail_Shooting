@@ -78,6 +78,19 @@ void SrvManager::SetGraphicsRootDescriptorTable(UINT RootParameterIndex,
 		RootParameterIndex, GetGPUDescriptorHandle(srvIndex));
 }
 
+// Compute用にSRV/UAVをセット
+void SrvManager::SetComputeRootDescriptorTable(UINT RootParameterIndex,
+	uint32_t descriptorIndex) {
+	DX12Context::GetInstance()->GetCommandList()->SetComputeRootDescriptorTable(
+		RootParameterIndex, GetGPUDescriptorHandle(descriptorIndex));
+}
+
+// コンピュート前処理（デスクリプタヒープの設定）
+void SrvManager::PreCompute() {
+	ID3D12DescriptorHeap* descriptorHeaps[] = { descriptorHeap_.Get() };
+	DX12Context::GetInstance()->GetCommandList()->SetDescriptorHeaps(1, descriptorHeaps);
+}
+
 // SRVの指定したインデックスのCPUディスクリプタハンドルを取得
 D3D12_CPU_DESCRIPTOR_HANDLE
 SrvManager::GetCPUDescriptorHandle(uint32_t index) {
@@ -147,4 +160,27 @@ void SrvManager::CreateSRVForStructuredBuffer(uint32_t srvIndex,
 	// SRVの生成
 	DX12Context::GetInstance()->GetDevice()->CreateShaderResourceView(resource.Get(), &srvDesc,
 		srvHandleCPU);
+}
+
+// StructuredBuffer用のUAVを作成
+void SrvManager::CreateUAVForStructuredBuffer(uint32_t uavIndex,
+	ComPtr<ID3D12Resource> resource,
+	uint32_t numElement,
+	uint32_t structureByteStride) {
+	// UAVの設定
+	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+	uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+	uavDesc.Buffer.FirstElement = 0;
+	uavDesc.Buffer.NumElements = numElement;
+	uavDesc.Buffer.StructureByteStride = structureByteStride;
+	uavDesc.Buffer.CounterOffsetInBytes = 0;
+	uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+
+	// UAVを作成するディスクリプタヒープの場所を取得
+	D3D12_CPU_DESCRIPTOR_HANDLE uavHandleCPU = GetCPUDescriptorHandle(uavIndex);
+
+	// UAVの生成
+	DX12Context::GetInstance()->GetDevice()->CreateUnorderedAccessView(
+		resource.Get(), nullptr, &uavDesc, uavHandleCPU);
 }

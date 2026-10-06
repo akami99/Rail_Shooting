@@ -224,6 +224,13 @@ public: // ヘルパー関数
   ComPtr<ID3D12Resource> CreateBufferResource(size_t sizeInBytes);
 
   /// <summary>
+  /// UAV対応バッファリソースの生成 (DEFAULTヒープ)
+  /// </summary>
+  /// <param name="sizeInBytes">バッファのサイズ</param>
+  /// <returns>生成したUAVバッファリソース</returns>
+  ComPtr<ID3D12Resource> CreateUAVBufferResource(size_t sizeInBytes);
+
+  /// <summary>
   /// テクスチャリソースの生成
   /// </summary>
   /// <param name="metadata">metadata</param>

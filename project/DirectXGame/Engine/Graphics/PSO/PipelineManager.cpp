@@ -1197,3 +1197,45 @@ void PipelineManager::CreateRootSignature() {
 	assert(SUCCEEDED(hr));
 #pragma endregion
 }
+
+// Compute PSOを生成して返す関数
+ComPtr<ID3D12PipelineState> PipelineManager::CreateComputePSO(
+	ID3D12RootSignature* rootSignature,
+	IDxcBlob* computeShaderBlob) {
+	assert(rootSignature != nullptr);
+	assert(computeShaderBlob != nullptr);
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC computePsoDesc{};
+	computePsoDesc.pRootSignature = rootSignature;
+	computePsoDesc.CS = {
+		computeShaderBlob->GetBufferPointer(),
+		computeShaderBlob->GetBufferSize()
+	};
+	computePsoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+
+	ComPtr<ID3D12PipelineState> pso = nullptr;
+	HRESULT hr = DX12Context::GetInstance()->GetDevice()->CreateComputePipelineState(
+		&computePsoDesc, IID_PPV_ARGS(&pso));
+	assert(SUCCEEDED(hr));
+	return pso;
+}
+
+// Compute用RootSignatureを生成して返す関数
+ComPtr<ID3D12RootSignature> PipelineManager::CreateComputeRootSignature(
+	const D3D12_ROOT_SIGNATURE_DESC& desc) {
+	ComPtr<ID3DBlob> signatureBlob = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
+	if (FAILED(hr)) {
+		if (errorBlob) {
+			Logger::Log(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
+		}
+		assert(false && "Failed to serialize compute root signature");
+	}
+
+	ComPtr<ID3D12RootSignature> rootSignature = nullptr;
+	hr = DX12Context::GetInstance()->GetDevice()->CreateRootSignature(
+		0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
+	assert(SUCCEEDED(hr));
+	return rootSignature;
+}

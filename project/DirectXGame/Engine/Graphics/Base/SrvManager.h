@@ -63,6 +63,13 @@ public: // メンバ関数
   void SetGraphicsRootDescriptorTable(UINT RootParameterIndex,
                                      uint32_t srvIndex);
 
+  // Compute用にSRV/UAVをセット
+  void SetComputeRootDescriptorTable(UINT RootParameterIndex,
+                                     uint32_t descriptorIndex);
+
+  // コンピュート前処理（デスクリプタヒープの設定）
+  void PreCompute();
+
   /// <summary>
   /// デスクリプタヒープのゲッター
   /// </summary>
@@ -102,6 +109,18 @@ public: // メンバ関数
   /// <param name="numElement">格納されている要素（インスタンス）の数</param>
   /// <param name="structureByteStride">構造体（要素）のバイトサイズ</param>
   void CreateSRVForStructuredBuffer(uint32_t srvIndex,
+                                    ComPtr<ID3D12Resource> resource,
+                                    uint32_t numElement,
+                                    uint32_t structureByteStride);
+
+  /// <summary>
+  /// StructuredBuffer用のUAVを作成
+  /// </summary>
+  /// <param name="uavIndex">デスクリプタヒープ上のインデックス</param>
+  /// <param name="resource">StructuredBufferのID3D12Resource</param>
+  /// <param name="numElement">格納されている要素の数</param>
+  /// <param name="structureByteStride">構造体（要素）のバイトサイズ</param>
+  void CreateUAVForStructuredBuffer(uint32_t uavIndex,
                                     ComPtr<ID3D12Resource> resource,
                                     uint32_t numElement,
                                     uint32_t structureByteStride);

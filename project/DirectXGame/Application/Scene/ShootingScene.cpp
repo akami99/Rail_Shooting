@@ -597,6 +597,10 @@ void ShootingScene::Initialize() {
 
   score_ = 0;
   gameTimer_ = 60.0f;
+
+  // スウォーム（空中群体制御）システムの初期化
+  swarmManager_ = std::make_unique<SwarmManager>();
+  swarmManager_->Initialize(128, enemyModelDirectory_, enemyModel_);
 }
 
 void ShootingScene::Update() {
@@ -695,6 +699,28 @@ void ShootingScene::Update() {
 #endif
           return;
       }
+  }
+  // =====================================================
+  // フェーズ: スウォーム戦闘（約100機がプレイヤー周辺20m以内を旋回・突撃）
+  // =====================================================
+  if (phase_ == Phase::SwarmBattle) {
+    swarmBattleTimer_ += kDeltaTime;
+
+    // 制限時間経過（例: 25秒）で最終クリア暗転へ遷移
+    const float kSwarmBattleDuration = 25.0f;
+    if (swarmBattleTimer_ >= kSwarmBattleDuration) {
+      phase_ = Phase::ClearVignette;
+      phaseTimer_ = 0.0f;
+      vignetteScale_ = 16.0f;
+      vignetteExponent_ = 0.8f;
+      damageEffectStrength_ = 0.0f;
+
+      MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
+      MyGame::SetPostEffectStrength(1.0f);
+      PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
+      projectiles_.clear();
+      return;
+    }
   }
 
   // =====================================================
@@ -1273,6 +1299,15 @@ void ShootingScene::Update() {
     Vector3 farPos = TransformPoint({x, y, 1.0f}, invVP);
     Vector3 rayDir = Normalize(Subtract(farPos, nearPos));
 
+    // スウォーム群体への射撃コマンドを発行 (GPU判定)
+    if (swarmManager_) {
+      hasPendingSwarmAttack_ = true;
+      pendingSwarmAttack_.rayOrigin = { nearPos.x, nearPos.y, nearPos.z };
+      pendingSwarmAttack_.rayDirection = { rayDir.x, rayDir.y, rayDir.z };
+      pendingSwarmAttack_.rayRadius = 2.0f;
+      pendingSwarmAttack_.damage = 10.0f;
+    }
+
     // 最も手前（tが最小）にあるオブジェクトを判定（貫通防止）
     float closestT = (std::numeric_limits<float>::max)();
     enum class HitTargetType { None, Enemy, BlastProjectile };
@@ -1389,17 +1424,28 @@ void ShootingScene::Update() {
     }
 
     if (allEnemiesDead && isEffectFinished) {
-      phase_ = Phase::ClearVignette;
-      phaseTimer_ = 0.0f;
-      vignetteScale_ = 16.0f;
-      vignetteExponent_ = 0.8f;
-      damageEffectStrength_ = 0.0f;
+      if (phase_ == Phase::Playing) {
+        // レール終点でクリア条件達成時: 約100機のスウォームをプレイヤー周辺20m以内にスポーン！
+        phase_ = Phase::SwarmBattle;
+        swarmBattleTimer_ = 0.0f;
+        Vector3 camPos = camera_->GetTranslate();
+        if (swarmManager_) {
+          swarmManager_->SpawnDrones(100, { camPos.x, camPos.y, camPos.z }, 20.0f);
+        }
+      }
+    }
+  }
 
-      MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
-      MyGame::SetPostEffectStrength(1.0f);
-      PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
-      projectiles_.clear();
-      return;
+  // スウォーム（空中群体制御）のシミュレーション更新 (Compute Shader)
+  if (swarmManager_) {
+    const float kDeltaTime = 1.0f / 60.0f;
+    Vector3 camPos = camera_->GetTranslate();
+    DirectX::XMFLOAT3 playerPos = { camPos.x, camPos.y, camPos.z };
+    if (hasPendingSwarmAttack_) {
+      swarmManager_->Update(kDeltaTime, playerPos, camera_.get(), &pendingSwarmAttack_);
+      hasPendingSwarmAttack_ = false;
+    } else {
+      swarmManager_->Update(kDeltaTime, playerPos, camera_.get(), nullptr);
     }
   }
 
@@ -1813,6 +1859,61 @@ void ShootingScene::UpdateImGui_Object3d() {
     ImGui::TreePop();
   }
   ImGui::Separator();
+  if (swarmManager_ && ImGui::TreeNode("Swarm System (空中群体)")) {
+    auto& settings = swarmManager_->GetSettings();
+    ImGui::Text("Active: %s", swarmManager_->IsActive() ? "YES" : "NO");
+    ImGui::Text("Alive / Total: %u / %u", swarmManager_->GetAliveDroneCount(), swarmManager_->GetDroneCount());
+
+    if (ImGui::Button("Spawn Swarm (100 drones, 20m around player)")) {
+      Vector3 camPos = camera_->GetTranslate();
+      swarmManager_->SpawnDrones(100, { camPos.x, camPos.y, camPos.z }, 20.0f);
+      phase_ = Phase::SwarmBattle;
+      swarmBattleTimer_ = 0.0f;
+    }
+    if (ImGui::Button("Spawn in Front of Camera (50 drones, 15m ahead)")) {
+      Vector3 camPos = camera_->GetTranslate();
+      Vector3 spawnCenter = { camPos.x, camPos.y, camPos.z + 15.0f };
+      swarmManager_->SpawnDrones(50, { spawnCenter.x, spawnCenter.y, spawnCenter.z }, 8.0f);
+      phase_ = Phase::SwarmBattle;
+      swarmBattleTimer_ = 0.0f;
+    }
+
+    ImGui::SliderFloat("Drone Model Scale", &swarmManager_->GetDroneScale(), 0.2f, 5.0f, "%.2f");
+    ImGui::SliderFloat("Max Speed", &settings.maxSpeed, 1.0f, 40.0f, "%.1f");
+    ImGui::SliderFloat("Kamikaze Speed", &settings.kamikazeSpeed, 5.0f, 60.0f, "%.1f");
+    ImGui::SliderFloat("Attack Distance", &settings.attackDistance, 5.0f, 60.0f, "%.1f");
+    ImGui::Separator();
+    ImGui::SliderFloat("Neighbor Radius", &settings.neighborRadius, 2.0f, 30.0f, "%.1f");
+    ImGui::SliderFloat("Separation Dist", &settings.separationDist, 0.5f, 10.0f, "%.1f");
+    ImGui::SliderFloat("Separation Weight", &settings.separationWeight, 0.0f, 10.0f, "%.2f");
+    ImGui::SliderFloat("Alignment Weight", &settings.alignmentWeight, 0.0f, 5.0f, "%.2f");
+    ImGui::SliderFloat("Cohesion Weight", &settings.cohesionWeight, 0.0f, 5.0f, "%.2f");
+    ImGui::SliderFloat("Target Weight", &settings.targetWeight, 0.0f, 5.0f, "%.2f");
+    ImGui::Separator();
+    int maxRespawn = static_cast<int>(swarmManager_->GetMaxRespawnCount());
+    if (ImGui::DragInt("Max Respawn Count", &maxRespawn, 10, 0, 5000)) {
+      swarmManager_->SetMaxRespawnCount(static_cast<uint32_t>(maxRespawn));
+    }
+
+    // 各ドローン（先頭15機）の詳細状態表示
+    if (ImGui::TreeNode("Individual Drone Status (First 15)")) {
+      const auto& drones = swarmManager_->GetDronesData();
+      size_t displayCount = (drones.size() < 15) ? drones.size() : 15;
+      for (size_t i = 0; i < displayCount; ++i) {
+        const auto& d = drones[i];
+        const char* stateStr = "Cruise";
+        if (d.state == 1) stateStr = "Kamikaze";
+        else if (d.state == 2) stateStr = "Dead";
+
+        ImGui::Text("[%02zu] State: %-8s | HP: %4.1f | Pos: (%.1f, %.1f, %.1f) | Vel: (%.1f, %.1f, %.1f)",
+                    i, stateStr, d.hp, d.position.x, d.position.y, d.position.z,
+                    d.velocity.x, d.velocity.y, d.velocity.z);
+      }
+      ImGui::TreePop();
+    }
+    ImGui::TreePop();
+  }
+  ImGui::Separator();
   if (ImGui::TreeNode("Projectiles Status")) {
     ImGui::SliderFloat("Hit Shot Ratio (必中弾割合)", &hitShotRate_, 0.0f, 1.0f, "%.2f");
     ImGui::SliderFloat("Miss Shot Spread (演出弾の散布半径)", &missShotSpread_, 1.5f, 8.0f, "%.1f");
@@ -1880,6 +1981,8 @@ void ShootingScene::UpdateImGui_GameStatus() {
     }
   } else if (phase_ == Phase::RestartSmoothing) {
     ImGui::Text("Restarting...");
+  } else if (phase_ == Phase::SwarmBattle) {
+    ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.2f, 1.0f), "SWARM BATTLE! (%.1f s)", swarmBattleTimer_);
   } else {
     ImGui::ProgressBar(cameraProgress_ / maxProgress_, ImVec2(0.0f, 0.0f),
                        "Progress");
@@ -1926,6 +2029,11 @@ void ShootingScene::Draw() {
   // 3. 敵弾オブジェクトの描画
   for (auto &p : projectiles_)
     p->Draw(0);
+
+  // 3.5 スウォーム群体（空中ドローン群）のGPU Instancing描画
+  if (swarmManager_) {
+    swarmManager_->Draw(camera_.get());
+  }
 
   // 4.
   // 背景スカイボックスの描画（描画状態切り替えによる競合を防ぐため、常に不透明3Dの後に描画する）

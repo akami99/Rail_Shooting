@@ -202,6 +202,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="DirectXGame\Engine\Scene\SceneManager.cpp" />
     <ClCompile Include="DirectXGame\Engine\Scene\SceneFactory.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\SkyBox\SkyBox.cpp" />
+    <ClCompile Include="DirectXGame\Engine\Graphics\Swarm\SwarmManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Resources\Shaders\CopyImage.PS.hlsl">
@@ -417,6 +418,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="DirectXGame\Engine\Scene\SceneManager.h" />
     <ClInclude Include="DirectXGame\Engine\Scene\SceneFactory.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\SkyBox\SkyBox.h" />
+    <ClInclude Include="DirectXGame\Engine\Graphics\Swarm\SwarmTypes.h" />
+    <ClInclude Include="DirectXGame\Engine\Graphics\Swarm\SwarmManager.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="externals\DirectXTex\DirectXTex_Desktop_2022_Win10.vcxproj">
@@ -432,6 +435,10 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="Resources\Shaders\Skybox.hlsli" />
     <None Include="Resources\Shaders\SpriteCommon.hlsli" />
     <None Include="Resources\Shaders\Utility\HSV.hlsli" />
+    <None Include="Resources\Shaders\Swarm\SwarmCommon.hlsli" />
+    <None Include="Resources\Shaders\Swarm\SwarmSimulate.CS.hlsl" />
+    <None Include="Resources\Shaders\Swarm\SwarmDraw.VS.hlsl" />
+    <None Include="Resources\Shaders\Swarm\SwarmDraw.PS.hlsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
