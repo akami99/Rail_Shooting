@@ -383,7 +383,7 @@ void TitleScene::UpdateCrosshairAndRaycast()
         // START看板との判定 (幅3.0m, 高さ1.5m, 奥行0.3m)
         if (startBoardObject_ && startBoardObjectSettings_.state_ == TargetState::Standing) {
             Vector3 startBoardCenter = startBoardObject_->GetTranslate();
-            startBoardCenter.y += startBoardObjectSettings_.aabbSize_.y * 0.5f; // 高さの中心を計算
+            startBoardCenter.y += startBoardObjectSettings_.aabbSize_.y * 0.5f + 0.75f; // 高さの中心を計算
             AABB box = MakeAABB(startBoardCenter, startBoardObjectSettings_.aabbSize_);
             if (IntersectRayAABB(nearPos, rayDir, box, t) && t < closestT) {
                 closestT = t;
