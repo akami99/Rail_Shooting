@@ -71,6 +71,7 @@ void ShootingScene::Initialize() {
   isMovementPaused_ = false;
   Vector3 startCamPos = CalculateRailPosition(cameraProgress_);
   camera_->SetTranslate(startCamPos);
+  camera_->SetFovY(cameraFovY_ * (std::numbers::pi_v<float> / 180.0f));
 
   if (levelData_ && !levelData_->players.empty()) {
     const auto &spawn = levelData_->players[0];
@@ -1440,7 +1441,7 @@ void ShootingScene::Update() {
   if (swarmManager_) {
     const float kDeltaTime = 1.0f / 60.0f;
     Vector3 camPos = camera_->GetTranslate();
-    DirectX::XMFLOAT3 playerPos = { camPos.x, camPos.y, camPos.z };
+    Vector3 playerPos = { camPos.x, camPos.y, camPos.z };
     if (hasPendingSwarmAttack_) {
       swarmManager_->Update(kDeltaTime, playerPos, camera_.get(), &pendingSwarmAttack_);
       hasPendingSwarmAttack_ = false;
@@ -1806,6 +1807,9 @@ void ShootingScene::UpdateImGui_GameCamera() {
       camera_->SetRotate(camRot);
       cameraYaw_ = camRot.y;
     }
+    if (ImGui::DragFloat("FOV", &cameraFovY_, 0.1f, 10.0f, 120.0f)) {
+      camera_->SetFovY(cameraFovY_ * (std::numbers::pi_v<float> / 180.0f));
+    }
     ImGui::Separator();
     ImGui::Text("Camera Shake");
     ImGui::SliderFloat("Shake Intensity", &cameraShakeIntensity_, 0.0f, 1.0f, "%.2f");
@@ -1880,7 +1884,7 @@ void ShootingScene::UpdateImGui_Object3d() {
 
     ImGui::SliderFloat("Drone Model Scale", &swarmManager_->GetDroneScale(), 0.2f, 5.0f, "%.2f");
     ImGui::SliderFloat("Max Speed", &settings.maxSpeed, 1.0f, 40.0f, "%.1f");
-    ImGui::SliderFloat("Kamikaze Speed", &settings.kamikazeSpeed, 5.0f, 60.0f, "%.1f");
+    ImGui::SliderFloat("Charge Speed", &settings.kamikazeSpeed, 5.0f, 60.0f, "%.1f");
     ImGui::SliderFloat("Attack Distance", &settings.attackDistance, 5.0f, 60.0f, "%.1f");
     ImGui::Separator();
     ImGui::SliderFloat("Neighbor Radius", &settings.neighborRadius, 2.0f, 30.0f, "%.1f");
@@ -1902,7 +1906,7 @@ void ShootingScene::UpdateImGui_Object3d() {
       for (size_t i = 0; i < displayCount; ++i) {
         const auto& d = drones[i];
         const char* stateStr = "Cruise";
-        if (d.state == 1) stateStr = "Kamikaze";
+        if (d.state == 1) stateStr = "Charge";
         else if (d.state == 2) stateStr = "Dead";
 
         ImGui::Text("[%02zu] State: %-8s | HP: %4.1f | Pos: (%.1f, %.1f, %.1f) | Vel: (%.1f, %.1f, %.1f)",

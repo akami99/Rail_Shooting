@@ -655,3 +655,16 @@ void Model::SetDissolveParams(int32_t enable, float threshold, float edgeRange, 
     materialData_->dissolveEdgeColor = edgeColor;
   }
 }
+
+void Model::SetTextureFilePath(const std::string &filePath) {
+  modelData_.material.textureFilePath = filePath;
+  TextureManager::GetInstance()->LoadTexture(filePath);
+}
+
+void Model::SetUvScale(const Vector2 &uvScale) {
+    if (materialData_ == nullptr) {
+        Logger::Log("ERROR: Material data is not initialized.");
+        return;
+    }
+    materialData_->uvTransform = MakeScaleMatrix(Vector3(uvScale.x, uvScale.y, 1.0f));
+}

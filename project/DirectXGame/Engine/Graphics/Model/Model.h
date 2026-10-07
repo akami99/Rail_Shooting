@@ -82,6 +82,13 @@ public: // メンバ関数
     return materialData_->environmentCoefficient;
   }
 
+  // Dissolveのゲッター
+  int32_t GetDissolveEnable() const { return materialData_ ? materialData_->enableDissolve : 0; }
+  float GetDissolveThreshold() const { return materialData_ ? materialData_->dissolveThreshold : 0.0f; }
+  float GetDissolveEdgeRange() const { return materialData_ ? materialData_->dissolveEdgeRange : 0.0f; }
+  Vector3 GetDissolveEdgeColor() const { return materialData_ ? materialData_->dissolveEdgeColor : Vector3{0.0f,0.0f,0.0f}; }
+  const std::string& GetDissolveMaskTexturePath() const { return dissolveMaskFilePath_; }
+
   // バッファビューの取得
   const D3D12_VERTEX_BUFFER_VIEW &GetVertexBufferView() const { return vertexBufferView_; }
   const D3D12_INDEX_BUFFER_VIEW &GetIndexBufferView() const { return indexBufferView_; }
@@ -113,12 +120,11 @@ public: // メンバ関数
   void SetDissolveMaskTexture(const std::string &filePath);
   void SetDissolveParams(int32_t enable, float threshold, float edgeRange, const Vector3 &edgeColor);
 
-  // Dissolveのゲッター
-  int32_t GetDissolveEnable() const { return materialData_ ? materialData_->enableDissolve : 0; }
-  float GetDissolveThreshold() const { return materialData_ ? materialData_->dissolveThreshold : 0.0f; }
-  float GetDissolveEdgeRange() const { return materialData_ ? materialData_->dissolveEdgeRange : 0.0f; }
-  Vector3 GetDissolveEdgeColor() const { return materialData_ ? materialData_->dissolveEdgeColor : Vector3{0.0f,0.0f,0.0f}; }
-  const std::string& GetDissolveMaskTexturePath() const { return dissolveMaskFilePath_; }
+  // テクスチャパスの設定
+  void SetTextureFilePath(const std::string &filePath);
+
+  // UVスケールの設定
+  void SetUvScale(const Vector2 &uvScale);
 
 private: // メンバ関数
   // .objファイルの読み取り

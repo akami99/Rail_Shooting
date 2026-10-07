@@ -31,9 +31,8 @@ PixelShaderOutput main(VertexShaderOutput input) {
         edge = 1.0f - smoothstep(gMaterial.dissolveThreshold, gMaterial.dissolveThreshold + gMaterial.dissolveEdgeRange, mask);
     }
     
-    //float4 transformedUV = mul(float4(input.texcoord, 0.0f, 1.0f), gMaterial.uvTransform);
-    //float4 textureColor = gTexture.Sample(gSampler, transformedUV.xy);
-    float4 textureColor = gTexture.Sample(gSampler, input.texcoord);
+    float4 transformedUV = mul(float4(input.texcoord, 0.0f, 1.0f), gMaterial.uvTransform);
+    float4 textureColor = gTexture.Sample(gSampler, transformedUV.xy);
     
     // アルファテスト(2値抜き)
     if (textureColor.a <= gMaterial.alphaReference) {

@@ -40,6 +40,12 @@ private: // メンバ変数
   Transform transform_ = {
       {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}};
 
+  // 上書き用テクスチャ
+  std::string overrideTexturePath_;
+
+  // UVスケール
+  Vector2 uvScale_ = {1.0f, 1.0f};
+
 public: // メンバ関数
     ~Object3d();
   // 初期化
@@ -67,6 +73,8 @@ public: // getter
   const Vector3 &GetRotation() const { return transform_.rotate; }
   // スケールの取得
   const Vector3 &GetScale() const { return transform_.scale; }
+  // UVスケールの取得
+  const Vector2 &GetUvScale() const { return uvScale_; }
 
 #ifdef USE_IMGUI
   // モデルの取得
@@ -91,4 +99,10 @@ public: // setter
   void SetRotation(const Vector3 &rotation) { transform_.rotate = rotation; }
   // スケールの設定
   void SetScale(const Vector3 &scale) { transform_.scale = scale; }
+
+  // 上書き用テクスチャの設定
+  void SetOverrideTexturePath(const std::string &filePath) { overrideTexturePath_ = filePath; }
+
+  // UVスケールの設定
+  void SetUvScale(const Vector2 &uvScale) { uvScale_ = uvScale; }
 };

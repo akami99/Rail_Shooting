@@ -15,7 +15,7 @@ private: // メンバ変数
   Matrix4x4 viewMatrix_{};
   // 透視投影行列
   Matrix4x4 projectionMatrix_{};
-  // 水平方向視野角
+  // 垂直方向視野角
   float fovY_{};
   // アスペクト比
   float aspectRatio_{};
@@ -75,7 +75,7 @@ public: // メンバ関数
   void SetTranslate(const Vector3 &translate) {
     transform_.translate = translate;
   }
-  // 水平方向視野角の設定
+  // 垂直方向視野角の設定
   void SetFovY(const float &fovY) { fovY_ = fovY; }
   // アスペクト比の設定
   void SetAspectRatio(const float &aspectRatio) { aspectRatio_ = aspectRatio; }

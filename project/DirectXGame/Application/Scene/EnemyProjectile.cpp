@@ -84,6 +84,15 @@ void EnemyProjectile::Initialize(const Vector3& position, const Vector3& velocit
     
     object_->SetTranslate(position_);
     object_->SetScale({radius_, radius_, radius_});
+    float speed = MathUtils::Length(velocity_);
+    if (speed > 0.0001f) {
+        Vector3 dir = MathUtils::Normalize(velocity_);
+        // 水平方向(Y軸回転)と上下方向(X軸回転)を算出
+        float yaw = std::atan2(-dir.x, -dir.z);
+        float xzLen = std::sqrt(dir.x * dir.x + dir.z * dir.z);
+        float pitch = std::atan2(dir.y, xzLen);
+        object_->SetRotation({ pitch, yaw, 0.0f });
+    }
 }
 
 void EnemyProjectile::Update() {

@@ -75,17 +75,21 @@ void Object3d::Update(uint32_t viewIndex, Camera* camera) {
 // 描画処理
 void Object3d::Draw(uint32_t viewIndex) {
     assert(viewIndex < kMaxViews);
-    
+
     // 変換行列CBVの設定
     DX12Context::GetInstance()
-      ->GetCommandList()
-      ->SetGraphicsRootConstantBufferView(
-          1, transformationMatrixResources_[viewIndex]->GetGPUVirtualAddress());
+        ->GetCommandList()
+        ->SetGraphicsRootConstantBufferView(
+            1, transformationMatrixResources_[viewIndex]->GetGPUVirtualAddress());
 
-  // 描画コマンド
-  if (model_) {
-    model_->Draw();
-  }
+    // 描画コマンド
+    if (model_) {
+        if (!overrideTexturePath_.empty()) {
+            model_->SetTextureFilePath(overrideTexturePath_);
+        }
+        model_->SetUvScale(uvScale_);
+        model_->Draw();
+    }
 }
 
 void Object3d::SetModel(const std::string &filepath) {

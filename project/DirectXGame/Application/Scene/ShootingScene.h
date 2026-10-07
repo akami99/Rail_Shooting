@@ -122,6 +122,7 @@ private:
   float cameraBasePitch_ = 0.0f; // カメラの基準X軸回転
   float cameraYaw_ = 0.0f;       // カメラのY軸回転（ラジアン、90度ずつ変化）
   float cameraBaseRoll_ = 0.0f;  // カメラの基準Z軸回転
+  float cameraFovY_ = 45.0f;     // カメラのFOV (Y軸方向)
 
   // パーティクル設定など
   int currentBlendMode_ = 1; // NormalBlend

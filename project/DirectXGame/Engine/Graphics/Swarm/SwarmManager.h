@@ -13,14 +13,14 @@ class SwarmManager {
 public:
     // カメラ変換用定数バッファ
     struct CameraTransformBuffer {
-        DirectX::XMFLOAT4X4 viewProjection;
-        DirectX::XMFLOAT3 cameraPosition;
+        Matrix4x4 viewProjection;
+        Vector3 cameraPosition;
         float droneScale = 1.5f;
     };
 
     struct AttackCommand {
-        DirectX::XMFLOAT3 rayOrigin = { 0.0f, 0.0f, 0.0f };
-        DirectX::XMFLOAT3 rayDirection = { 0.0f, 0.0f, 1.0f };
+        Vector3 rayOrigin = { 0.0f, 0.0f, 0.0f };
+        Vector3 rayDirection = { 0.0f, 0.0f, 1.0f };
         float rayRadius = 2.0f;
         float damage = 0.0f;
     };
@@ -35,13 +35,13 @@ public:
                     const std::string& modelFilename = "enemy.obj");
 
     // シミュレーション更新 (Compute Shader)
-    void Update(float deltaTime, const DirectX::XMFLOAT3& playerPos, Camera* camera, const AttackCommand* attackCmd = nullptr);
+    void Update(float deltaTime, const Vector3 & playerPos, Camera* camera, const AttackCommand* attackCmd = nullptr);
 
     // 描画 (GPU Instancing)
     void Draw(Camera* camera);
 
     // ドローンのスポーン（指定位置を中心に半径radius以内にcount機を配置）
-    void SpawnDrones(uint32_t count, const DirectX::XMFLOAT3& centerPos, float radius = 20.0f);
+    void SpawnDrones(uint32_t count, const Vector3 & centerPos, float radius = 20.0f);
 
     // スウォームがアクティブ（スポーン済み）か
     bool IsActive() const { return isActive_; }

@@ -292,7 +292,7 @@ void SwarmManager::InitializeModel(const std::string& directory, const std::stri
 }
 
 void SwarmManager::Update(float deltaTime,
-                          const DirectX::XMFLOAT3& playerPos,
+                          const Vector3 & playerPos,
                           Camera* camera,
                           const AttackCommand* attackCmd) {
     if (!isActive_) {
@@ -440,7 +440,7 @@ void SwarmManager::Draw(Camera* camera) {
     commandList->DrawIndexedInstanced(droneModel_->GetIndexCount(), droneCount_, 0, 0, 0);
 }
 
-void SwarmManager::SpawnDrones(uint32_t count, const DirectX::XMFLOAT3& centerPos, float radius) {
+void SwarmManager::SpawnDrones(uint32_t count, const Vector3 & centerPos, float radius) {
     uint32_t actualCount = (count <= droneCount_) ? count : droneCount_;
 
     // パラメータをプレイヤー周辺radius以内の移動に設定
