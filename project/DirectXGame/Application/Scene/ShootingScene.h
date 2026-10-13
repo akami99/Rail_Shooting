@@ -37,8 +37,8 @@ public:
   };
 
 private:
-  // シーン描画のヘルパー
-  void DrawScene(Camera *camera);
+  // 敵の出現位置を計算する関数
+  Vector3 CalculateRingRotation(const Vector3 &direction);
 
 #ifdef USE_IMGUI
   // ImGui操作の更新
@@ -93,6 +93,7 @@ private:
     float spawnTimer = 0.0f; // 出現タイマー
     int shootCount = 0; // 射撃回数カウンター
     int hitShotCount = 0; // 必中弾カウンター (属性弾ローテーション用)
+    bool isNextHitShot = false; // 次回射撃が必中弾かどうか (予兆リング表示用)
     EnemyType type = EnemyType::Normal; // 敵のタイプ
   };
 
@@ -122,7 +123,7 @@ private:
   float cameraBasePitch_ = 0.0f; // カメラの基準X軸回転
   float cameraYaw_ = 0.0f;       // カメラのY軸回転（ラジアン、90度ずつ変化）
   float cameraBaseRoll_ = 0.0f;  // カメラの基準Z軸回転
-  float cameraFovY_ = 45.0f;     // カメラのFOV (Y軸方向)
+  float cameraFovY_ = 45.0f;     // カメラのFOV
 
   // パーティクル設定など
   int currentBlendMode_ = 1; // NormalBlend
@@ -132,11 +133,12 @@ private:
 
   // プロジェクタイル管理
   std::vector<std::unique_ptr<EnemyProjectile>> projectiles_;
-  float speed_ = 0.45f;                            // 通常弾の速度 (少し速め)
+  float speed_ = 1.2f;                            // 通常弾の速度 (少し速め)
   float engineerProjectileSpeed_ = 0.18f;          // 工兵爆発弾の速度 (ロケット弾イメージで遅め)
   float projectileSpawnTimer_ = 0.0f;
   const float kProjectileSpawnInterval = 120.0f;   // 通常敵の発射間隔 (約2秒)
   const float kEngineerSpawnInterval = 200.0f;     // 工兵の発射間隔 (約3.3秒、ロケット弾イメージで遅め)
+  const float kChargeDuration = 36.0f;             // 予兆リング表示・縮小時間 (0.6秒 = 36フレーム)
 
   // ダメージ効果（グレースケール）
   float damageEffectStrength_ = 0.0f;

@@ -23,8 +23,11 @@ ShootingScene::ShootingScene() = default;
 ShootingScene::~ShootingScene() = default;
 
 void ShootingScene::Initialize() {
-  // 完成版ではマウスカーソルを非表示にする
-  // ShowCursor(FALSE);
+#ifdef USE_IMGUI
+    ShowCursor(TRUE);
+#else
+    ShowCursor(FALSE);
+#endif
 
   // レベルデータのロード
   levelData_ = LevelLoader::LoadFile("testScene");
@@ -386,6 +389,56 @@ void ShootingScene::Initialize() {
   setupBulletTrailGroup("BulletTrail_Blast", 0.65f, 0.16f, { 1.0f, 0.75f, 0.1f, 0.9f }, { 1.0f, 0.4f, 0.0f, 0.8f });
   setupBulletTrailGroup("BulletTrail_Jamming", 0.45f, 0.12f, { 0.1f, 0.65f, 1.0f, 0.9f }, { 0.0f, 0.3f, 0.9f, 0.75f });
 
+  // 敵射撃チャージ用リンググループ
+  ParticleManager::GetInstance()->CreateParticleGroup("EnemyChargeRing", "Particles/gradationLine.png");
+  {
+    Transform t = { {1.0f, 1.0f, 1.0f}, {0.040f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+    ParticleEmitter emitter(t, 1, 0.400f);
+    emitter.isEmit = false;
+    emitter.isEffectMode = false;
+    emitter.isLoop = false;
+
+    emitter.generateSettings.isRandomScale = false;
+    emitter.generateSettings.fixedScale = { 1.0f, 1.0f, 1.0f };
+    emitter.generateSettings.isRandomRotate = false;
+    emitter.generateSettings.fixedRotate = { -1.190f, 0.0f, 0.0f };
+    emitter.generateSettings.isRandomVelocity = false;
+    emitter.generateSettings.fixedVelocity = { 0.0f, 0.0f, 0.0f };
+    emitter.generateSettings.isRandomLifeTime = false;
+    emitter.generateSettings.fixedLifeTime = 1.0f;
+    emitter.generateSettings.isRandomColor = false;
+    emitter.generateSettings.fixedColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+
+    emitter.fieldSettings.isAccelerationFieldActive = false;
+    emitter.fieldSettings.isGravityFieldActive = false;
+
+    emitter.uvAnimationSettings.isActive = true;
+    emitter.uvAnimationSettings.isIndividual = false;
+    emitter.uvAnimationSettings.scrollSpeed = { 0.300f, 0.0f };
+    emitter.uvAnimationSettings.rotateSpeed = 0.0f;
+    emitter.uvAnimationSettings.scaleSpeed = { 0.0f, 0.0f };
+
+    emitter.SetShapeType(ParticleShapeType::Cylinder);
+    if (auto* cs = emitter.GetCylinderShape()) {
+      cs->settings.height = 10.0f;
+      cs->settings.topRadius = { 1.0f, 1.0f };
+      cs->settings.bottomRadius = { 0.0f, 0.0f };
+      cs->settings.startAngle = 0.0f;
+      cs->settings.endAngle = 360.0f;
+      cs->settings.division = 32;
+      cs->settings.verticalDivision = 1;
+      cs->settings.isUvSwap = false;
+      cs->settings.flipV = true;
+      cs->settings.topColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+      cs->settings.bottomColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+      cs->settings.fadeStartAlpha = 1.0f;
+      cs->settings.fadeEndAlpha = 1.0f;
+      cs->settings.fadeRange = 0.0f;
+      cs->settings.alphaReference = 0.300f;
+    }
+    ParticleManager::GetInstance()->SetEmitter("EnemyChargeRing", emitter);
+  }
+
   // 初期化直後の余分なパーティクル描画を防ぐため全パーティクルをクリア
   ParticleManager::GetInstance()->ClearAllParticles();
 
@@ -435,12 +488,15 @@ void ShootingScene::Initialize() {
       enemy.isDead = false;
       enemy.shootTimer = 0.0f;
       enemy.spawnTimer = 0.0f;
+      float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
+      enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
       enemies_.push_back(std::move(enemy));
     }
     
     // 3体目の敵（インデックス2）を工兵（Engineer）タイプに設定
     if (enemies_.size() >= 3) {
       enemies_[2].type = EnemyType::Engineer;
+      enemies_[2].isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < 0.75f);
       // 工兵のモデルカラーを爆発物イメージの黄色系に変更
       if (enemies_[2].model) {
         enemies_[2].model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
@@ -783,6 +839,8 @@ void ShootingScene::Update() {
         enemy.shootCount = 0;
         enemy.hitShotCount = 0;
         enemy.spawnTimer = 0.0f;
+        float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
+        enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
         enemy.object->SetTranslate(enemy.basePosition);
         enemy.object->SetRotation(enemy.baseRotation);
         // 敵のタイプに応じたモデルカラーの再適用
@@ -968,6 +1026,9 @@ void ShootingScene::Update() {
     cameraBaseRoll_ + shakeRotOffset.z
   });
 
+  // 敵の射撃予兆リンググループを毎フレームリセット
+  ParticleManager::GetInstance()->ClearParticles("EnemyChargeRing");
+
   // 各エネミーの更新と射撃処理
   for (auto &enemy : enemies_) {
     if (!enemy.isActive || enemy.isDead)
@@ -989,20 +1050,48 @@ void ShootingScene::Update() {
 
     // 出現完了するまでは射撃を行わない
     if (enemy.spawnTimer >= 1.0f) {
-      // 射撃処理
-      enemy.shootTimer += 1.0f;
       float spawnInterval = (enemy.type == EnemyType::Engineer) ? kEngineerSpawnInterval : kProjectileSpawnInterval;
+      float chargeStart = spawnInterval - kChargeDuration; // 発射前0.6秒（36フレーム前）
+
+      // 次回が必中弾（プレイヤーに当たる弾）の場合のみ、発射前0.6秒間にリングを射出口に表示し、徐々に縮小させる
+      if (enemy.isNextHitShot && enemy.shootTimer >= chargeStart && enemy.shootTimer < spawnInterval) {
+        float t = (enemy.shootTimer - chargeStart) / kChargeDuration; // 0.0 -> 1.0
+        if (t < 0.0f) t = 0.0f;
+        if (t > 1.0f) t = 1.0f;
+
+        // リングの縮小率 (1.0 -> 0.0)
+        float shrinkRate = 1.0f - t;
+        Vector3 ringScale = { shrinkRate * 2.5f, shrinkRate * 1.0f, shrinkRate * 2.5f };
+
+        Vector3 startPos = enemy.object->GetTranslate();
+        Vector3 playerPos = CalculateRailPosition(cameraProgress_);
+        Vector3 dir = Normalize(Subtract(playerPos, startPos));
+        Vector3 muzzlePos = Add(startPos, Multiply(1.2f, dir)); // 敵の前方（射出口）
+
+        Vector3 ringRot = CalculateRingRotation(dir);
+
+        // 弾種に応じたカラー (通常必中弾:赤, 工兵爆発弾:黄, ジャミング弾:青)
+        Vector4 ringColor = { 1.0f, 0.0f, 0.0f, 1.0f }; // 赤
+        if (enemy.type == EnemyType::Engineer) {
+          ringColor = { 1.0f, 0.8f, 0.1f, 1.0f };       // 工兵爆発弾 (黄)
+        } else if ((enemy.hitShotCount + 1) % 2 == 0) {
+          ringColor = { 0.1f, 0.65f, 1.0f, 1.0f };      // ジャミング弾 (青)
+        }
+
+        ParticleManager::GetInstance()->EmitCustom("EnemyChargeRing", muzzlePos, ringRot, ringScale, ringColor, 1.0f);
+      }
+
+      // 射撃タイマー加算
+      enemy.shootTimer += 1.0f;
       if (enemy.shootTimer >= spawnInterval) {
-        enemy.shootTimer = 0.0f;
+        enemy.shootTimer = 0.0f; // リセットにより次フレームでリングは即座に消失
         Vector3 startPos = enemy.object->GetTranslate();
         Vector3 playerPos = CalculateRailPosition(cameraProgress_);
         
         enemy.shootCount++;
         
-        // 必中弾か演出弾かの判定 (タイプごとの確率判定)
-        float currentHitShotRate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
-        float randVal = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-        bool isHitShot = (randVal < currentHitShotRate);
+        // 事前抽選されていた判定を使用 (必中弾か演出弾か)
+        bool isHitShot = enemy.isNextHitShot;
         
         Vector3 targetPos = playerPos;
         EnemyProjectile::Type pType = EnemyProjectile::Type::Normal;
@@ -1045,6 +1134,11 @@ void ShootingScene::Update() {
         auto newProjectile = std::make_unique<EnemyProjectile>();
         newProjectile->Initialize(startPos, velocity, pType);
         projectiles_.push_back(std::move(newProjectile));
+
+        // 次回撃つ弾が必中弾かどうかを事前抽選
+        float nextHitRate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
+        float nextRand = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+        enemy.isNextHitShot = (nextRand < nextHitRate);
       }
     }
 
@@ -1601,6 +1695,35 @@ void ShootingScene::Update() {
   ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
 }
 
+Vector3 ShootingScene::CalculateRingRotation(const Vector3 &direction)
+{
+    Vector3 forward = direction;
+    Vector3 up = { 0.0f, 1.0f, 0.0f };
+    if (std::abs(forward.y) > 0.99f) {
+        up = { 0.0f, 0.0f, 1.0f };
+    }
+    Vector3 right = Normalize(Cross(up, forward));
+    up = Cross(forward, right);
+
+    // Cylinderの円筒軸（ローカルY軸）を射出方向(forward)に向ける回転行列
+    Matrix4x4 m = MathGenerators::MakeIdentity4x4();
+    m.m[0][0] = right.x;   m.m[0][1] = right.y;   m.m[0][2] = right.z;
+    m.m[1][0] = forward.x; m.m[1][1] = forward.y; m.m[1][2] = forward.z;
+    m.m[2][0] = up.x;      m.m[2][1] = up.y;      m.m[2][2] = up.z;
+
+    float pitch = std::asin(-m.m[2][1]);
+    float yaw = 0.0f;
+    float roll = 0.0f;
+    if (std::cos(pitch) > 0.0001f) {
+        yaw = std::atan2(m.m[2][0], m.m[2][2]);
+        roll = std::atan2(m.m[0][1], m.m[1][1]);
+    } else {
+        yaw = std::atan2(-m.m[1][0], m.m[0][0]);
+        roll = 0.0f;
+    }
+    return { pitch, yaw, roll };
+}
+
 #ifdef USE_IMGUI
 // ImGui操作の更新
 void ShootingScene::UpdateImGui() {
@@ -1714,6 +1837,8 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
         enemy.shootCount = 0;
         enemy.hitShotCount = 0;
         enemy.spawnTimer = 0.0f;
+        float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
+        enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
         enemy.object->SetTranslate(enemy.basePosition);
         enemy.object->SetRotation(enemy.baseRotation);
         // 敵のタイプに応じたモデルカラーの再適用
@@ -2232,6 +2357,8 @@ void ShootingScene::JumpToSection(int index) {
       enemy.isActive = false;
       enemy.shootTimer = 0.0f;
       enemy.spawnTimer = 0.0f;
+      float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
+      enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
       enemy.object->SetTranslate(enemy.basePosition);
       enemy.object->SetRotation(enemy.baseRotation);
       if (enemy.model) {
