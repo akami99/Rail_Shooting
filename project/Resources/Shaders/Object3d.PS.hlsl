@@ -143,10 +143,14 @@ PixelShaderOutput main(VertexShaderOutput input) {
         // ===============================================
         //  環境マップ (Environment Map) の計算
         // ===============================================
-        float3 cameraToPosition = normalize(input.worldPosition - gCamera.worldPosition);
-        float3 reflectedVector = reflect(cameraToPosition, normal);
-        float4 environmentColor = gEnvironmentTexture.Sample(gSampler, reflectedVector);
-        float3 environmentReflection = environmentColor.rgb * gMaterial.environmentCoefficient;
+        float3 environmentReflection = float3(0.0f, 0.0f, 0.0f);
+        if (gMaterial.environmentCoefficient > 0.0f)
+        {
+            float3 cameraToPosition = normalize(input.worldPosition - gCamera.worldPosition);
+            float3 reflectedVector = reflect(cameraToPosition, normal);
+            float4 environmentColor = gEnvironmentTexture.Sample(gSampler, reflectedVector);
+            environmentReflection = environmentColor.rgb * gMaterial.environmentCoefficient;
+        }
 
         // ===============================================
         //  最終合成
@@ -172,4 +176,4 @@ PixelShaderOutput main(VertexShaderOutput input) {
     }
     
     return output;
-}
+}

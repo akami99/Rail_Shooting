@@ -84,7 +84,7 @@ void RAFramework::Run() {
     // 描画
     Draw();
 
-    if (Input::GetInstance()->IsKeyTriggered(DIK_ESCAPE)) {
+    if (Input::GetInstance()->IsKeyTriggered(DIK_F4)) {
       break;
     }
   }

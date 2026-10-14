@@ -38,6 +38,10 @@ private: // メンバ変数
   ComPtr<ID3D12PipelineState>
       psoArray_[BlendMode::BlendState::kCountOfBlendMode];
 
+  // ワイヤーフレーム用のグラフィックスパイプラインステート
+  ComPtr<ID3D12PipelineState>
+      psoWireframeArray_[BlendMode::BlendState::kCountOfBlendMode];
+
   // 環境マップ
   uint32_t environmentMapSrvIndex_ = 0;
 
@@ -54,8 +58,8 @@ public: // メンバ関数
   // 終了
   void Finalize();
 
-  // 共通描画設定
-  void SetCommonDrawSettings(BlendMode::BlendState currentBlendMode);
+  // 共通描画設定(ブレンドモード, ワイヤーフレーム)
+  void SetCommonDrawSettings(BlendMode::BlendState currentBlendMode, bool isWireframe = false);
   // getter
 
   // デフォルトカメラの取得

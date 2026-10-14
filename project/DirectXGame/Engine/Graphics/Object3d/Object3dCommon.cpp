@@ -53,6 +53,11 @@ void Object3dCommon::Initialize() {
   rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK; // 背面カリング <==== ※本来はこっち
 #endif // _DEBUG
 
+  // ワイヤーフレーム用のラスタライザステート
+  D3D12_RASTERIZER_DESC wireframeRasterizerDesc = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+  wireframeRasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME; // ワイヤーフレーム描画
+  wireframeRasterizerDesc.CullMode = D3D12_CULL_MODE_NONE; // 裏面の線も表示する
+
 
   // デプスステンシルステート
   D3D12_DEPTH_STENCIL_DESC depthStencilDesc =
@@ -64,15 +69,21 @@ void Object3dCommon::Initialize() {
 
   // パイプラインマネージャを使って、ブレンドモードごとのPSOを生成
   for (size_t i = 0; i < kCountOfBlendMode; ++i) {
-      // ★ここがポイント：半透明描画の場合は深度書き込みを禁止する
+      // 半透明描画の場合は深度書き込みを禁止する
       if (i == kBlendModeNone || i == kBlendModeNormal) {
           depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL; // 書き込み有効
       } else {
           depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO; // 書き込み無効
       }
 
+      // PSOを生成して配列に格納
       psoArray_[i] = PipelineManager::GetInstance()->CreateObject3dPSO(
           inputLayout, _countof(inputLayout), rasterizerDesc, depthStencilDesc,
+          blendDescs[i]);
+
+      // ワイヤーフレーム用
+      psoWireframeArray_[i] = PipelineManager::GetInstance()->CreateObject3dPSO(
+          inputLayout, _countof(inputLayout), wireframeRasterizerDesc, depthStencilDesc,
           blendDescs[i]);
   }
 }
@@ -84,14 +95,21 @@ void Object3dCommon::Finalize() {
     instance_.reset();
 }
 
-void Object3dCommon::SetCommonDrawSettings(BlendState currentBlendMode) {
+void Object3dCommon::SetCommonDrawSettings(BlendState currentBlendMode, bool isWireframe) {
   // ルートシグネチャ、PSO、トポロジの設定
   DX12Context::GetInstance()->GetCommandList()->SetGraphicsRootSignature(
       PipelineManager::GetInstance()->Get3DRootSignature());
   if (currentBlendMode >= 0 && currentBlendMode < kCountOfBlendMode) {
     // PSOを設定
-    DX12Context::GetInstance()->GetCommandList()->SetPipelineState(
-        psoArray_[currentBlendMode].Get());
+      if (isWireframe) {
+          // ワイヤーフレーム用のPSOを設定
+          DX12Context::GetInstance()->GetCommandList()->SetPipelineState(
+              psoWireframeArray_[currentBlendMode].Get());
+      } else {
+          // 通常のPSOを設定
+          DX12Context::GetInstance()->GetCommandList()->SetPipelineState(
+              psoArray_[currentBlendMode].Get());
+      }
   } else {
     // 不正な値の場合
     DX12Context::GetInstance()->GetCommandList()->SetPipelineState(

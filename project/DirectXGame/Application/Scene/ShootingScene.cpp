@@ -461,6 +461,8 @@ void ShootingScene::Initialize() {
   floorObject_->SetRotation(floorSettings_.rotation);
   floorObject_->SetScale(floorSettings_.scale);
   floorObject_->SetCamera(camera_.get());
+  floorObject_->SetDissolveMaskTexture("masks/noise0.png");
+  floorObject_->SetDissolveParams(1, 1.0f, 0.05f, kTransitionEdgeColor);
 
   // レベルデータから敵キャラを生成・配置
   enemies_.clear();
@@ -532,9 +534,14 @@ void ShootingScene::Initialize() {
   isCovering_ = false;
   reloadTimer_ = 0.0f;
 
-  // 初期フェーズの設定
-  phase_ = Phase::Playing;
+  // 初期フェーズの設定（入場・逆順展開演出から開始）
+  phase_ = Phase::IntroConstruct;
+  phaseTimer_ = 0.0f;
   hitCount_ = 0;
+
+  // 入場演出開始時：画面全体を完全ブラックアウト（暗転）状態に設定
+  PostProcessManager::SetMode(PostProcessManager::kModeVignette);
+  PostProcessManager::SetVignetteParams(0.0f, 5.0f);
 
   // -----------------------------------------------------------------
   // UIスプライトの初期化
@@ -626,6 +633,13 @@ void ShootingScene::Initialize() {
     scoreUnits_.push_back(std::move(unit));
   }
 
+  // ESCスプライトの初期化
+  TextureManager::GetInstance()->LoadTexture("ui/escText.png");
+  escTextSprite_ = std::make_unique<Sprite>();
+  escTextSprite_->Initialize("ui/escText.png");
+  escTextSprite_->SetTranslate(escTextPos_);
+  escTextSprite_->SetScale(escTextScale_);
+
   // 6. タイマーUIの初期化
   timerBg_ = std::make_unique<Sprite>();
   timerBg_->Initialize("white.png");
@@ -675,6 +689,15 @@ void ShootingScene::Update() {
       isPaused_ = false;
       MyGame::SetPostEffectMode(prevPostEffectMode_);
     }
+  }
+
+  // ESCでタイトルへ戻る演出開始（目を閉じる退場暗転）
+  if (Input::GetInstance()->IsKeyTriggered(DIK_ESCAPE)) {
+      if (phase_ != Phase::ReturnToTitleVignette) {
+          phase_ = Phase::ReturnToTitleVignette;
+          phaseTimer_ = 0.0f;
+          projectiles_.clear();
+      }
   }
 
 #ifdef USE_IMGUI
@@ -727,6 +750,112 @@ void ShootingScene::Update() {
   }
 
   const float kHalfPI = std::numbers::pi_v<float> / 2.0f;
+
+  // =====================================================
+  // フェーズ: 入場演出（ワイヤーフレーム出現 ＋ 逆順展開構築）
+  // =====================================================
+  if (phase_ == Phase::IntroConstruct) {
+    phaseTimer_ += kDeltaTime;
+
+    // スキップ機能（SPACE / ENTER で即座に通常プレイへ移行）
+    if (Input::GetInstance()->IsKeyTriggered(DIK_SPACE) ||
+        Input::GetInstance()->IsKeyTriggered(DIK_RETURN)) {
+      phaseTimer_ = kIntroConstructDuration;
+    }
+
+    if (phaseTimer_ >= kIntroConstructDuration) {
+      phase_ = Phase::Playing;
+      phaseTimer_ = 0.0f;
+      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      if (floorObject_) {
+        floorObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+      }
+    } else {
+      // 瞬き（まばたき）明転演出の更新 (0.0s ～ kBlinkDuration)
+      if (phaseTimer_ < kBlinkDuration) {
+        float t = phaseTimer_ / kBlinkDuration; // 0.0 -> 1.0
+        float openness = 0.0f; // 0.0(完全暗転) -> 1.0(完全全開)
+
+        if (t < 0.35f) {
+          // 第1段階: うっすら目を開ける (0.0 -> 0.45)
+          float p = t / 0.35f;
+          openness = 0.45f * std::sin(p * kHalfPI);
+        } else if (t < 0.55f) {
+          // 第2段階: まばたきで一旦閉じかける (0.45 -> 0.15)
+          float p = (t - 0.35f) / 0.20f;
+          openness = 0.45f + (0.15f - 0.45f) * std::sin(p * kHalfPI);
+        } else {
+          // 第3段階: パッと大きく目を見開く (0.15 -> 1.0)
+          float p = (t - 0.55f) / 0.45f;
+          float eased = 1.0f - (1.0f - p) * (1.0f - p); // easeOutQuad
+          openness = 0.15f + (1.0f - 0.15f) * eased;
+        }
+
+        // ビネットパラメータの適用
+        float scale = 16.0f * openness;
+        float exponent = 5.0f + (0.8f - 5.0f) * openness;
+        PostProcessManager::SetMode(PostProcessManager::kModeVignette);
+        PostProcessManager::SetVignetteParams(scale, exponent);
+      } else {
+        // 瞬き完了後は通常描画（パススルー）
+        PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      }
+    }
+
+    // カメラおよび背景オブジェクトの更新
+    camera_->Update();
+    if (floorObject_) {
+      floorObject_->Update(mainViewIndex_, camera_.get());
+    }
+    if (skybox_) {
+      skybox_->Update(mainViewIndex_, camera_.get());
+    }
+
+    // 照準スプライトをマウス位置に追従させる
+    POINT mousePos;
+    GetCursorPos(&mousePos);
+    ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+    crosshair_->SetTranslate({static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
+    crosshair_->Update();
+
+    return; // 通常プレイの更新処理（レール移動・敵射撃等）をスキップ
+  }
+
+  // =====================================================
+  // フェーズ: タイトル戻り（目を閉じる退場暗転）
+  // =====================================================
+  if (phase_ == Phase::ReturnToTitleVignette) {
+      phaseTimer_ += kDeltaTime;
+      float t = phaseTimer_ / kReturnToTitleDuration; // 0.0 → 1.0
+      if (t > 1.0f) {
+          t = 1.0f;
+      }
+
+      // 目を閉じるイージング（easeInQuad: ゆっくりまぶたが落ち、終盤に完全暗転）
+      float closing = t * t;
+      float openness = 1.0f - closing; // 1.0 -> 0.0
+
+      float scale = 16.0f * openness;
+      float exponent = 0.8f + (5.0f - 0.8f) * closing;
+      PostProcessManager::SetMode(PostProcessManager::kModeVignette);
+      PostProcessManager::SetVignetteParams(scale, exponent);
+
+      // カメラおよび背景オブジェクトの更新
+      camera_->Update();
+      if (floorObject_) {
+          floorObject_->Update(mainViewIndex_, camera_.get());
+      }
+      if (skybox_) {
+          skybox_->Update(mainViewIndex_, camera_.get());
+      }
+
+      if (phaseTimer_ >= kReturnToTitleDuration) {
+          SceneManager::GetInstance()->ChangeScene("TITLE");
+          return;
+      }
+
+      return; // 通常プレイの更新処理をスキップ
+  }
 
   // =====================================================
   // フェーズ: ゲームオーバービネット（更新停止・ビネット強化）
@@ -1660,6 +1789,9 @@ void ShootingScene::Update() {
     if (scoreBg_) {
       scoreBg_->Update();
     }
+    if (escTextSprite_) {
+      escTextSprite_->Update();
+    }
   }
 
   // 6. タイマーUIの更新
@@ -2110,6 +2242,11 @@ void ShootingScene::UpdateImGui_GameStatus() {
     }
   } else if (phase_ == Phase::RestartSmoothing) {
     ImGui::Text("Restarting...");
+  } else if (phase_ == Phase::IntroConstruct) {
+    ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.8f, 1.0f), "CONSTRUCTING STAGE... (%.1f s)", phaseTimer_);
+    if (ImGui::Button("Skip Intro")) {
+      phaseTimer_ = kIntroConstructDuration;
+    }
   } else if (phase_ == Phase::SwarmBattle) {
     ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.2f, 1.0f), "SWARM BATTLE! (%.1f s)", swarmBattleTimer_);
   } else {
@@ -2132,6 +2269,23 @@ void ShootingScene::UpdateImGui_GameStatus() {
   ImGui::Text("Mouse: Aim");
   ImGui::Text("LMB: Shoot");
   ImGui::Text("SPACE: Cover (Reload)");
+  ImGui::Text("ESC: Return to Title");
+
+  if (ImGui::TreeNode("ESC Text UI")) {
+    bool changed = false;
+    if (ImGui::DragFloat2("Position", &escTextPos_.x, 1.0f)) {
+      changed = true;
+    }
+    if (ImGui::DragFloat2("Scale", &escTextScale_.x, 1.0f)) {
+      changed = true;
+    }
+    if (changed && escTextSprite_) {
+      escTextSprite_->SetTranslate(escTextPos_);
+      escTextSprite_->SetScale(escTextScale_);
+    }
+    ImGui::TreePop();
+  }
+
   ImGui::End();
 }
 #endif // USE_IMGUI
@@ -2143,8 +2297,13 @@ void ShootingScene::Draw() {
 
   // メインカメラ (ViewIndex 0)
   // 1. 床オブジェクトの描画
-  if (isShowMaterial_ && floorObject_)
-    floorObject_->Draw(0);
+  if (isShowMaterial_ && floorObject_) {
+    if (phase_ == Phase::IntroConstruct) {
+      DrawObjectWithIntroTransition(floorObject_.get(), 0.0f, 1.4f);
+    } else {
+      floorObject_->Draw(0);
+    }
+  }
 
   // 2. 敵オブジェクトの描画
   if (isShowMaterial_) {
@@ -2176,69 +2335,79 @@ void ShootingScene::Draw() {
   SpriteCommon::GetInstance()->SetCommonDrawSettings(
       static_cast<BlendState>(currentBlendMode_));
 
-  // 1. カバー演出
-  if (isCovering_ && coverOverlay_) {
-    coverOverlay_->Draw();
-  }
+  // 入場演出中はUIの下地・ゲージを後半（1.2秒以降）まで非表示にする
+  bool showUI = (phase_ != Phase::IntroConstruct) || (phaseTimer_ >= 1.2f);
 
-  // 2. UIの下地
-  if (lifeBg_)
-    lifeBg_->Draw();
-  if (ammoBg_)
-    ammoBg_->Draw();
-  if (progressBg_)
-    progressBg_->Draw();
-  if (scoreBg_)
-    scoreBg_->Draw();
-  if (timerBg_)
-    timerBg_->Draw();
+  if (showUI) {
+    // 1. カバー演出
+    if (isCovering_ && coverOverlay_) {
+      coverOverlay_->Draw();
+    }
 
-  // 3. UIのゲージ（メモリやバー）
-  // ライフメモリ
-  {
-    int currentLife = kMaxHits - hitCount_;
-    if (currentLife < 0)
-      currentLife = 0;
-    for (int i = 0; i < currentLife; ++i) {
-      if (lifeUnits_[i]) {
-        lifeUnits_[i]->Draw();
+    // 2. UIの下地
+    if (lifeBg_)
+      lifeBg_->Draw();
+    if (ammoBg_)
+      ammoBg_->Draw();
+    if (progressBg_)
+      progressBg_->Draw();
+    if (scoreBg_)
+      scoreBg_->Draw();
+    if (timerBg_)
+      timerBg_->Draw();
+
+    // 3. UIのゲージ（メモリやバー）
+    // ライフメモリ
+    {
+      int currentLife = kMaxHits - hitCount_;
+      if (currentLife < 0)
+        currentLife = 0;
+      for (int i = 0; i < currentLife; ++i) {
+        if (lifeUnits_[i]) {
+          lifeUnits_[i]->Draw();
+        }
       }
     }
-  }
 
-  // 弾薬メモリ
-  {
-    for (int i = 0; i < kMaxAmmo; ++i) {
-      if (ammoUnits_[i]) {
-        ammoUnits_[i]->Draw();
+    // 弾薬メモリ
+    {
+      for (int i = 0; i < kMaxAmmo; ++i) {
+        if (ammoUnits_[i]) {
+          ammoUnits_[i]->Draw();
+        }
       }
     }
-  }
 
-  // プログレスバー
-  if (progressBar_) {
-    progressBar_->Draw();
-  }
-
-  // スコア表示スプライト
-  for (int i = 0; i < 4; ++i) {
-    if (scoreUnits_[i]) {
-      scoreUnits_[i]->Draw();
+    // プログレスバー
+    if (progressBar_) {
+      progressBar_->Draw();
     }
-  }
 
-  // タイマー表示スプライト
-  for (int i = 0; i < 4; ++i) {
-    if (timerUnits_[i]) {
-      timerUnits_[i]->Draw();
+    // スコア表示スプライト
+    for (int i = 0; i < 4; ++i) {
+      if (scoreUnits_[i]) {
+        scoreUnits_[i]->Draw();
+      }
     }
-  }
-  if (timerDot_) {
-    timerDot_->Draw();
+
+    // ESCスプライト
+    if (escTextSprite_) {
+      escTextSprite_->Draw();
+    }
+
+    // タイマー表示スプライト
+    for (int i = 0; i < 4; ++i) {
+      if (timerUnits_[i]) {
+        timerUnits_[i]->Draw();
+      }
+    }
+    if (timerDot_) {
+      timerDot_->Draw();
+    }
   }
 
   // 4. 照準
-  if (isShowSprite_) {
+  if (isShowSprite_ && showUI) {
     if (crosshair_)
       crosshair_->Draw();
   }
@@ -2480,4 +2649,52 @@ bool ShootingScene::IsInvincible() const {
   }
 
   return false;
+}
+
+void ShootingScene::DrawObjectWithIntroTransition(Object3d *obj, float startTime, float duration) {
+  if (!obj) return;
+
+  // 1. 通常プレイ以降、または構築完了後
+  if (phase_ != Phase::IntroConstruct || phaseTimer_ >= startTime + duration) {
+    obj->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+    obj->Draw(0);
+    return;
+  }
+
+  // 2. まだ構築開始時間前の場合は描画しない（完全消滅状態）
+  if (phaseTimer_ <= startTime) {
+    return;
+  }
+
+  // 3. 構築進行中: このオブジェクト単体の進行度 p (0.0f ～ 1.0f) を算出
+  float p = (phaseTimer_ - startTime) / duration;
+
+  if (p < 0.40f) {
+    // 【第1段階 (0.0 ～ 0.40)：骨格の出現（ワイヤーフレームのディゾルブ出現）】
+    float wireThreshold = 1.0f - (p / 0.40f); // 1.0 -> 0.0
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), true);
+    obj->DrawWireframe(wireThreshold, kWireframeColor, 0);
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), false);
+  } else if (p < 0.55f) {
+    // 【第2段階 (0.40 ～ 0.55)：骨格の維持（完全なワイヤーフレーム単独）】
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), true);
+    obj->DrawWireframe(0.0f, kWireframeColor, 0);
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), false);
+  } else {
+    // 【第3段階 (0.55 ～ 1.00)：外装の構築（ソリッド出現＋ワイヤーフレーム下地 重ね描き）】
+    float solidThreshold = 1.0f - ((p - 0.55f) / 0.45f); // 1.0 -> 0.0
+    obj->SetDissolveParams(1, solidThreshold, 0.05f, kTransitionEdgeColor);
+    obj->Draw(0); // パス1: ソリッドが表面を覆っていく
+
+    // パス2: 下地の完全なワイヤーフレームを重ね描き
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), true);
+    obj->DrawWireframe(0.0f, kWireframeColor, 0);
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), false);
+  }
 }

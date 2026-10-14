@@ -34,11 +34,21 @@ private:
   // 弾の移動・自動カバー判定・消滅処理
   void UpdateProjectiles();
 
+  // 入場演出（まばたき明転）の更新処理
+  void UpdateIntroBlink();
+
+  // 退場演出の開始処理
+  void StartTransitionOut();
+  // 退場演出の更新処理
+  void UpdateTransitionOut();
+
   // ゲームカメラの更新
   void UpdateGameCamera();
 
+#ifdef USE_IMGUI
   // ImGui操作の更新
   void UpdateImGui();
+#endif
 
   // 直方体とレイの交差判定
   bool IntersectRayAABB(const Vector3& rayOrigin, const Vector3& rayDir, const AABB& aabb, float& outT);
@@ -48,7 +58,22 @@ private:
   // 中心座標とサイズから AABB を生成するヘルパー
   AABB MakeAABB(const Vector3 &center, const Vector3 &size);
 
+  // 退場演出用の進行度算出描画ヘルパー
+  void DrawObjectWithTransition(Object3d *obj, float startTime, float duration);
+
 private:
+  // --- シーンの進行フェーズ ---
+  enum class Phase {
+      IntroBlink,    // 入場演出（瞬き明転）
+      Main,          // 通常状態
+      TransitionOut  // 退場演出中
+  };
+  Phase phase_ = Phase::IntroBlink;
+  float introTimer_ = 0.0f;                   // 入場演出の経過時間(s)
+  static constexpr float kIntroBlinkDuration = 1.0f; // 入場まばたきの長さ(s)
+  float transitionTimer_ = 0.0f;              // 退場演出の経過時間(s)
+  const float kTransitionOutDuration = 2.5f; // 退場演出全体の長さ(s)
+
   // カメラ(必ずスマートポインタにすること)
   std::unique_ptr<Camera> camera_;
   struct CameraSettings {
@@ -73,6 +98,7 @@ private:
   // 3Dオブジェクト
   std::unique_ptr<Object3d> floorObject_;
   std::unique_ptr<Object3d> backWallObject_;
+  std::unique_ptr<Object3d> backdropWallObject_; // 背景遮蔽用壁（ディゾルブ時のクリア色露出防止）
   std::unique_ptr<Object3d> playerCoverObject_;
   std::unique_ptr<Object3d> startBoardObject_;
   // スプライト
@@ -96,6 +122,13 @@ private:
   };
   BackWallObjectSettings backWallObjectSettings_ = {
       {0.0f, 9.0f, 30.0f}, {4.0f, 3.0f, 1.0f}, { 10.0f, 4.0f } };
+
+  struct BackdropWallSettings {
+      Vector3 position_ = { 0.0f, 9.0f, 33.0f }; // 通常壁(30.0f)の背後に配置
+      Vector3 scale_ = { 30.0f, 25.0f, 1.0f };    // 画面全体を覆う拡大スケール
+      Vector4 color_ = { 0.0f, 0.0f, 0.0f, 1.0f }; // デフォルト黒（白への切り替えも可）
+  };
+  BackdropWallSettings backdropWallSettings_;
 
   struct PlayerCoverObjectSettings {
       Vector3 position_;
@@ -138,7 +171,7 @@ private:
       {0.0f, 0.0f, 22.0f}, {0.0f, 0.0f, 0.0f}, {3.0f, 1.5f, 0.3f}};
 
   struct TargetBoardInfo {
-    std::unique_ptr<Object3d> targetBoardObject_;
+    std::unique_ptr<Object3d> object_;
     Vector3 basePosition_ = {0.0f, 0.0f, 0.0f};
     Vector3 rotation_ = {0.0f, 0.0f, 0.0f};
     Vector3 aabbSize_ = {1.0f, 1.5f, 0.3f};
@@ -194,7 +227,7 @@ private:
   // --- カバー管理 ---
   bool isCovering_ = false;         // カバー中かどうか
   float coverYOffset_ = 0.0f;       // カバー時のY座標オフセット
-  const float coverYTarget_ = -0.5f; // カバー時のY座標目標値
+  const float kCoverYTarget = -0.5f; // カバー時のY座標目標値
 
   // --- 照準中のターゲット情報 ---
   enum class TargetType { None, Cover, StartBoard, TargetBoard };
@@ -205,21 +238,52 @@ private:
   std::vector<std::unique_ptr<EnemyProjectile>> projectiles_;
   const Vector3 kShootOffset = {-0.3f, 1.0f, -0.5f}; // 射撃位置のオフセット
   float shootTimer_ = 0.0f;
-  const float kShootInterval_ = 3.0f; // 発射間隔（3秒）
+  const float kShootInterval = 3.0f; // 発射間隔（3秒）
   int nextShootTargetIndex_ = 0;       //次に撃つ的（0: 左, 1: 右）
-  const float kEnemyBulletSpeed_ = 0.8f; // 弾速
+  const float kEnemyBulletSpeed = 0.8f; // 弾速
 
   // --- 自動カバー管理 ---
   bool isAutoCovering_ = false; // 自動カバー中フラグ
-  const float kAutoCoverDistance_ = 8.0f; // 自動カバーを発動する接近距離（8m）
+  const float kAutoCoverDistance = 8.0f; // 自動カバーを発動する接近距離（8m）
 
   // --- アニメーション用 ---
-  const float kTargetFallSpeed_ = 4.0f; // 倒れる角速度（0.4秒で倒れ切る）
-  const float kTargetRiseSpeed_ = 2.0f; // 起き上がる角速度（0.8秒で起き上がる）
-  const float kTargetWaitDuration_ = 2.0f; // 倒れてから復帰するまでの待ち時間（2秒）
+  const float kTargetFallSpeed = 4.0f; // 倒れる角速度（0.4秒で倒れ切る）
+  const float kTargetRiseSpeed = 2.0f; // 起き上がる角速度（0.8秒で起き上がる）
+  const float kTargetWaitDuration = 2.0f; // 倒れてから復帰するまでの待ち時間（2秒）
 
+  // --- 退場演出用 ---
+  const Vector3 kTransitionEdgeColor = { 0.0f, 1.0f, 0.8f };  // ディゾルブ境界の発光色
+  const Vector4 kWireframeColor = { 0.0f, 0.9f, 1.0f, 1.0f }; // ワイヤーフレームの線色
+  
+  struct TransitionSettings {
+      float startTime;
+      float duration;
+  };
+  // UI
+  TransitionSettings uiTransition_ = { 0.0f, 0.5f };
+  // START,Target
+  TransitionSettings boardTransition_ = { 0.1f, 1.0f };
+  // Cover
+  TransitionSettings coverTransition_ = { 0.5f, 1.0f };
+  // BackWall
+  TransitionSettings backWallTransition_ = { 1.0f, 1.1f };
+  // Floor
+  TransitionSettings floorTransition_ = { 1.3f, 1.2f };
+  // Vignette暗転（床の解体開始に合わせて暗転を開始し、解体完了で完全ブラックアウト）
+  TransitionSettings vignetteTransition_ = { 1.3f, 1.2f };
+  const float kTargetOffset = 0.05f;
+  const float kTargetMultiply = 0.08f;
+
+#ifdef USE_IMGUI
   // ImGui用のフラグ
   bool isUpdateCameraSettings_ = false;
+
+  bool testWireframe_ = false;
+  bool testDissolve_ = true;
+  float testThreshold_ = 0.0f;
+  float testEdgeRange_ = 0.05f;
+  Vector3 testEdgeColor_ = { 0.0f, 1.0f, 0.8f };
+#endif
 
   /// パス定数
 

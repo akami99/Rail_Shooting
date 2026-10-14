@@ -30,6 +30,13 @@ private: // メンバ変数
   // カメラのポインタ
   Camera *camera_ = nullptr;
 
+  // 個別のマテリアルバッファ
+  ComPtr<ID3D12Resource> materialResource_ = nullptr;
+  Material *materialData_ = nullptr;
+  // ワイヤーフレーム用のマテリアルバッファ
+  ComPtr<ID3D12Resource> wireframeMaterialResource_ = nullptr;
+  Material *wireframeMaterialData_ = nullptr;
+
   // 変換行列データ
   // バッファリソース
   ComPtr<ID3D12Resource> transformationMatrixResources_[kMaxViews];
@@ -46,6 +53,17 @@ private: // メンバ変数
   // UVスケール
   Vector2 uvScale_ = {1.0f, 1.0f};
 
+  // 個別のディゾルブ・色設定
+  bool useOverrideDissolve_ = false;
+  int32_t enableDissolve_ = 0;
+  float dissolveThreshold_ = 0.0f;
+  float dissolveEdgeRange_ = 0.02f;
+  Vector3 dissolveEdgeColor_ = { 1.0f, 0.4f, 0.3f };
+  std::string dissolveMaskPath_;
+
+  bool useOverrideColor_ = false;
+  Vector4 overrideColor_ = { 1.0f, 1.0f, 1.0f, 1.0f };
+
 public: // メンバ関数
     ~Object3d();
   // 初期化
@@ -58,8 +76,15 @@ public: // メンバ関数
 
   // 描画処理 (デフォルトはビュー0)
   void Draw(uint32_t viewIndex = 0);
+  // ワイヤーフレーム専用の描画関数（閾値や色を別指定して描けるようにする）
+  void DrawWireframe(float dissolveThreshold = 0.0f,
+                     const Vector4 &wireColor = { 0.0f, 1.0f, 0.8f, 1.0f },
+                     uint32_t viewIndex = 0);
 
 private: // 作成関数
+  // マテリアルバッファの作成
+  void CreateMaterialResource();
+
   // 変換行列バッファの作成
   void CreateTransformationMatrixResource();
 
@@ -105,4 +130,10 @@ public: // setter
 
   // UVスケールの設定
   void SetUvScale(const Vector2 &uvScale) { uvScale_ = uvScale; }
+
+  // 個別ディゾルブの設定
+  void SetDissolveParams(int32_t enable, float threshold, float edgeRange, const Vector3 &edgeColor);
+  void SetDissolveMaskTexture(const std::string &filePath);
+  // 個別カラーの設定
+  void SetColor(const Vector4 &color) { useOverrideColor_ = true; overrideColor_ = color; }
 };

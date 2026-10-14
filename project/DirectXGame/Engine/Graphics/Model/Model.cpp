@@ -412,7 +412,9 @@ void Model::CreatePlane(const std::string &textureFilePath, const PlaneSettings&
 }
 
 // 描画処理
-void Model::Draw() {
+void Model::Draw(D3D12_GPU_VIRTUAL_ADDRESS overrideMaterialCBV,
+                 const std::string &overrideTexturePath,
+                 const std::string &overrideDissolveMaskPath) {
   // VertexBufferの設定
   DX12Context::GetInstance()->GetCommandList()->IASetVertexBuffers(
       0, 1, &vertexBufferView_);
@@ -420,19 +422,26 @@ void Model::Draw() {
   DX12Context::GetInstance()->GetCommandList()->IASetIndexBuffer(
       &indexBufferView_);
   // マテリアルCBVの設定
+  D3D12_GPU_VIRTUAL_ADDRESS matCBV = (overrideMaterialCBV != 0)
+      ? overrideMaterialCBV 
+      : materialResource_->GetGPUVirtualAddress();
   DX12Context::GetInstance()
       ->GetCommandList()
       ->SetGraphicsRootConstantBufferView(
-          0, materialResource_->GetGPUVirtualAddress());
+          0, matCBV);
   // SRVのDescriptorTableの先頭を設定。2はrootParameter[2]である。
+  const std::string &texPath = !overrideTexturePath.empty()
+      ? overrideTexturePath
+      : modelData_.material.textureFilePath;
   DX12Context::GetInstance()->GetCommandList()->SetGraphicsRootDescriptorTable(
-      2, TextureManager::GetInstance()->GetSrvHandleGPU(
-             modelData_.material.textureFilePath));
+      2, TextureManager::GetInstance()->GetSrvHandleGPU(texPath));
 
   // Dissolve用のマスクテクスチャを設定。8はrootParameter[8]である。
+  const std::string &maskPath = !overrideDissolveMaskPath.empty()
+      ? overrideDissolveMaskPath
+      : dissolveMaskFilePath_;
   DX12Context::GetInstance()->GetCommandList()->SetGraphicsRootDescriptorTable(
-      8, TextureManager::GetInstance()->GetSrvHandleGPU(
-             dissolveMaskFilePath_));
+      8, TextureManager::GetInstance()->GetSrvHandleGPU(maskPath));
 
   // 描画コマンド
   // 引数: (インデックス数, インスタンス数, インデックス開始位置, 頂点オフセット, インスタンスオフセット)

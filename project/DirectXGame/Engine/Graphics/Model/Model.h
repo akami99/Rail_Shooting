@@ -61,13 +61,18 @@ public: // メンバ関数
   // 平面プリミティブの生成
   void CreatePlane(const std::string &textureFilePath, const PlaneSettings& settings);
 
-  // 描画処理
-  void Draw();
+  // 描画処理(object3d側から個別の設定を渡せる)
+  void Draw(D3D12_GPU_VIRTUAL_ADDRESS overrideMaterialCBV = 0, 
+            const std::string &overrideTexturePath = "", 
+            const std::string &overrideDissolveMaskPath = "");
 
   // getter
 
   // RootNodeを取得するGetter
   const Node& GetRootNode() const { return modelData_.rootNode; }
+
+  // マテリアルデータの取得
+  const Material &GetMaterialData() const { return *materialData_; }
 
   // 色の取得
   const Vector4 &GetColor() const { return materialData_->color; }

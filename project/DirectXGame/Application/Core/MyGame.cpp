@@ -36,6 +36,8 @@ void MyGame::Initialize() {
   TextureManager::GetInstance()->LoadTexture("uvChecker.png");
   TextureManager::GetInstance()->LoadTexture("masks/noise0.png");
   TextureManager::GetInstance()->LoadTexture("masks/noise1.png");
+  //TextureManager::GetInstance()->LoadTexture("skybox.dds");
+  
   // デフォルトテクスチャのロード（未ロード時の代替用）
   TextureManager::GetInstance()->LoadTexture(
       TextureManager::GetInstance()->defaultTexturePath_);
@@ -52,7 +54,7 @@ void MyGame::Initialize() {
 
   // 文字列で指定(TITLE/GAMEPLAY/SHOOTINGなど)してシーン切り替え予約
 #ifdef USE_IMGUI
-  SceneManager::GetInstance()->ChangeScene("SHOOTING");
+  SceneManager::GetInstance()->ChangeScene("TITLE");
 #else
   SceneManager::GetInstance()->ChangeScene("TITLE");
 #endif

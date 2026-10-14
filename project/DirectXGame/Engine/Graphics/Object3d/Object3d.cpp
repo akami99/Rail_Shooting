@@ -17,17 +17,24 @@ using namespace MathUtils;
 using namespace MathGenerators;
 
 Object3d::~Object3d() {
-    // Map済みリソースをUnmap
-    for (uint32_t i = 0; i < kMaxViews; ++i) {
-        if (transformationMatrixResources_[i] && transformationMatrixData_[i]) {
-            transformationMatrixResources_[i]->Unmap(0, nullptr);
-            transformationMatrixData_[i] = nullptr;
-        }
+  // Map済みリソースをUnmap
+  for (uint32_t i = 0; i < kMaxViews; ++i) {
+    if (transformationMatrixResources_[i] && transformationMatrixData_[i]) {
+      transformationMatrixResources_[i]->Unmap(0, nullptr);
+      transformationMatrixData_[i] = nullptr;
     }
+  }
+  if (materialResource_ && materialData_) {
+    materialResource_->Unmap(0, nullptr);
+    materialData_ = nullptr;
+  }
 }
 
 void Object3d::Initialize() {
   camera_ = Object3dCommon::GetInstance()->GetDefaultCamera();
+
+  // マテリアルバッファの作成
+  CreateMaterialResource();
 
   // 変換行列バッファの作成
   CreateTransformationMatrixResource();
@@ -35,60 +42,104 @@ void Object3d::Initialize() {
 
 // 更新処理 (全ビュー更新)
 void Object3d::Update() {
-    for (uint32_t i = 0; i < kMaxViews; ++i) {
-        Update(i, camera_);
-    }
+  for (uint32_t i = 0; i < kMaxViews; ++i) {
+    Update(i, camera_);
+  }
 }
 
 // 指定したビュー用の更新
-void Object3d::Update(uint32_t viewIndex, Camera* camera) {
-    assert(viewIndex < kMaxViews);
+void Object3d::Update(uint32_t viewIndex, Camera *camera) {
+  assert(viewIndex < kMaxViews);
 
-    // Transform情報からワールド行列を作る (全ビュー共通)
-    Matrix4x4 worldMatrix = MakeAffineMatrix(transform_.scale, transform_.rotate,
-                                             transform_.translate);
+  // Transform情報からワールド行列を作る (全ビュー共通)
+  Matrix4x4 worldMatrix = MakeAffineMatrix(transform_.scale, transform_.rotate,
+                                           transform_.translate);
 
-    // Model側のRootNodeのTransformを反映する
-    if (model_) {
-        Matrix4x4 rootMatrix = model_->GetRootNode().localMatrix;
-        worldMatrix = rootMatrix * worldMatrix;
-    }
+  // Model側のRootNodeのTransformを反映する
+  if (model_) {
+    Matrix4x4 rootMatrix = model_->GetRootNode().localMatrix;
+    worldMatrix = rootMatrix * worldMatrix;
+  }
 
-    // ワールドビュー射影行列の計算
-    Matrix4x4 wvpMatrix;
-    if (camera) {
-        const Matrix4x4 &viewProjectionMatrix = camera->GetViewProjectionMatrix();
-        wvpMatrix = worldMatrix * viewProjectionMatrix;
-    } else {
-        wvpMatrix = worldMatrix;
-    }
+  // ワールドビュー射影行列の計算
+  Matrix4x4 wvpMatrix;
+  if (camera) {
+    const Matrix4x4 &viewProjectionMatrix = camera->GetViewProjectionMatrix();
+    wvpMatrix = worldMatrix * viewProjectionMatrix;
+  } else {
+    wvpMatrix = worldMatrix;
+  }
 
-    // 非均一スケール対応：逆転置行列の計算
-    Matrix4x4 worldInverseTranspose = Transpose(Inverse(worldMatrix));
+  // 非均一スケール対応：逆転置行列の計算
+  Matrix4x4 worldInverseTranspose = Transpose(Inverse(worldMatrix));
 
-    // 指定されたビューのデータを更新
-    transformationMatrixData_[viewIndex]->WVP = wvpMatrix;
-    transformationMatrixData_[viewIndex]->World = worldMatrix;
-    transformationMatrixData_[viewIndex]->WorldInverseTranspose = worldInverseTranspose;
+  // 指定されたビューのデータを更新
+  transformationMatrixData_[viewIndex]->WVP = wvpMatrix;
+  transformationMatrixData_[viewIndex]->World = worldMatrix;
+  transformationMatrixData_[viewIndex]->WorldInverseTranspose =
+      worldInverseTranspose;
 }
 
 // 描画処理
 void Object3d::Draw(uint32_t viewIndex) {
+  assert(viewIndex < kMaxViews);
+
+  // 変換行列CBVの設定
+  DX12Context::GetInstance()
+      ->GetCommandList()
+      ->SetGraphicsRootConstantBufferView(
+          1, transformationMatrixResources_[viewIndex]->GetGPUVirtualAddress());
+
+  // 描画コマンド
+  if (model_) {
+    // Model側の基本マテリアル設定をコピー
+    *materialData_ = (model_->GetMaterialData());
+
+    // Object3d個別のUVスケールを反映
+    materialData_->uvTransform = MakeScaleMatrix(Vector3(uvScale_.x, uvScale_.y, 1.0f));
+
+    // Object3d個別の色設定があれば上書き
+    if (useOverrideColor_) {
+        materialData_->color = overrideColor_;
+    }
+
+    // Object3d個別のディゾルブ設定があれば上書き
+    if (useOverrideDissolve_) {
+        materialData_->enableDissolve = enableDissolve_;
+        materialData_->dissolveThreshold = dissolveThreshold_;
+        materialData_->dissolveEdgeRange = dissolveEdgeRange_;
+        materialData_->dissolveEdgeColor = dissolveEdgeColor_;
+    }
+
+    if (!overrideTexturePath_.empty()) {
+      model_->SetTextureFilePath(overrideTexturePath_);
+    }
+    model_->SetUvScale(uvScale_);
+    model_->Draw(
+        materialResource_->GetGPUVirtualAddress(),
+        overrideTexturePath_,
+        dissolveMaskPath_);
+  }
+}
+
+void Object3d::DrawWireframe(float dissolveThreshold, const Vector4 &wireColor, uint32_t viewIndex) {
     assert(viewIndex < kMaxViews);
-
-    // 変換行列CBVの設定
-    DX12Context::GetInstance()
-        ->GetCommandList()
-        ->SetGraphicsRootConstantBufferView(
-            1, transformationMatrixResources_[viewIndex]->GetGPUVirtualAddress());
-
-    // 描画コマンド
-    if (model_) {
-        if (!overrideTexturePath_.empty()) {
-            model_->SetTextureFilePath(overrideTexturePath_);
-        }
-        model_->SetUvScale(uvScale_);
-        model_->Draw();
+    DX12Context::GetInstance()->GetCommandList()->SetGraphicsRootConstantBufferView(
+        1, transformationMatrixResources_[viewIndex]->GetGPUVirtualAddress());
+    if (model_ && wireframeMaterialData_ && &model_->GetMaterialData()) {
+        *wireframeMaterialData_ = (model_->GetMaterialData());
+        // ライティングを切って明るい単色にし、テクスチャも "white.png" にすることで線をくっきり光らせる
+        wireframeMaterialData_->enableLighting = 0;
+        wireframeMaterialData_->color = wireColor;
+        wireframeMaterialData_->enableDissolve = (dissolveThreshold > 0.0f) ? 1 : 0;
+        wireframeMaterialData_->dissolveThreshold = dissolveThreshold;
+        wireframeMaterialData_->dissolveEdgeRange = 0.05f;
+        wireframeMaterialData_->dissolveEdgeColor = { 1.0f, 1.0f, 1.0f }; // 消える先端は白く光らせる
+        model_->Draw(
+            wireframeMaterialResource_->GetGPUVirtualAddress(),
+            "white.png",          // 単色ラインにする
+            dissolveMaskPath_
+        );
     }
 }
 
@@ -97,21 +148,60 @@ void Object3d::SetModel(const std::string &filepath) {
   model_ = ModelManager::GetInstance()->FindModel(filepath);
 }
 
+void Object3d::SetDissolveParams(int32_t enable, float threshold,
+                                 float edgeRange, const Vector3 &edgeColor) {
+  useOverrideDissolve_ = true;
+  enableDissolve_ = enable;
+  dissolveThreshold_ = threshold;
+  dissolveEdgeRange_ = edgeRange;
+  dissolveEdgeColor_ = edgeColor;
+}
+
+void Object3d::SetDissolveMaskTexture(const std::string &filePath) {
+  dissolveMaskPath_ = filePath;
+  TextureManager::GetInstance()->LoadTexture(dissolveMaskPath_);
+}
+
 // 変換行列バッファの作成
 void Object3d::CreateTransformationMatrixResource() {
-    for (uint32_t i = 0; i < kMaxViews; ++i) {
-        // 変換行列リソースの作成
-        transformationMatrixResources_[i] =
-            DX12Context::GetInstance()->CreateBufferResource(
-                sizeof(TransformationMatrix));
+  for (uint32_t i = 0; i < kMaxViews; ++i) {
+    // 変換行列リソースの作成
+    transformationMatrixResources_[i] =
+        DX12Context::GetInstance()->CreateBufferResource(
+            sizeof(TransformationMatrix));
 
-        // TransformationMatrixDataの設定
-        transformationMatrixResources_[i]->Map(
-            0, nullptr, reinterpret_cast<void **>(&transformationMatrixData_[i]));
-        
-        // 単位行列で初期化
-        transformationMatrixData_[i]->WVP = MakeIdentity4x4();
-        transformationMatrixData_[i]->World = MakeIdentity4x4();
-        transformationMatrixData_[i]->WorldInverseTranspose = MakeIdentity4x4();
-    }
+    // TransformationMatrixDataの設定
+    transformationMatrixResources_[i]->Map(
+        0, nullptr, reinterpret_cast<void **>(&transformationMatrixData_[i]));
+
+    // 単位行列で初期化
+    transformationMatrixData_[i]->WVP = MakeIdentity4x4();
+    transformationMatrixData_[i]->World = MakeIdentity4x4();
+    transformationMatrixData_[i]->WorldInverseTranspose = MakeIdentity4x4();
+  }
+}
+
+void Object3d::CreateMaterialResource() {
+  // マテリアルリソースを作る
+  materialResource_ =
+      DX12Context::GetInstance()->CreateBufferResource(sizeof(Material));
+
+  // MaterialResourceにデータを書き込むためのアドレスを取得してMaterialDataに割り当てる
+  materialResource_->Map(0, nullptr, reinterpret_cast<void **>(&materialData_));
+  // マテリアルデータの初期値を書き込む
+  materialData_->color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+  // ライティングを無効に設定
+  materialData_->enableLighting = true;
+  // UV変換行列を単位行列に設定
+  materialData_->uvTransform = MakeIdentity4x4();
+  // 光沢度を設定
+  materialData_->shininess = 10.0f;
+  // 環境マップ係数を設定
+  materialData_->environmentCoefficient = 0.0f;
+
+  // Dissolveパラメータの初期化
+  materialData_->enableDissolve = 0;
+  materialData_->dissolveThreshold = 0.0f;
+  materialData_->dissolveEdgeRange = 0.02f;
+  materialData_->dissolveEdgeColor = Vector3(1.0f, 0.4f, 0.3f);
 }
