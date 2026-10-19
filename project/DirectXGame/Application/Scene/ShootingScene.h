@@ -99,6 +99,11 @@ private:
         int shootCount = 0; // 射撃回数カウンター
         int hitShotCount = 0; // 必中弾カウンター (属性弾ローテーション用)
         bool isNextHitShot = false; // 次回射撃が必中弾かどうか (予兆リング表示用)
+        Vector3 initialOffsetPosition = { 0.0f, 0.0f, 0.0f }; // カメライン前の初期画面外位置
+        float slideTimer = 0.0f; // スライドイン進行時間
+        float slideDelay = 0.0f; // スライドイン開始ディレイ時間
+        float slideDuration = 1.0f; // スライドイン所要時間
+        float deathTimer = 0.0f; // 撃破後ディゾルブ消滅タイマー (0.0:生存 -> 0.0〜1.0:消滅中 -> 1.0:完全消滅)
         EnemyType type = EnemyType::Normal; // 敵のタイプ
     };
 
@@ -198,7 +203,7 @@ private:
     float cameraProgress_ = 0.0f;
     float maxProgress_ = 190.0f;
     bool isMovementPaused_ = false;
-    const float kCameraSpeed = 0.5f;
+    const float kCameraSpeed = 0.35f;
 
     // マガジン・隠れるアクション用
     int ammo_ = 9;

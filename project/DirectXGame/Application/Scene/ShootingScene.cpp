@@ -420,7 +420,7 @@ void ShootingScene::Initialize() {
 
     emitter.SetShapeType(ParticleShapeType::Cylinder);
     if (auto* cs = emitter.GetCylinderShape()) {
-      cs->settings.height = 10.0f;
+      cs->settings.height = 1.0f;
       cs->settings.topRadius = { 1.0f, 1.0f };
       cs->settings.bottomRadius = { 0.0f, 0.0f };
       cs->settings.startAngle = 0.0f;
@@ -475,9 +475,9 @@ void ShootingScene::Initialize() {
       // 個別のモデルインスタンスを生成・ロード
       enemy.model = std::make_unique<Model>();
       enemy.model->Initialize(enemyModelDirectory_, enemyModel_);
-      // 初期状態として完全に消去された状態（Threshold = 1.0f）を設定
+      // 画面外からスライドイン（Threshold = 0.0f）
       enemy.model->SetDissolveMaskTexture("masks/noise0.png");
-      enemy.model->SetDissolveParams(1, 1.0f, 0.05f, Vector3(1.0f, 0.4f, 0.3f));
+      enemy.model->SetDissolveParams(0, 0.0f, 0.05f, Vector3(1.0f, 0.4f, 0.3f));
 
       enemy.object->SetModel(enemy.model.get());
       enemy.object->SetTranslate(enemyData.translation);
@@ -490,6 +490,8 @@ void ShootingScene::Initialize() {
       enemy.isDead = false;
       enemy.shootTimer = 0.0f;
       enemy.spawnTimer = 0.0f;
+      enemy.slideTimer = 0.0f;
+      enemy.deathTimer = 0.0f;
       float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
       enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
       enemies_.push_back(std::move(enemy));
@@ -503,6 +505,40 @@ void ShootingScene::Initialize() {
       if (enemies_[2].model) {
         enemies_[2].model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
       }
+    }
+
+    // 敵の初期画面外配置（カメライン用）の計算
+    // 各敵の停止地点（enemy.distance）におけるカメラの向きから、
+    // 画面中央より右なら右画面外、左なら左画面外、一部は奥・上空から飛び込んでくる配置を設定
+    for (size_t i = 0; i < enemies_.size(); ++i) {
+      auto &enemy = enemies_[i];
+      Vector3 camPosAtBattle = CalculateRailPosition(enemy.distance);
+      Vector3 camNextPos = CalculateRailPosition(enemy.distance + 0.1f);
+      Vector3 camForward = Normalize(Subtract(camNextPos, camPosAtBattle));
+      Vector3 camUp = { 0.0f, 1.0f, 0.0f };
+      Vector3 camRight = Normalize(Cross(camUp, camForward));
+
+      Vector3 toEnemy = Subtract(enemy.basePosition, camPosAtBattle);
+      float sideDot = Dot(toEnemy, camRight);
+
+      // 移動時間とディレイのばらつき（敵ごとに順番に飛び込んでくる）
+      enemy.slideDelay = static_cast<float>(i % 3) * 0.35f; // 0.0秒, 0.35秒, 0.7秒
+      enemy.slideDuration = 0.85f; // スライド所要時間
+
+      // 出現バリエーション：
+      // 基本は左右画面外、インデックスによっては奥上空から急降下してくる
+      if (i % 4 == 3) {
+        // 奥・上空からの飛び込み（高所から前へ）
+        enemy.initialOffsetPosition = Add(enemy.basePosition, Add(Multiply(15.0f, camForward), Multiply(10.0f, camUp)));
+      } else {
+        // 左右画面外（十分な距離 18m オフセット）
+        float sign = (sideDot >= 0.0f) ? 1.0f : -1.0f;
+        float offsetDist = 18.0f + static_cast<float>(i % 3) * 3.0f;
+        enemy.initialOffsetPosition = Add(enemy.basePosition, Multiply(sign * offsetDist, camRight));
+      }
+
+      enemy.object->SetTranslate(enemy.initialOffsetPosition);
+      enemy.object->Update(mainViewIndex_, camera_.get());
     }
   }
 
@@ -968,9 +1004,11 @@ void ShootingScene::Update() {
         enemy.shootCount = 0;
         enemy.hitShotCount = 0;
         enemy.spawnTimer = 0.0f;
+        enemy.slideTimer = 0.0f;
+        enemy.deathTimer = 0.0f;
         float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
         enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
-        enemy.object->SetTranslate(enemy.basePosition);
+        enemy.object->SetTranslate(enemy.initialOffsetPosition);
         enemy.object->SetRotation(enemy.baseRotation);
         // 敵のタイプに応じたモデルカラーの再適用
         if (enemy.model) {
@@ -980,9 +1018,11 @@ void ShootingScene::Update() {
             enemy.model->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
           }
         }
-        // 初期状態として完全に消去された状態（Threshold = 1.0f）を設定
-        enemy.model->SetDissolveParams(1, 1.0f, 0.05f,
-                                       Vector3(1.0f, 0.4f, 0.3f));
+        // 初期状態は完全表示（出現ディゾルブなし、消滅時にのみ使用）
+        if (enemy.model) {
+          enemy.model->SetDissolveParams(0, 0.0f, 0.05f,
+                                         Vector3(1.0f, 0.4f, 0.3f));
+        }
         enemy.object->Update(mainViewIndex_, camera_.get());
       }
 
@@ -1159,25 +1199,67 @@ void ShootingScene::Update() {
   ParticleManager::GetInstance()->ClearParticles("EnemyChargeRing");
 
   // 各エネミーの更新と射撃処理
-  for (auto &enemy : enemies_) {
-    if (!enemy.isActive || enemy.isDead)
-      continue;
+  for (size_t enemyIdx = 0; enemyIdx < enemies_.size(); ++enemyIdx) {
+    auto &enemy = enemies_[enemyIdx];
 
-    // 出現（Dissolve In）のアニメーション更新
-    if (enemy.spawnTimer < 1.0f) {
-      enemy.spawnTimer += kDeltaTime;
-      if (enemy.spawnTimer > 1.0f) {
-        enemy.spawnTimer = 1.0f;
+    // 撃破後のディゾルブ消滅更新
+    if (enemy.isDead) {
+      if (enemy.deathTimer < 1.0f) {
+        enemy.deathTimer += kDeltaTime * 2.0f; // 約0.5秒で完全に消滅
+        if (enemy.deathTimer > 1.0f) {
+          enemy.deathTimer = 1.0f;
+        }
+        if (enemy.model) {
+          // 0.0 -> 1.0 へディゾルブ消滅
+          enemy.model->SetDissolveParams(1, enemy.deathTimer, 0.05f, Vector3(1.0f, 0.4f, 0.3f));
+        }
+        enemy.object->Update(mainViewIndex_, camera_.get());
       }
-      float threshold = 1.0f - enemy.spawnTimer; // 1.0 -> 0.0
-
-      // 出現完了ならDissolveを無効化
-      int enableDissolve = (threshold > 0.0f) ? 1 : 0;
-      enemy.model->SetDissolveParams(enableDissolve, threshold, 0.05f,
-                                     Vector3(1.0f, 0.4f, 0.3f));
+      continue;
     }
 
-    // 出現完了するまでは射撃を行わない
+    // --- カメライン移動とスライド処理（時間ベース） ---
+    // 接近時（5m以内）または戦闘突入（isActive）でタイマー進行開始
+    float distToBattle = enemy.distance - cameraProgress_;
+    bool isApproachingOrActive = (enemy.isActive || (distToBattle <= 5.0f && distToBattle >= 0.0f));
+
+    if (isApproachingOrActive) {
+      // 接近・停止に合わせてスライドタイマーを加算
+      enemy.slideTimer += kDeltaTime;
+
+      // ディレイ時間を引いた有効なスライド進行度
+      float activeSlideTime = enemy.slideTimer - enemy.slideDelay;
+      float moveT = 0.0f;
+      if (activeSlideTime > 0.0f) {
+        moveT = activeSlideTime / enemy.slideDuration;
+        if (moveT > 1.0f) moveT = 1.0f;
+      }
+
+      // イージング（EaseOutCubic）
+      float easedT = 1.0f - std::pow(1.0f - moveT, 3.0f);
+
+      // 初期画面外位置から本来の出現座標へ滑らかにスライドイン
+      Vector3 currentPos;
+      currentPos.x = enemy.initialOffsetPosition.x + (enemy.basePosition.x - enemy.initialOffsetPosition.x) * easedT;
+      currentPos.y = enemy.initialOffsetPosition.y + (enemy.basePosition.y - enemy.initialOffsetPosition.y) * easedT;
+      currentPos.z = enemy.initialOffsetPosition.z + (enemy.basePosition.z - enemy.initialOffsetPosition.z) * easedT;
+      enemy.object->SetTranslate(currentPos);
+
+      // スライド完了フラグ（出現完了扱い）
+      enemy.spawnTimer = moveT;
+    } else {
+      // まだ接近していない場合は画面外の初期位置に留めておく
+      enemy.object->SetTranslate(enemy.initialOffsetPosition);
+      enemy.spawnTimer = 0.0f;
+    }
+
+    // 未アクティブ時は射撃や予兆を行わず、行列更新のみ
+    if (!enemy.isActive) {
+      enemy.object->Update(mainViewIndex_, camera_.get());
+      continue;
+    }
+
+    // スライドイン完了（spawnTimer >= 1.0f）するまでは射撃・チャージを行わない
     if (enemy.spawnTimer >= 1.0f) {
       float spawnInterval = (enemy.type == EnemyType::Engineer) ? kEngineerSpawnInterval : kProjectileSpawnInterval;
       float chargeStart = spawnInterval - kChargeDuration; // 発射前0.6秒（36フレーム前）
@@ -1561,7 +1643,10 @@ void ShootingScene::Update() {
 
     // 2. エネミーとの当たり判定
     for (auto &enemy : enemies_) {
-      if (!enemy.isActive || enemy.isDead)
+      if (enemy.isDead)
+        continue;
+      float distToBattle = enemy.distance - cameraProgress_;
+      if (!enemy.isActive && !(distToBattle <= 5.0f && distToBattle >= 0.0f))
         continue;
 
       Vector3 enemyPos = enemy.object->GetTranslate();
@@ -1599,6 +1684,10 @@ void ShootingScene::Update() {
     } else if (hitType == HitTargetType::Enemy && hitEnemy) {
       hitEnemy->isDead = true;
       hitEnemy->isActive = false;
+      hitEnemy->deathTimer = 0.0f; // 撃破ディゾルブ消滅開始
+      if (hitEnemy->model) {
+        hitEnemy->model->SetDissolveParams(1, 0.0f, 0.05f, Vector3(1.0f, 0.4f, 0.3f));
+      }
       Vector3 enemyPos = hitEnemy->object->GetTranslate();
       score_ += 10;
 
@@ -1843,14 +1932,17 @@ Vector3 ShootingScene::CalculateRingRotation(const Vector3 &direction)
     m.m[1][0] = forward.x; m.m[1][1] = forward.y; m.m[1][2] = forward.z;
     m.m[2][0] = up.x;      m.m[2][1] = up.y;      m.m[2][2] = up.z;
 
-    float pitch = std::asin(-m.m[2][1]);
-    float yaw = 0.0f;
+    float sy = -m.m[0][2];
+    if (sy > 1.0f) sy = 1.0f;
+    if (sy < -1.0f) sy = -1.0f;
+    float yaw = std::asin(sy);
+    float pitch = 0.0f;
     float roll = 0.0f;
-    if (std::cos(pitch) > 0.0001f) {
-        yaw = std::atan2(m.m[2][0], m.m[2][2]);
-        roll = std::atan2(m.m[0][1], m.m[1][1]);
+    if (std::cos(yaw) > 0.0001f) {
+        pitch = std::atan2(m.m[1][2], m.m[2][2]);
+        roll = std::atan2(m.m[0][1], m.m[0][0]);
     } else {
-        yaw = std::atan2(-m.m[1][0], m.m[0][0]);
+        pitch = std::atan2(-m.m[2][1], m.m[1][1]);
         roll = 0.0f;
     }
     return { pitch, yaw, roll };
@@ -1969,9 +2061,11 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
         enemy.shootCount = 0;
         enemy.hitShotCount = 0;
         enemy.spawnTimer = 0.0f;
+        enemy.slideTimer = 0.0f;
+        enemy.deathTimer = 0.0f;
         float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
         enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
-        enemy.object->SetTranslate(enemy.basePosition);
+        enemy.object->SetTranslate(enemy.initialOffsetPosition);
         enemy.object->SetRotation(enemy.baseRotation);
         // 敵のタイプに応じたモデルカラーの再適用
         if (enemy.model) {
@@ -1981,9 +2075,11 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
             enemy.model->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
           }
         }
-        // 初期状態として完全に消去された状態（Threshold = 1.0f）を設定
-        enemy.model->SetDissolveParams(1, 1.0f, 0.05f,
-                                       Vector3(1.0f, 0.4f, 0.3f));
+        // 初期状態は完全表示（出現ディゾルブなし、消滅時にのみ使用）
+        if (enemy.model) {
+          enemy.model->SetDissolveParams(0, 0.0f, 0.05f,
+                                         Vector3(1.0f, 0.4f, 0.3f));
+        }
         enemy.object->Update(mainViewIndex_, camera_.get());
       }
 
@@ -2308,7 +2404,14 @@ void ShootingScene::Draw() {
   // 2. 敵オブジェクトの描画
   if (isShowMaterial_) {
     for (auto &enemy : enemies_) {
-      if (enemy.isActive && !enemy.isDead) {
+      if (!enemy.isDead) {
+        float distToBattle = enemy.distance - cameraProgress_;
+        // アクティブ、または接近アプローチ中(5m以内)であれば描画
+        if (enemy.isActive || (distToBattle <= 5.0f && distToBattle >= 0.0f)) {
+          enemy.object->Draw(0);
+        }
+      } else if (enemy.deathTimer < 1.0f) {
+        // 撃破後、ディゾルブ消滅が完了するまでは描画を継続
         enemy.object->Draw(0);
       }
     }
@@ -2523,15 +2626,21 @@ void ShootingScene::JumpToSection(int index) {
       }
     } else {
       enemy.isDead = false;
-      enemy.isActive = false;
+      enemy.isActive = (enemy.distance == targetProgress); // ジャンプ先がちょうどその戦闘区間ならアクティブ
       enemy.shootTimer = 0.0f;
-      enemy.spawnTimer = 0.0f;
+      enemy.slideTimer = (enemy.distance == targetProgress) ? 10.0f : 0.0f;
+      enemy.deathTimer = 0.0f;
       float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
       enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
-      enemy.object->SetTranslate(enemy.basePosition);
+      // ジャンプ先の敵は即座に定位置、以降の未出現の敵は画面外オフセット位置に配置
+      if (enemy.distance == targetProgress) {
+        enemy.object->SetTranslate(enemy.basePosition);
+      } else {
+        enemy.object->SetTranslate(enemy.initialOffsetPosition);
+      }
       enemy.object->SetRotation(enemy.baseRotation);
       if (enemy.model) {
-        enemy.model->SetDissolveParams(1, 1.0f, 0.05f,
+        enemy.model->SetDissolveParams(0, 0.0f, 0.05f,
                                        Vector3(1.0f, 0.4f, 0.3f));
       }
     }

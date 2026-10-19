@@ -54,7 +54,7 @@ void MyGame::Initialize() {
 
   // 文字列で指定(TITLE/GAMEPLAY/SHOOTINGなど)してシーン切り替え予約
 #ifdef USE_IMGUI
-  SceneManager::GetInstance()->ChangeScene("TITLE");
+  SceneManager::GetInstance()->ChangeScene("SHOOTING");
 #else
   SceneManager::GetInstance()->ChangeScene("TITLE");
 #endif
