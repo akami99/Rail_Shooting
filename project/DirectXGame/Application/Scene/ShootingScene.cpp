@@ -995,6 +995,8 @@ void ShootingScene::Update() {
       radialBlurTimer_ = 0.0f;
       randomNoiseStrength_ = 0.0f;
       randomNoiseTimer_ = 0.0f;
+      coverExplosionHits_ = 0;
+      lifeBlinkTimer_ = 0.0f;
 
       // 敵の論理リセット（モデルのリロードは行わない）
       for (auto &enemy : enemies_) {
@@ -1339,7 +1341,12 @@ void ShootingScene::Update() {
         }
         
         Vector3 dir = Normalize(Subtract(targetPos, startPos));
-        float bulletSpeed = (enemy.type == EnemyType::Engineer) ? engineerProjectileSpeed_ : speed_;
+        float bulletSpeed = speed_;
+        if (pType == EnemyProjectile::Type::Blast) {
+          bulletSpeed = engineerProjectileSpeed_;
+        } else if (pType == EnemyProjectile::Type::Jamming) {
+          bulletSpeed = jammingProjectileSpeed_; // ジャミング弾は最速
+        }
         Vector3 velocity = Multiply(bulletSpeed, dir);
         
         auto newProjectile = std::make_unique<EnemyProjectile>();
@@ -1381,12 +1388,35 @@ void ShootingScene::Update() {
       Vector3 toProjectile = Subtract(p->GetPosition(), targetPos);
       if (Dot(toProjectile, p->GetVelocity()) >= 0.0f) {
         if (p->IsExplosive()) {
-          radialBlurStrength_ = 0.035f; // カバー時爆発
+          // ランチャー弾（爆発弾）はカバー時でも演出発生＆2回被弾で1ダメージ
+          radialBlurStrength_ = 0.04f;
           radialBlurTimer_ = kRadialBlurDuration;
           PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
-          cameraShakeIntensity_ = 0.20f;
-          cameraShakeDuration_ = 0.30f;
-          cameraShakeTimer_ = 0.30f;
+          cameraShakeIntensity_ = 0.30f;
+          cameraShakeDuration_ = 0.35f;
+          cameraShakeTimer_ = 0.35f;
+
+          coverExplosionHits_++;
+          if (coverExplosionHits_ >= 2) {
+            // 2回ヒットで1ライフ減少
+            coverExplosionHits_ = 0;
+            hitCount_++;
+            damageEffectStrength_ = 1.0f;
+            MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
+
+            if (hitCount_ >= kMaxHits) {
+              phase_ = Phase::GameOverVignette;
+              phaseTimer_ = 0.0f;
+              vignetteScale_ = 16.0f;
+              vignetteExponent_ = 0.8f;
+              damageEffectStrength_ = 0.0f;
+              MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
+              MyGame::SetPostEffectStrength(1.0f);
+              PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
+              projectiles_.clear();
+              return;
+            }
+          }
         }
         p->Kill();
       }
@@ -1402,7 +1432,7 @@ void ShootingScene::Update() {
             Length(Subtract(p->GetPosition(), camera_->GetTranslate()));
         if (dist < 1.0f) {
           if (p->IsExplosive() && hitCount_ + 1 < kMaxHits) {
-            radialBlurStrength_ = 0.05f; // 被弾時
+            radialBlurStrength_ = 0.05f;
             radialBlurTimer_ = kRadialBlurDuration;
             PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
             cameraShakeIntensity_ = 0.45f;
@@ -1413,13 +1443,20 @@ void ShootingScene::Update() {
             cameraShakeDuration_ = 0.25f;
             cameraShakeTimer_ = 0.25f;
           }
-          // ジャミング弾被弾時のノイズトリガー（生存時のみ、通常弾ヒット時はノイズ無し）
-          if (p->IsJamming() && hitCount_ + 1 < kMaxHits) {
+
+          // ジャミング弾被弾時：ライフは減らさず、ジャミング効果（ノイズ）のみ適用
+          if (p->IsJamming()) {
             randomNoiseStrength_ = 0.7f;
-            randomNoiseTimer_ = 5.0f; // 5秒
+            randomNoiseTimer_ = 5.0f;
             PostProcessManager::SetRandomParams(randomNoiseStrength_);
+            p->Kill();
+            continue; // ライフ減少を行わずに次へ
           }
+
           p->Kill(); // 当たった弾は必ず消す
+
+          // 通常弾・爆発弾の直撃：1ライフ減少＆カバー時蓄積をリセット
+          coverExplosionHits_ = 0;
           hitCount_++;
           damageEffectStrength_ = 1.0f;
           MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
@@ -1431,14 +1468,11 @@ void ShootingScene::Update() {
             vignetteScale_ = 16.0f;
             vignetteExponent_ = 0.8f;
             damageEffectStrength_ = 0.0f;
-
             MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
             MyGame::SetPostEffectStrength(1.0f);
-            PostProcessManager::SetVignetteParams(vignetteScale_,
-                                                  vignetteExponent_);
+            PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
             projectiles_.clear();
-
-            return; // ここでUpdateを抜けてゲームを一時停止させる
+            return;
           }
         }
       }
@@ -1462,16 +1496,23 @@ void ShootingScene::Update() {
           cameraShakeDuration_ = 0.25f;
           cameraShakeTimer_ = 0.25f;
         }
-        // ジャミング弾被弾時のノイズトリガー（生存時のみ、通常弾ヒット時はノイズ無し）
-        if (p->IsJamming() && !isInvincible && hitCount_ + 1 < kMaxHits) {
-          randomNoiseStrength_ = 0.7f;
-          randomNoiseTimer_ = 5.0f; // 5秒
-          PostProcessManager::SetRandomParams(randomNoiseStrength_);
+
+        // ジャミング弾被弾時：無敵でなければノイズ効果のみ適用し、ライフは減らさない
+        if (p->IsJamming()) {
+          if (!isInvincible) {
+            randomNoiseStrength_ = 0.7f;
+            randomNoiseTimer_ = 5.0f; // 5秒
+            PostProcessManager::SetRandomParams(randomNoiseStrength_);
+          }
+          p->Kill();
+          continue; // ライフ減少を行わずに次へ
         }
+
         p->Kill(); // 当たった弾は必ず消す
 
         // 無敵状態でなければ被弾ダメージ処理を行う
         if (!isInvincible) {
+          coverExplosionHits_ = 0; // 通常ヒットでカバー時ヒット進捗をリセット
           hitCount_++;
           damageEffectStrength_ = 1.0f;
           MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
@@ -1483,14 +1524,11 @@ void ShootingScene::Update() {
             vignetteScale_ = 16.0f;
             vignetteExponent_ = 0.8f;
             damageEffectStrength_ = 0.0f;
-
             MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
             MyGame::SetPostEffectStrength(1.0f);
-            PostProcessManager::SetVignetteParams(vignetteScale_,
-                                                  vignetteExponent_);
+            PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
             projectiles_.clear();
-
-            return; // ここでUpdateを抜けてゲームを一時停止させる
+            return;
           }
         }
       }
@@ -1771,10 +1809,21 @@ void ShootingScene::Update() {
     if (currentLife < 0)
       currentLife = 0;
 
+    lifeBlinkTimer_ += kDeltaTime;
+    float blinkAlpha = 0.35f + 0.65f * (0.5f + 0.5f * std::sin(lifeBlinkTimer_ * 16.0f));
+
     for (int i = 0; i < currentLife; ++i) {
       lifeTargetX_[i] = 1214.0f - (currentLife - 1 - i) * 24.0f;
       lifeCurrentX_[i] += (lifeTargetX_[i] - lifeCurrentX_[i]) * 0.15f;
       lifeUnits_[i]->SetTranslate({lifeCurrentX_[i], 37.0f});
+
+      // カバー時のランチャー被弾が1回蓄積している場合、次に減少する予定のメモリ（i == 0、右端）を点滅
+      if (coverExplosionHits_ > 0 && i == 0) {
+        lifeUnits_[i]->SetColor({1.0f, 0.4f, 0.0f, blinkAlpha}); // 警告オレンジ色で点滅
+      } else {
+        lifeUnits_[i]->SetColor({1.0f, 0.0f, 0.0f, 1.0f}); // 通常赤色
+      }
+
       lifeUnits_[i]->Update();
     }
     lifeBg_->Update();
@@ -2052,6 +2101,8 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
       radialBlurTimer_ = 0.0f;
       randomNoiseStrength_ = 0.0f;
       randomNoiseTimer_ = 0.0f;
+      coverExplosionHits_ = 0;
+      lifeBlinkTimer_ = 0.0f;
 
       // 敵の論理リセット（モデルのリロードは行わない）
       for (auto &enemy : enemies_) {
@@ -2276,6 +2327,8 @@ void ShootingScene::UpdateImGui_Object3d() {
     ImGui::SliderFloat("Miss Shot Spread (演出弾の散布半径)", &missShotSpread_, 1.5f, 8.0f, "%.1f");
     ImGui::DragFloat("Normal Bullet Speed", &speed_, 0.02f, 0.1f, 3.0f);
     ImGui::DragFloat("Engineer Bullet Speed", &engineerProjectileSpeed_, 0.02f, 0.05f, 2.0f);
+    ImGui::DragFloat("Jamming Bullet Speed", &jammingProjectileSpeed_, 0.02f, 0.5f, 5.0f);
+    ImGui::Text("Cover Explosion Hits (2 to damage): %d / 2", coverExplosionHits_);
     ImGui::Separator();
     ImGui::Text("Active Projectiles: %zu", projectiles_.size());
     for (size_t i = 0; i < projectiles_.size(); ++i) {
@@ -2601,6 +2654,8 @@ void ShootingScene::JumpToSection(int index) {
   radialBlurTimer_ = 0.0f;
   randomNoiseStrength_ = 0.0f;
   randomNoiseTimer_ = 0.0f;
+  coverExplosionHits_ = 0;
+  lifeBlinkTimer_ = 0.0f;
 
   // 敵の状態復元（移動先より手前の敵は撃破済み、以降の敵は復活・未出現）
   for (auto &enemy : enemies_) {

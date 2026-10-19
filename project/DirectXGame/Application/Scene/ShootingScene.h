@@ -144,7 +144,10 @@ private:
     // プロジェクタイル管理
     std::vector<std::unique_ptr<EnemyProjectile>> projectiles_;
     float speed_ = 1.2f;                            // 通常弾の速度 (少し速め)
-    float engineerProjectileSpeed_ = 0.18f;          // 工兵爆発弾の速度 (ロケット弾イメージで遅め)
+    float engineerProjectileSpeed_ = 0.18f;          // 工兵爆発弾（ランチャー）の速度 (ロケット弾イメージで遅め)
+    float jammingProjectileSpeed_ = 1.8f;           // ジャミング弾の速度 (弾の中で最速)
+    int coverExplosionHits_ = 0;                    // カバー時の爆発弾ヒット蓄積数 (2回で1ライフ減少)
+    float lifeBlinkTimer_ = 0.0f;                   // カバー被弾時点滅タイマー
     float projectileSpawnTimer_ = 0.0f;
     const float kProjectileSpawnInterval = 120.0f;   // 通常敵の発射間隔 (約2秒)
     const float kEngineerSpawnInterval = 200.0f;     // 工兵の発射間隔 (約3.3秒、ロケット弾イメージで遅め)
