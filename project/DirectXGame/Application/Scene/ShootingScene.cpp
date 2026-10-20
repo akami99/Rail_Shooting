@@ -676,6 +676,33 @@ void ShootingScene::Initialize() {
   escTextSprite_->SetTranslate(escTextPos_);
   escTextSprite_->SetScale(escTextScale_);
 
+  // Rキー案内スプライトの初期化
+  TextureManager::GetInstance()->LoadTexture("ui/rText.png");
+  rTextSprite_ = std::make_unique<Sprite>();
+  rTextSprite_->Initialize("ui/rText.png");
+  rTextSprite_->SetTranslate(rTextPos_);
+  rTextSprite_->SetScale(rTextScale_);
+
+  // Ready / Go 演出スプライトの初期化
+  TextureManager::GetInstance()->LoadTexture("ui/readyText.png");
+  TextureManager::GetInstance()->LoadTexture("ui/goText.png");
+
+  readyGoRibbon_ = std::make_unique<Sprite>();
+  readyGoRibbon_->Initialize("white.png");
+  readyGoRibbon_->SetAnchorPoint({ 0.5f, 0.5f });
+  readyGoRibbon_->SetScale(readyGoRibbonSize_);
+  readyGoRibbon_->SetColor({ 0.12f, 0.12f, 0.12f, 0.70f });
+
+  readyTextSprite_ = std::make_unique<Sprite>();
+  readyTextSprite_->Initialize("ui/readyText.png");
+  readyTextSprite_->SetAnchorPoint({ 0.5f, 0.5f });
+  readyTextSprite_->SetScale(readyTextScale_);
+
+  goTextSprite_ = std::make_unique<Sprite>();
+  goTextSprite_->Initialize("ui/goText.png");
+  goTextSprite_->SetAnchorPoint({ 0.5f, 0.5f });
+  goTextSprite_->SetScale(goTextScale_);
+
   // 6. タイマーUIの初期化
   timerBg_ = std::make_unique<Sprite>();
   timerBg_->Initialize("white.png");
@@ -707,7 +734,12 @@ void ShootingScene::Initialize() {
 
   // スウォーム（空中群体制御）システムの初期化
   swarmManager_ = std::make_unique<SwarmManager>();
-  swarmManager_->Initialize(128, enemyModelDirectory_, enemyModel_);
+  swarmManager_->Initialize(kMaxSwarmCount, enemyModelDirectory_, enemyModel_);
+  Vector3 endRailPos = CalculateRailPosition(maxProgress_);
+  Vector3 swarmCenter{ endRailPos.x + introSwarmOffset_.x, endRailPos.y + introSwarmOffset_.y, endRailPos.z + introSwarmOffset_.z };
+  swarmManager_->SpawnDrones(introSwarmCount_, swarmCenter, introSwarmRadius_);
+  // スタート演出用に突撃を無効化
+  swarmManager_->SetAttackDistance(0.0f);
 }
 
 void ShootingScene::Update() {
@@ -734,6 +766,13 @@ void ShootingScene::Update() {
           phaseTimer_ = 0.0f;
           projectiles_.clear();
       }
+  }
+
+  // Rキーでシューティングシーン遷移直後にリセット
+  if (Input::GetInstance()->IsKeyTriggered(DIK_R)) {
+      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      SceneManager::GetInstance()->ChangeScene("SHOOTING");
+      return;
   }
 
 #ifdef USE_IMGUI
@@ -800,7 +839,7 @@ void ShootingScene::Update() {
     }
 
     if (phaseTimer_ >= kIntroConstructDuration) {
-      phase_ = Phase::Playing;
+      phase_ = Phase::IntroFastForward;
       phaseTimer_ = 0.0f;
       PostProcessManager::SetMode(PostProcessManager::kModeCopy);
       if (floorObject_) {
@@ -855,6 +894,316 @@ void ShootingScene::Update() {
     crosshair_->Update();
 
     return; // 通常プレイの更新処理（レール移動・敵射撃等）をスキップ
+  }
+
+  // =====================================================
+  // 終点プレビュー固定モード (ImGui確認用)
+  // =====================================================
+  if (isIntroPreviewMode_) {
+      cameraProgress_ = maxProgress_ - introCameraStopOffset_;
+      camera_->SetTranslate(CalculateRailPosition(cameraProgress_));
+      camera_->SetRotate({ cameraBasePitch_ + introCameraPitch_, cameraYaw_ + introCameraYaw_, 0.0f });
+      camera_->Update();
+      if (floorObject_) {
+          floorObject_->Update(mainViewIndex_, camera_.get());
+      }
+      if (skybox_) {
+          skybox_->Update(mainViewIndex_, camera_.get());
+      }
+      Vector3 endRailPos = CalculateRailPosition(maxProgress_);
+      Vector3 swarmCenter{ endRailPos.x + introSwarmOffset_.x, endRailPos.y + introSwarmOffset_.y, endRailPos.z + introSwarmOffset_.z };
+      if (swarmManager_) {
+          swarmManager_->Update(kDeltaTime, swarmCenter, camera_.get(), nullptr);
+      }
+      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      return;
+  }
+
+  // =====================================================
+  // フェーズ: スタート演出（カメラ移動 ＋ ラジアルブラー）
+  // =====================================================
+  if (!isPaused_) {
+      if (phase_ == Phase::IntroFastForward) {
+          phaseTimer_ += kDeltaTime;
+
+          // スキップ機能（SPACE / ENTER で即座に通常プレイへ移行）
+          if (Input::GetInstance()->IsKeyTriggered(DIK_SPACE) ||
+              Input::GetInstance()->IsKeyTriggered(DIK_RETURN)) {
+              // スキップされた残り時間分、スウォームのシミュレーションを一気に進める
+              float remainingTime = kFastForwardDuration - phaseTimer_;
+              int catchUpSteps = static_cast<int>(remainingTime / kDeltaTime);
+
+              Vector3 endRailPos = CalculateRailPosition(maxProgress_);
+              Vector3 swarmCenter{ endRailPos.x + introSwarmOffset_.x, endRailPos.y + introSwarmOffset_.y, endRailPos.z + introSwarmOffset_.z };
+
+              for (int i = 0; i < catchUpSteps; ++i) {
+                  swarmManager_->Update(kDeltaTime, swarmCenter, camera_.get(), nullptr);
+              }
+
+              phaseTimer_ = kFastForwardDuration;
+          }
+
+          if (phaseTimer_ >= kFastForwardDuration) {
+              phase_ = Phase::IntroSwarmShowcase;
+              phaseTimer_ = 0.0f;
+              PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+          } else {
+              float t = phaseTimer_ / kFastForwardDuration;
+              float ease = t * t;
+              cameraProgress_ = ease * maxProgress_;
+              camera_->SetTranslate(CalculateRailPosition(cameraProgress_));
+
+              PostProcessManager::SetMode(PostProcessManager::kModeRadialBlur);
+              // 速度に合わせて width を変化させる
+              float blurWidth = 0.04f * (1.0f - std::abs(t - 0.5f) * 2.0f);
+              PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, blurWidth, 12);
+          }
+
+          // オブジェクトの更新
+          camera_->Update();
+          if (floorObject_) {
+              floorObject_->Update(mainViewIndex_, camera_.get());
+          }
+          if (skybox_) {
+              skybox_->Update(mainViewIndex_, camera_.get());
+          }
+
+          Vector3 endRailPos = CalculateRailPosition(maxProgress_);
+          Vector3 swarmCenter = { endRailPos.x + introSwarmOffset_.x, endRailPos.y + introSwarmOffset_.y, endRailPos.z + introSwarmOffset_.z };
+          swarmManager_->Update(kDeltaTime, swarmCenter, camera_.get(), nullptr);
+
+          return; // 通常プレイの更新処理（レール移動・敵射撃等）をスキップ
+      }
+
+      if (phase_ == Phase::IntroSwarmShowcase) {
+          phaseTimer_ += kDeltaTime;
+
+          // スキップ機能（SPACE / ENTER で即座に通常プレイへ移行）
+          if (Input::GetInstance()->IsKeyTriggered(DIK_SPACE) ||
+              Input::GetInstance()->IsKeyTriggered(DIK_RETURN)) {
+              phaseTimer_ = kSwarmShowcaseDuration;
+          }
+
+          if (phaseTimer_ >= kSwarmShowcaseDuration) {
+              phase_ = Phase::IntroRewind;
+              phaseTimer_ = 0.0f;
+          } else {
+              // 終点上空を見上げる
+              float t = phaseTimer_ / kSwarmShowcaseDuration; // 0.0f -> 1.0f
+              float weight = 0.0f;
+              if (t < 0.30f) {
+                  // 1. 最初(0%〜30%): 滑らかに見上げる (0.0 -> 1.0)
+                  float p = t / 0.30f;
+                  weight = std::sin(p * (std::numbers::pi_v<float> / 2.0f)); // easeOut
+              } else if (t < 0.70f) {
+                  // 2. 中盤(30%〜70%): 見上げた状態をキープしてスウォームを映す
+                  weight = 1.0f;
+              } else {
+                  // 3. 終盤(70%〜100%): 滑らかに正面へ戻す (1.0 -> 0.0)
+                  float p = (t - 0.70f) / 0.30f;
+                  weight = std::cos(p * (std::numbers::pi_v<float> / 2.0f)); // easeIn
+              }
+              cameraProgress_ = maxProgress_ - introCameraStopOffset_;
+              camera_->SetTranslate(CalculateRailPosition(cameraProgress_));
+              // カメラ回転の適用
+              camera_->SetRotate({
+                  cameraBasePitch_ + weight * introCameraPitch_,
+                  cameraYaw_ + weight * introCameraYaw_,
+                  0.0f
+                  });
+          }
+
+          // オブジェクトの更新
+          camera_->Update();
+          if (floorObject_) {
+              floorObject_->Update(mainViewIndex_, camera_.get());
+          }
+          if (skybox_) {
+              skybox_->Update(mainViewIndex_, camera_.get());
+          }
+
+          Vector3 endRailPos = CalculateRailPosition(maxProgress_);
+          introSwarmOffset_.x = -200.0f;
+          introSwarmOffset_.z = 400.0f;
+          Vector3 swarmCenter = { endRailPos.x + introSwarmOffset_.x, endRailPos.y + introSwarmOffset_.y, endRailPos.z + introSwarmOffset_.z };
+          swarmManager_->Update(kDeltaTime, swarmCenter, camera_.get(), nullptr);
+
+          return; // 通常プレイの更新処理（レール移動・敵射撃等）をスキップ
+      }
+
+      if (phase_ == Phase::IntroRewind) {
+          phaseTimer_ += kDeltaTime;
+
+          // スキップ機能（SPACE / ENTER で即座に通常プレイへ移行）
+          if (Input::GetInstance()->IsKeyTriggered(DIK_SPACE) ||
+              Input::GetInstance()->IsKeyTriggered(DIK_RETURN)) {
+              phaseTimer_ = kRewindDuration;
+          }
+
+          if (phaseTimer_ >= kRewindDuration) {
+              phase_ = Phase::IntroReadyGo;
+              phaseTimer_ = 0.0f;
+              cameraProgress_ = 0.0f;
+              camera_->SetTranslate(CalculateRailPosition(0.0f));
+              if (levelData_ && !levelData_->players.empty()) {
+                  camera_->SetRotate(levelData_->players[0].rotation);
+              } else {
+                  camera_->SetRotate({ 0.0f, 0.0f, 0.0f });
+              }
+              if (swarmManager_) {
+                  swarmManager_->ClearDrones();
+                  swarmManager_->SetAttackDistance(20.0f);
+              }
+              PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+          } else {
+              // スウォームを消去
+              if (swarmManager_ && phaseTimer_ >= kRewindDuration / 2.0f) {
+                  swarmManager_->ClearDrones();
+              }
+
+              float t = phaseTimer_ / kRewindDuration;
+              float ease = 1.0f - (t * t);
+              cameraProgress_ = ease * maxProgress_;
+              camera_->SetTranslate(CalculateRailPosition(cameraProgress_));
+
+              PostProcessManager::SetMode(PostProcessManager::kModeRadialBlur);
+              // 速度に合わせて width を変化させる
+              float blurWidth = 0.04f * (1.0f - std::abs(t - 0.5f) * 2.0f);
+              PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, blurWidth, 12);
+          }
+
+          // オブジェクトの更新
+          camera_->Update();
+          if (floorObject_) {
+              floorObject_->Update(mainViewIndex_, camera_.get());
+          }
+          if (skybox_) {
+              skybox_->Update(mainViewIndex_, camera_.get());
+          }
+
+          Vector3 endRailPos = CalculateRailPosition(maxProgress_);
+          Vector3 swarmCenter = { endRailPos.x + introSwarmOffset_.x, endRailPos.y + introSwarmOffset_.y, endRailPos.z + introSwarmOffset_.z };
+          swarmManager_->Update(kDeltaTime, swarmCenter, camera_.get(), nullptr);
+
+          // 照準スプライトをマウス位置に追従させる
+          POINT mousePos;
+          GetCursorPos(&mousePos);
+          ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+          crosshair_->SetTranslate({ static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) });
+          crosshair_->Update();
+
+          return; // 通常プレイの更新処理（レール移動・敵射撃等）をスキップ
+      }
+
+      // =====================================================
+      // フェーズ: スタート演出（Ready / Go 帯リール演出）
+      // =====================================================
+      if (phase_ == Phase::IntroReadyGo) {
+          phaseTimer_ += kDeltaTime;
+
+          // スキップ機能（SPACE / ENTER で即座に通常プレイへ移行）
+          if (Input::GetInstance()->IsKeyTriggered(DIK_SPACE) ||
+              Input::GetInstance()->IsKeyTriggered(DIK_RETURN)) {
+              phaseTimer_ = kReadyGoTotalDuration;
+          }
+
+          if (phaseTimer_ >= kReadyGoTotalDuration) {
+              phase_ = Phase::Playing;
+              phaseTimer_ = 0.0f;
+              isRibbonVisible_ = false;
+              isReadyVisible_ = false;
+              isGoVisible_ = false;
+          } else {
+              auto easeOutQuad = [](float p) { return 1.0f - (1.0f - p) * (1.0f - p); };
+              auto easeInQuad = [](float p) { return p * p; };
+              auto lerp = [](float a, float b, float p) { return a + (b - a) * p; };
+
+              const float centerX = 640.0f;
+              const float centerY = readyGoRibbonY_;
+              const float ribbonRightOut = 1920.0f;
+              const float ribbonLeftOut = -640.0f;
+              const float textRightOut = 1500.0f;
+              const float textLeftOut = -250.0f;
+
+              isRibbonVisible_ = false;
+              isReadyVisible_ = false;
+              isGoVisible_ = false;
+
+              // 1. 帯の移動 (0.00s 〜 2.30s)
+              // 0.00〜0.35s: 右画面外から中央へスライドイン
+              // 0.35〜1.95s: 中央キープ
+              // 1.95〜2.30s: 中央から左画面外へスライドアウト
+              if (phaseTimer_ < 0.35f) {
+                  float p = easeOutQuad(phaseTimer_ / 0.35f);
+                  if (readyGoRibbon_) readyGoRibbon_->SetTranslate({ lerp(ribbonRightOut, centerX, p), centerY });
+                  isRibbonVisible_ = true;
+              } else if (phaseTimer_ < 1.95f) {
+                  if (readyGoRibbon_) readyGoRibbon_->SetTranslate({ centerX, centerY });
+                  isRibbonVisible_ = true;
+              } else if (phaseTimer_ < 2.30f) {
+                  float p = easeInQuad((phaseTimer_ - 1.95f) / 0.35f);
+                  if (readyGoRibbon_) readyGoRibbon_->SetTranslate({ lerp(centerX, ribbonLeftOut, p), centerY });
+                  isRibbonVisible_ = true;
+              }
+              if (readyGoRibbon_) {
+                  readyGoRibbon_->SetScale(readyGoRibbonSize_);
+                  readyGoRibbon_->Update();
+              }
+
+              // 2. READY の移動 (0.20s 〜 1.30s)
+              // 0.20〜0.50s: 右画面外から中央へスライドイン
+              // 0.50〜1.05s: 中央キープ
+              // 1.05〜1.30s: 中央から左画面外へスライドアウト
+              if (phaseTimer_ >= 0.20f && phaseTimer_ < 0.50f) {
+                  float p = easeOutQuad((phaseTimer_ - 0.20f) / 0.30f);
+                  if (readyTextSprite_) readyTextSprite_->SetTranslate({ lerp(textRightOut, centerX, p), centerY });
+                  isReadyVisible_ = true;
+              } else if (phaseTimer_ >= 0.50f && phaseTimer_ < 1.05f) {
+                  if (readyTextSprite_) readyTextSprite_->SetTranslate({ centerX, centerY });
+                  isReadyVisible_ = true;
+              } else if (phaseTimer_ >= 1.05f && phaseTimer_ < 1.30f) {
+                  float p = easeInQuad((phaseTimer_ - 1.05f) / 0.25f);
+                  if (readyTextSprite_) readyTextSprite_->SetTranslate({ lerp(centerX, textLeftOut, p), centerY });
+                  isReadyVisible_ = true;
+              }
+              if (readyTextSprite_) {
+                  readyTextSprite_->SetScale(readyTextScale_);
+                  readyTextSprite_->Update();
+              }
+
+              // 3. GO の移動 (1.25s 〜 2.30s)
+              // 1.25〜1.50s: 右画面外から中央へスライドイン
+              // 1.50〜1.95s: 中央キープ
+              // 1.95〜2.30s: 帯とともに中央から左画面外へスライドアウト
+              if (phaseTimer_ >= 1.25f && phaseTimer_ < 1.50f) {
+                  float p = easeOutQuad((phaseTimer_ - 1.25f) / 0.25f);
+                  if (goTextSprite_) goTextSprite_->SetTranslate({ lerp(textRightOut, centerX, p), centerY });
+                  isGoVisible_ = true;
+              } else if (phaseTimer_ >= 1.50f && phaseTimer_ < 1.95f) {
+                  if (goTextSprite_) goTextSprite_->SetTranslate({ centerX, centerY });
+                  isGoVisible_ = true;
+              } else if (phaseTimer_ >= 1.95f && phaseTimer_ < 2.30f) {
+                  float p = easeInQuad((phaseTimer_ - 1.95f) / 0.35f);
+                  if (goTextSprite_) goTextSprite_->SetTranslate({ lerp(centerX, textLeftOut, p), centerY });
+                  isGoVisible_ = true;
+              }
+              if (goTextSprite_) {
+                  goTextSprite_->SetScale(goTextScale_);
+                  goTextSprite_->Update();
+              }
+          }
+
+          // オブジェクトの更新
+          camera_->Update();
+          if (floorObject_) {
+              floorObject_->Update(mainViewIndex_, camera_.get());
+          }
+          if (skybox_) {
+              skybox_->Update(mainViewIndex_, camera_.get());
+          }
+
+          return; // 通常プレイの更新処理（レール移動・敵射撃等）をスキップ
+      }
   }
 
   // =====================================================
@@ -1781,7 +2130,7 @@ void ShootingScene::Update() {
         swarmBattleTimer_ = 0.0f;
         Vector3 camPos = camera_->GetTranslate();
         if (swarmManager_) {
-          swarmManager_->SpawnDrones(100, { camPos.x, camPos.y, camPos.z }, 20.0f);
+          swarmManager_->SpawnDrones(kSpawnSwarmCount, { camPos.x, camPos.y, camPos.z }, 20.0f);
         }
       }
     }
@@ -1930,6 +2279,9 @@ void ShootingScene::Update() {
     if (escTextSprite_) {
       escTextSprite_->Update();
     }
+    if (rTextSprite_) {
+      rTextSprite_->Update();
+    }
   }
 
   // 6. タイマーUIの更新
@@ -2008,6 +2360,7 @@ void ShootingScene::UpdateImGui() {
   if (ImGui::Begin("Settings")) {
     UpdateImGui_GlobalSettings();
     UpdateImGui_GameCamera();
+    UpdateImGui_IntroSettings();
     UpdateImGui_Object3d();
     UpdateImGui_Skybox();
   }
@@ -2234,7 +2587,75 @@ void ShootingScene::UpdateImGui_GameCamera() {
 }
 
 // ImGuiでObject3dのパラメータを調整するための関数
+
+// ImGuiでスタート演出・終点スウォームアンカーのパラメータを調整するための関数
+void ShootingScene::UpdateImGui_IntroSettings() {
+  ImGui::Separator();
+  if (ImGui::TreeNode("Intro Sequence & Swarm Anchor")) {
+    ImGui::Checkbox("Preview End Camera", &isIntroPreviewMode_);
+    if (ImGui::Button("Replay Intro")) {
+      phase_ = Phase::IntroFastForward;
+      phaseTimer_ = 0.0f;
+      isIntroPreviewMode_ = false;
+      Vector3 endRailPos = CalculateRailPosition(maxProgress_);
+      Vector3 swarmCenter{ endRailPos.x + introSwarmOffset_.x, endRailPos.y + introSwarmOffset_.y, endRailPos.z + introSwarmOffset_.z };
+      swarmManager_->SpawnDrones(introSwarmCount_, swarmCenter, introSwarmRadius_);
+      swarmManager_->SetAttackDistance(0.0f);
+      SceneManager::GetInstance()->ChangeScene("SHOOTING");
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Swarm Drone Anchor Settings");
+    bool swarmChanged = false;
+    if (ImGui::DragFloat3("Swarm Offset from Rail End", &introSwarmOffset_.x, 0.5f)) {
+      swarmChanged = true;
+    }
+    if (ImGui::SliderFloat("Spawn Radius", &introSwarmRadius_, 5.0f, 60.0f, "%.1f")) {
+      swarmChanged = true;
+    }
+    int countInt = static_cast<int>(introSwarmCount_);
+    if (ImGui::DragInt("Drone Count", &countInt, 5, 10, static_cast<int>(kMaxSwarmCount))) {
+      introSwarmCount_ = static_cast<uint32_t>(countInt);
+      swarmChanged = true;
+    }
+    if (ImGui::Button("Respawn Swarm at Current Anchor") || swarmChanged) {
+      Vector3 endRailPos = CalculateRailPosition(maxProgress_);
+      Vector3 swarmCenter{ endRailPos.x + introSwarmOffset_.x, endRailPos.y + introSwarmOffset_.y, endRailPos.z + introSwarmOffset_.z };
+      swarmManager_->SpawnDrones(introSwarmCount_, swarmCenter, introSwarmRadius_);
+      swarmManager_->SetAttackDistance(0.0f);
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Ready / Go Banner Settings");
+    ImGui::SliderFloat("Banner Center Y", &readyGoRibbonY_, 100.0f, 620.0f, "%.1f");
+    ImGui::SliderFloat2("Banner Size", &readyGoRibbonSize_.x, 200.0f, 1920.0f, "%.0f");
+    ImGui::SliderFloat2("Ready Text Scale", &readyTextScale_.x, 100.0f, 600.0f, "%.0f");
+    ImGui::SliderFloat2("Go Text Scale", &goTextScale_.x, 100.0f, 600.0f, "%.0f");
+    if (ImGui::Button("Play Ready-Go Only")) {
+      phase_ = Phase::IntroReadyGo;
+      phaseTimer_ = 0.0f;
+    }
+
+    ImGui::Separator();
+    ImGui::Text("End Camera Settings");
+    ImGui::SliderFloat("Camera Stop Offset", &introCameraStopOffset_, 0.0f, 50.0f, "%.1f");
+    ImGui::SliderFloat("Look-up Pitch", &introCameraPitch_, -1.5f, 1.5f, "%.2f rad");
+    ImGui::SliderFloat("Look-around Yaw", &introCameraYaw_, -3.14f, 3.14f, "%.2f rad");
+
+    Vector3 endRailPos = CalculateRailPosition(maxProgress_);
+    Vector3 swarmCenter{ endRailPos.x + introSwarmOffset_.x, endRailPos.y + introSwarmOffset_.y, endRailPos.z + introSwarmOffset_.z };
+    Vector3 camPos = CalculateRailPosition(maxProgress_ - introCameraStopOffset_);
+    ImGui::Separator();
+    ImGui::Text("Rail End Pos: (%.1f, %.1f, %.1f)", endRailPos.x, endRailPos.y, endRailPos.z);
+    ImGui::Text("Cam Stop Pos: (%.1f, %.1f, %.1f)", camPos.x, camPos.y, camPos.z);
+    ImGui::Text("Swarm Center: (%.1f, %.1f, %.1f)", swarmCenter.x, swarmCenter.y, swarmCenter.z);
+
+    ImGui::TreePop();
+  }
+}
+
 void ShootingScene::UpdateImGui_Object3d() {
+  ImGui::Separator();
   // エネミーのパラメータを調整
   if (ImGui::TreeNode("Enemies Status")) {
     ImGui::Text("Movement Paused: %s", isMovementPaused_ ? "True" : "False");
@@ -2267,7 +2688,7 @@ void ShootingScene::UpdateImGui_Object3d() {
     ImGui::TreePop();
   }
   ImGui::Separator();
-  if (swarmManager_ && ImGui::TreeNode("Swarm System (空中群体)")) {
+  if (swarmManager_ && ImGui::TreeNode("Swarm System")) {
     auto& settings = swarmManager_->GetSettings();
     ImGui::Text("Active: %s", swarmManager_->IsActive() ? "YES" : "NO");
     ImGui::Text("Alive / Total: %u / %u", swarmManager_->GetAliveDroneCount(), swarmManager_->GetDroneCount());
@@ -2281,7 +2702,7 @@ void ShootingScene::UpdateImGui_Object3d() {
     if (ImGui::Button("Spawn in Front of Camera (50 drones, 15m ahead)")) {
       Vector3 camPos = camera_->GetTranslate();
       Vector3 spawnCenter = { camPos.x, camPos.y, camPos.z + 15.0f };
-      swarmManager_->SpawnDrones(50, { spawnCenter.x, spawnCenter.y, spawnCenter.z }, 8.0f);
+      swarmManager_->SpawnDrones(kSpawnSwarmCount, { spawnCenter.x, spawnCenter.y, spawnCenter.z }, 8.0f);
       phase_ = Phase::SwarmBattle;
       swarmBattleTimer_ = 0.0f;
     }
@@ -2323,8 +2744,8 @@ void ShootingScene::UpdateImGui_Object3d() {
   }
   ImGui::Separator();
   if (ImGui::TreeNode("Projectiles Status")) {
-    ImGui::SliderFloat("Hit Shot Ratio (必中弾割合)", &hitShotRate_, 0.0f, 1.0f, "%.2f");
-    ImGui::SliderFloat("Miss Shot Spread (演出弾の散布半径)", &missShotSpread_, 1.5f, 8.0f, "%.1f");
+    ImGui::SliderFloat("Hit Shot Ratio", &hitShotRate_, 0.0f, 1.0f, "%.2f");
+    ImGui::SliderFloat("Miss Shot Spread", &missShotSpread_, 1.5f, 8.0f, "%.1f");
     ImGui::DragFloat("Normal Bullet Speed", &speed_, 0.02f, 0.1f, 3.0f);
     ImGui::DragFloat("Engineer Bullet Speed", &engineerProjectileSpeed_, 0.02f, 0.05f, 2.0f);
     ImGui::DragFloat("Jamming Bullet Speed", &jammingProjectileSpeed_, 0.02f, 0.5f, 5.0f);
@@ -2419,6 +2840,7 @@ void ShootingScene::UpdateImGui_GameStatus() {
   ImGui::Text("LMB: Shoot");
   ImGui::Text("SPACE: Cover (Reload)");
   ImGui::Text("ESC: Return to Title");
+  ImGui::Text("R: Reset Scene");
 
   if (ImGui::TreeNode("ESC Text UI")) {
     bool changed = false;
@@ -2431,6 +2853,21 @@ void ShootingScene::UpdateImGui_GameStatus() {
     if (changed && escTextSprite_) {
       escTextSprite_->SetTranslate(escTextPos_);
       escTextSprite_->SetScale(escTextScale_);
+    }
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNode("R Text UI")) {
+    bool changed = false;
+    if (ImGui::DragFloat2("Position", &rTextPos_.x, 1.0f)) {
+      changed = true;
+    }
+    if (ImGui::DragFloat2("Scale", &rTextScale_.x, 1.0f)) {
+      changed = true;
+    }
+    if (changed && rTextSprite_) {
+      rTextSprite_->SetTranslate(rTextPos_);
+      rTextSprite_->SetScale(rTextScale_);
     }
     ImGui::TreePop();
   }
@@ -2491,8 +2928,8 @@ void ShootingScene::Draw() {
   SpriteCommon::GetInstance()->SetCommonDrawSettings(
       static_cast<BlendState>(currentBlendMode_));
 
-  // 入場演出中はUIの下地・ゲージを後半（1.2秒以降）まで非表示にする
-  bool showUI = (phase_ != Phase::IntroConstruct) || (phaseTimer_ >= 1.2f);
+  // UIの下地・ゲージを非表示にする
+  bool showUI = (phase_ == Phase::Playing);
 
   if (showUI) {
     // 1. カバー演出
@@ -2551,6 +2988,11 @@ void ShootingScene::Draw() {
       escTextSprite_->Draw();
     }
 
+    // Rキースプライト
+    if (rTextSprite_) {
+      rTextSprite_->Draw();
+    }
+
     // タイマー表示スプライト
     for (int i = 0; i < 4; ++i) {
       if (timerUnits_[i]) {
@@ -2559,6 +3001,19 @@ void ShootingScene::Draw() {
     }
     if (timerDot_) {
       timerDot_->Draw();
+    }
+  }
+
+  // 3.8. スタート演出（Ready / Go 帯リール演出）
+  if (phase_ == Phase::IntroReadyGo) {
+    if (readyGoRibbon_ && isRibbonVisible_) {
+      readyGoRibbon_->Draw();
+    }
+    if (readyTextSprite_ && isReadyVisible_) {
+      readyTextSprite_->Draw();
+    }
+    if (goTextSprite_ && isGoVisible_) {
+      goTextSprite_->Draw();
     }
   }
 

@@ -43,6 +43,9 @@ public:
     // ドローンのスポーン（指定位置を中心に半径radius以内にcount機を配置）
     void SpawnDrones(uint32_t count, const Vector3 & centerPos, float radius = 20.0f);
 
+    // ドローンをクリア
+    void ClearDrones() { isActive_ = false; pendingSpawn_ = false; }
+
     // スウォームがアクティブ（スポーン済み）か
     bool IsActive() const { return isActive_; }
 
@@ -50,6 +53,9 @@ public:
     void SetMaxRespawnCount(uint32_t count) { maxRespawnCount_ = count; }
     uint32_t GetMaxRespawnCount() const { return maxRespawnCount_; }
     uint32_t GetTotalRespawnedCount() const { return totalRespawnedCount_; }
+
+    // 突撃以降距離の設定(0.0f にすると突撃しない)
+    void SetAttackDistance(float dist) { settings_.attackDistance = dist; }
 
     // パラメータ取得 (ImGui等での調整用)
     Swarm::SwarmGlobalConstants& GetSettings() { return settings_; }

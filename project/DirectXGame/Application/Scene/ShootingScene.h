@@ -28,13 +28,17 @@ public:
 
     // ゲームオーバー/クリア/入場演出フェーズ
     enum class Phase {
-        IntroConstruct,   // 入場演出（逆順展開：ワイヤーフレーム出現 ＋ ソリッド構築）
-        Playing,          // 通常プレイ
-        SwarmBattle,      // レール終点でのスウォーム演出/戦闘
-        GameOverVignette, // ビネットで覆っていく（ゲームオーバー）
-        GameOverWait,     // 暗転維持
-        RestartSmoothing, // リセット後スムージングを徐々に消す
-        ClearVignette,    // クリア時ビネット暗転
+        IntroConstruct,     // 入場演出（逆順展開：ワイヤーフレーム出現 ＋ ソリッド構築）
+        IntroFastForward,   // スタート演出:終点へ急加速移動
+        IntroSwarmShowcase, // スタート演出:終点上空のスウォーム偵察
+        IntroRewind,        // スタート演出:引き戻し
+        IntroReadyGo,       // スタート演出:Ready Go帯リール演出
+        Playing,            // 通常プレイ
+        SwarmBattle,        // レール終点でのスウォーム演出/戦闘
+        GameOverVignette,   // ビネットで覆っていく（ゲームオーバー）
+        GameOverWait,       // 暗転維持
+        RestartSmoothing,   // リセット後スムージングを徐々に消す
+        ClearVignette,      // クリア時ビネット暗転
         ReturnToTitleVignette, // ESCで目を閉じる退場暗転
     };
 
@@ -52,6 +56,8 @@ private:
     void UpdateImGui_GlobalSettings();
     // ImGuiでゲームカメラのパラメータを調整するための関数
     void UpdateImGui_GameCamera();
+    // ImGuiでスタート演出・終点スウォームアンカーのパラメータを調整するための関数
+    void UpdateImGui_IntroSettings();
     // ImGuiでObject3dのパラメータを調整するための関数
     void UpdateImGui_Object3d();
     // ImGuiでSkyboxのパラメータを調整するための関数
@@ -115,6 +121,8 @@ private:
     SwarmManager::AttackCommand pendingSwarmAttack_;
     bool hasPendingSwarmAttack_ = false;
     float swarmBattleTimer_ = 0.0f;
+    const uint32_t kMaxSwarmCount = 128;
+    const uint32_t kSpawnSwarmCount = 100;
 
     // 照準（スプライト）
     std::unique_ptr<Sprite> crosshair_;
@@ -173,6 +181,20 @@ private:
     static constexpr float kBlinkDuration = 1.0f;          // 瞬き明転演出の長さ(秒)
     const Vector3 kTransitionEdgeColor = { 0.0f, 1.0f, 0.8f };  // ディゾルブ境界の発光色（シアン）
     const Vector4 kWireframeColor = { 0.0f, 0.9f, 1.0f, 1.0f }; // ワイヤーフレームの線色
+
+    // スタート演出パラメータ
+    static constexpr float kFastForwardDuration = 2.0f; // 前進にかける時間(秒)
+    static constexpr float kSwarmShowcaseDuration = 2.5f; // 終点で見せる時間(秒)
+    static constexpr float kRewindDuration = 1.5f; // 引き戻しにかける時間(秒)
+
+    // スタート演出・終点スウォーム調整用パラメータ (ImGui)
+    Vector3 introSwarmOffset_ = { 0.0f, 7.5f, 20.0f }; // レール終点からのスウォーム中心オフセット
+    float introSwarmRadius_ = 60.0f;                    // スポーン半径
+    uint32_t introSwarmCount_ = 100;                    // スポーン機数
+    float introCameraStopOffset_ = 0.0f;               // 終点手前でのカメラ停止距離 (maxProgress_ - offset)
+    float introCameraPitch_ = -0.25f;                   // 見上げ角度 (Pitch)
+    float introCameraYaw_ = 0.0f;                       // 左右角度オフセット (Yaw)
+    bool isIntroPreviewMode_ = false;                   // 終点カメラプレビュー固定フラグ
 
     // ビネット演出パラメータ（徐々に強化）
     float vignetteScale_ = 16.0f;                      // 小さいほど暗くなる
@@ -251,6 +273,24 @@ private:
     std::unique_ptr<Sprite> escTextSprite_;
     Vector2 escTextPos_ = { 30.0f, 85.0f };
     Vector2 escTextScale_ = { 160.0f, 40.0f };
+
+    // Rキー案内スプライト
+    std::unique_ptr<Sprite> rTextSprite_;
+    Vector2 rTextPos_ = { 30.0f, 130.0f };
+    Vector2 rTextScale_ = { 160.0f, 40.0f };
+
+    // Ready / Go 帯リール演出用スプライトとパラメータ
+    std::unique_ptr<Sprite> readyGoRibbon_;
+    std::unique_ptr<Sprite> readyTextSprite_;
+    std::unique_ptr<Sprite> goTextSprite_;
+    Vector2 readyGoRibbonSize_ = { 1280.0f, 130.0f };
+    Vector2 readyTextScale_ = { 320.0f, 160.0f };
+    Vector2 goTextScale_ = { 320.0f, 160.0f };
+    float readyGoRibbonY_ = 360.0f;
+    bool isRibbonVisible_ = false;
+    bool isReadyVisible_ = false;
+    bool isGoVisible_ = false;
+    static constexpr float kReadyGoTotalDuration = 2.4f; // Ready Go演出の総時間(秒)
 
     // カバー演出UI
     std::unique_ptr<Sprite> coverOverlay_;

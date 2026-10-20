@@ -309,7 +309,7 @@ void SwarmManager::Update(float deltaTime,
         settings_.cameraPosition = { camT.x, camT.y, camT.z };
 
         Matrix4x4 vp = camera->GetViewProjectionMatrix();
-        std::memcpy(&mappedCameraConstants_->viewProjection, &vp, sizeof(DirectX::XMFLOAT4X4));
+        std::memcpy(&mappedCameraConstants_->viewProjection, &vp, sizeof(Matrix4x4));
         mappedCameraConstants_->cameraPosition = settings_.cameraPosition;
         mappedCameraConstants_->droneScale = droneScale_;
     }
