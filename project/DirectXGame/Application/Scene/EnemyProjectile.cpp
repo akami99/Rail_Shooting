@@ -1,4 +1,5 @@
 #include "EnemyProjectile.h"
+#include "Camera.h"
 #include "ModelManager.h"
 #include "Model.h"
 #include "Particle/ParticleManager.h"
@@ -60,9 +61,33 @@ void EnemyProjectile::Initialize(const Vector3& position, const Vector3& velocit
     
     if (type_ == Type::Blast) {
         radius_ = 0.7f; // ロケット弾イメージで少し大きめ
-        hp_ = 5;        // 5回で破壊可能
+        maxHp_ = 5;     // 5回で破壊可能
+        hp_ = maxHp_;
+        damageBarRatio_ = 1.0f;
+        isHpGaugeVisible_ = false;
+
+        hpBgSprite_ = std::make_unique<Sprite>();
+        hpBgSprite_->Initialize("white.png");
+        hpBgSprite_->SetAnchorPoint({0.0f, 0.5f});
+        hpBgSprite_->SetColor({0.08f, 0.08f, 0.08f, 0.85f});
+
+        hpDamageSprite_ = std::make_unique<Sprite>();
+        hpDamageSprite_->Initialize("white.png");
+        hpDamageSprite_->SetAnchorPoint({0.0f, 0.5f});
+        hpDamageSprite_->SetColor({1.0f, 0.2f, 0.1f, 0.9f});
+
+        hpFillSprite_ = std::make_unique<Sprite>();
+        hpFillSprite_->Initialize("white.png");
+        hpFillSprite_->SetAnchorPoint({0.0f, 0.5f});
+        hpFillSprite_->SetColor({1.0f, 0.85f, 0.1f, 1.0f});
+
+        hpFrameSprite_ = std::make_unique<Sprite>();
+        hpFrameSprite_->Initialize("ui/enemyHpFrame.png");
+        hpFrameSprite_->SetAnchorPoint({0.5f, 0.5f});
+        hpFrameSprite_->SetScale({70.0f, 14.0f});
     } else {
         radius_ = 0.5f;
+        maxHp_ = 1;
         hp_ = 1;
     }
 
@@ -150,4 +175,90 @@ void EnemyProjectile::Update(uint32_t viewIndex, Camera* camera) {
 
 void EnemyProjectile::Draw(uint32_t viewIndex) {
     object_->Draw(viewIndex);
+}
+
+void EnemyProjectile::UpdateHpGauge(Camera* camera, float clientWidth, float clientHeight) {
+    isHpGaugeVisible_ = false;
+    // 生存中 かつ 最大HPが2以上（ランチャー弾） かつ 一度でもダメージを受けている（hp_ < maxHp_）場合のみ表示
+    if (isDead_ || !camera || maxHp_ <= 1 || hp_ >= maxHp_) {
+        return;
+    }
+
+    Vector3 camPos = camera->GetTranslate();
+    Vector3 camRot = camera->GetRotate();
+    Vector3 camForward = {
+        std::cos(camRot.x) * std::sin(camRot.y),
+        -std::sin(camRot.x),
+        std::cos(camRot.x) * std::cos(camRot.y)
+    };
+
+    // ランチャー弾の上部ワールド座標（中心からY+0.9m上）
+    Vector3 headWorldPos = MathUtils::Add(position_, {0.0f, 0.9f, 0.0f});
+    Vector3 toHead = MathUtils::Subtract(headWorldPos, camPos);
+    if (MathUtils::Dot(toHead, camForward) <= 0.1f) {
+        return;
+    }
+
+    Matrix4x4 vp = camera->GetViewProjectionMatrix();
+    Vector3 ndc = MathUtils::TransformPoint(headWorldPos, vp);
+    if (ndc.z < 0.0f || ndc.z > 1.0f) {
+        return;
+    }
+
+    float screenX = (ndc.x * 0.5f + 0.5f) * clientWidth;
+    float screenY = (1.0f - (ndc.y * 0.5f + 0.5f)) * clientHeight;
+
+    // 目標HP比率と赤残像バーのイージング追従
+    float targetRatio = static_cast<float>(hp_) / static_cast<float>(maxHp_);
+    if (targetRatio < 0.0f) targetRatio = 0.0f;
+    if (damageBarRatio_ > targetRatio) {
+        damageBarRatio_ -= (damageBarRatio_ - targetRatio) * 0.12f;
+        if (damageBarRatio_ - targetRatio < 0.005f) {
+            damageBarRatio_ = targetRatio;
+        }
+    } else {
+        damageBarRatio_ = targetRatio;
+    }
+
+    const float kBarFullWidth = 62.0f;
+    const float kBarHeight = 7.0f;
+    float barLeftX = screenX - kBarFullWidth * 0.5f;
+
+    if (hpBgSprite_) {
+        hpBgSprite_->SetTranslate({barLeftX, screenY});
+        hpBgSprite_->SetScale({kBarFullWidth, kBarHeight});
+        hpBgSprite_->Update();
+    }
+    if (hpDamageSprite_) {
+        hpDamageSprite_->SetTranslate({barLeftX, screenY});
+        hpDamageSprite_->SetScale({kBarFullWidth * damageBarRatio_, kBarHeight});
+        hpDamageSprite_->Update();
+    }
+    if (hpFillSprite_) {
+        hpFillSprite_->SetTranslate({barLeftX, screenY});
+        hpFillSprite_->SetScale({kBarFullWidth * targetRatio, kBarHeight});
+        if (targetRatio <= 0.4f) {
+            hpFillSprite_->SetColor({1.0f, 0.35f, 0.1f, 1.0f});
+        } else {
+            hpFillSprite_->SetColor({1.0f, 0.85f, 0.1f, 1.0f});
+        }
+        hpFillSprite_->Update();
+    }
+    if (hpFrameSprite_) {
+        hpFrameSprite_->SetTranslate({screenX, screenY});
+        hpFrameSprite_->SetScale({70.0f, 14.0f});
+        hpFrameSprite_->Update();
+    }
+
+    isHpGaugeVisible_ = true;
+}
+
+void EnemyProjectile::DrawHpGauge() {
+    if (!isHpGaugeVisible_) {
+        return;
+    }
+    if (hpBgSprite_) hpBgSprite_->Draw();
+    if (hpDamageSprite_) hpDamageSprite_->Draw();
+    if (hpFillSprite_) hpFillSprite_->Draw();
+    if (hpFrameSprite_) hpFrameSprite_->Draw();
 }

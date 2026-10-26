@@ -1,5 +1,6 @@
 #pragma once
 #include "Object3d.h"
+#include "Sprite.h"
 #include <memory>
 
 class EnemyProjectile {
@@ -16,6 +17,8 @@ public:
 	// 指定したビュー用の更新
     void Update(uint32_t viewIndex, Camera* camera);
     void Draw(uint32_t viewIndex = 0);
+    void UpdateHpGauge(Camera* camera, float clientWidth, float clientHeight);
+    void DrawHpGauge();
 
     const Vector3& GetPosition() const { return position_; }
     const Vector3& GetVelocity() const { return velocity_; }
@@ -27,11 +30,13 @@ public:
 
     float GetRadius() const { return radius_; }
     int GetHp() const { return hp_; }
+    int GetMaxHp() const { return maxHp_; }
     bool ApplyDamage(int damage = 1) {
         hp_ -= damage;
         if (hp_ <= 0) {
             hp_ = 0;
             isDead_ = true;
+            isHpGaugeVisible_ = false;
             return true; // 破壊された
         }
         return false; // 耐久値残存
@@ -48,6 +53,13 @@ private:
     Vector3 velocity_;
     float radius_ = 0.5f;
     int hp_ = 1;
+    int maxHp_ = 1;
+    float damageBarRatio_ = 1.0f;
+    bool isHpGaugeVisible_ = false;
+    std::unique_ptr<Sprite> hpBgSprite_;
+    std::unique_ptr<Sprite> hpDamageSprite_;
+    std::unique_ptr<Sprite> hpFillSprite_;
+    std::unique_ptr<Sprite> hpFrameSprite_;
     bool isDead_ = false;
     std::unique_ptr<Model> customModel_;
     Type type_ = Type::Normal;

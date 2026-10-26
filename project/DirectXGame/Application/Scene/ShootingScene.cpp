@@ -507,6 +507,36 @@ void ShootingScene::Initialize() {
       }
     }
 
+    // 敵のHPおよび頭上HPゲージスプライトの初期化
+    TextureManager::GetInstance()->LoadTexture("white.png");
+    TextureManager::GetInstance()->LoadTexture("ui/enemyHpFrame.png");
+    for (auto &enemy : enemies_) {
+      enemy.maxHp = (enemy.type == EnemyType::Engineer) ? 3 : 1;
+      enemy.hp = enemy.maxHp;
+      enemy.damageBarRatio = 1.0f;
+      enemy.isHpGaugeVisible = false;
+
+      enemy.hpBgSprite = std::make_unique<Sprite>();
+      enemy.hpBgSprite->Initialize("white.png");
+      enemy.hpBgSprite->SetAnchorPoint({0.0f, 0.5f});
+      enemy.hpBgSprite->SetColor({0.08f, 0.08f, 0.08f, 0.85f});
+
+      enemy.hpDamageSprite = std::make_unique<Sprite>();
+      enemy.hpDamageSprite->Initialize("white.png");
+      enemy.hpDamageSprite->SetAnchorPoint({0.0f, 0.5f});
+      enemy.hpDamageSprite->SetColor({1.0f, 0.2f, 0.1f, 0.9f});
+
+      enemy.hpFillSprite = std::make_unique<Sprite>();
+      enemy.hpFillSprite->Initialize("white.png");
+      enemy.hpFillSprite->SetAnchorPoint({0.0f, 0.5f});
+      enemy.hpFillSprite->SetColor({1.0f, 0.85f, 0.1f, 1.0f});
+
+      enemy.hpFrameSprite = std::make_unique<Sprite>();
+      enemy.hpFrameSprite->Initialize("ui/enemyHpFrame.png");
+      enemy.hpFrameSprite->SetAnchorPoint({0.5f, 0.5f});
+      enemy.hpFrameSprite->SetScale({84.0f, 16.0f});
+    }
+
     // 敵の初期画面外配置（カメライン用）の計算
     // 各敵の停止地点（enemy.distance）におけるカメラの向きから、
     // 画面中央より右なら右画面外、左なら左画面外、一部は奥・上空から飛び込んでくる配置を設定
@@ -629,18 +659,71 @@ void ShootingScene::Initialize() {
     ammoTargetX_.push_back(initX);
   }
 
-  // 3. プログレスバーUI
+  // 3. プログレスバーUI（ウェーブ目盛り・アイコン・現在地マーカー付き）
+  TextureManager::GetInstance()->LoadTexture("ui/waveIconNormal.png");
+  TextureManager::GetInstance()->LoadTexture("ui/waveIconBoss.png");
+  TextureManager::GetInstance()->LoadTexture("ui/playerMarker.png");
+
   progressBg_ = std::make_unique<Sprite>();
   progressBg_->Initialize("white.png");
-  progressBg_->SetTranslate({480.0f, 20.0f});
-  progressBg_->SetScale({300.0f, 20.0f});
-  progressBg_->SetColor({0.1f, 0.2f, 0.8f, 0.6f}); // 半透明青色
+  progressBg_->SetTranslate({480.0f, 48.0f});
+  progressBg_->SetScale({300.0f, 16.0f});
+  progressBg_->SetColor({0.1f, 0.15f, 0.35f, 0.75f}); // 半透明ダークブルー
 
   progressBar_ = std::make_unique<Sprite>();
   progressBar_->Initialize("white.png");
-  progressBar_->SetTranslate({480.0f, 20.0f});
-  progressBar_->SetScale({0.0f, 20.0f});            // 最初は幅0
-  progressBar_->SetColor({1.0f, 0.9f, 0.0f, 1.0f}); // 黄色
+  progressBar_->SetTranslate({480.0f, 48.0f});
+  progressBar_->SetScale({0.0f, 16.0f});              // 最初は幅0
+  progressBar_->SetColor({0.2f, 0.9f, 1.0f, 1.0f});   // シアン〜イエロー系プログレス
+
+  // 各戦闘区間の目盛り線とウェーブアイコンを生成（index 0のスタート地点0.0fは除く）
+  waveTickSprites_.clear();
+  waveIconSprites_.clear();
+  for (size_t i = 1; i < sectionProgresses_.size(); ++i) {
+    float ratio = sectionProgresses_[i] / maxProgress_;
+    if (ratio < 0.0f) ratio = 0.0f;
+    if (ratio > 1.0f) ratio = 1.0f;
+    float markerX = 480.0f + 300.0f * ratio;
+
+    auto tick = std::make_unique<Sprite>();
+    tick->Initialize("white.png");
+    tick->SetAnchorPoint({0.5f, 0.5f});
+    tick->SetTranslate({markerX, 56.0f});
+    tick->SetScale({2.0f, 20.0f});
+    tick->SetColor({1.0f, 1.0f, 1.0f, 0.85f});
+    waveTickSprites_.push_back(std::move(tick));
+
+    auto icon = std::make_unique<Sprite>();
+    icon->Initialize("ui/waveIconNormal.png");
+    icon->SetAnchorPoint({0.5f, 0.5f});
+    icon->SetTranslate({markerX, 37.0f});
+    icon->SetScale({20.0f, 20.0f});
+    waveIconSprites_.push_back(std::move(icon));
+  }
+
+  // 終点（スウォーム戦）のボスアイコン＆目盛り
+  {
+    auto endTick = std::make_unique<Sprite>();
+    endTick->Initialize("white.png");
+    endTick->SetAnchorPoint({0.5f, 0.5f});
+    endTick->SetTranslate({780.0f, 56.0f});
+    endTick->SetScale({3.0f, 22.0f});
+    endTick->SetColor({1.0f, 0.3f, 0.3f, 0.9f});
+    waveTickSprites_.push_back(std::move(endTick));
+
+    bossWaveIconSprite_ = std::make_unique<Sprite>();
+    bossWaveIconSprite_->Initialize("ui/waveIconBoss.png");
+    bossWaveIconSprite_->SetAnchorPoint({0.5f, 0.5f});
+    bossWaveIconSprite_->SetTranslate({780.0f, 37.0f});
+    bossWaveIconSprite_->SetScale({26.0f, 26.0f});
+  }
+
+  // プレイヤー現在地マーカー
+  playerMarkerSprite_ = std::make_unique<Sprite>();
+  playerMarkerSprite_->Initialize("ui/playerMarker.png");
+  playerMarkerSprite_->SetAnchorPoint({0.5f, 0.5f});
+  playerMarkerSprite_->SetTranslate({480.0f, 48.0f});
+  playerMarkerSprite_->SetScale({16.0f, 16.0f});
 
   // 4. カバー演出UI
   coverOverlay_ = std::make_unique<Sprite>();
@@ -703,29 +786,29 @@ void ShootingScene::Initialize() {
   goTextSprite_->SetAnchorPoint({ 0.5f, 0.5f });
   goTextSprite_->SetScale(goTextScale_);
 
-  // 6. タイマーUIの初期化
+  // 6. タイマーUIの初期化（プログレスバーの直下に配置）
   timerBg_ = std::make_unique<Sprite>();
   timerBg_->Initialize("white.png");
-  timerBg_->SetTranslate({1090.0f, 640.0f});
-  timerBg_->SetScale({160.0f, 45.0f});
-  timerBg_->SetColor({0.2f, 0.2f, 0.2f, 0.8f}); // 半透明グレー
+  timerBg_->SetTranslate({550.0f, 70.0f});
+  timerBg_->SetScale({160.0f, 42.0f});
+  timerBg_->SetColor({0.15f, 0.15f, 0.18f, 0.8f}); // 半透明ダークグレー
 
   timerUnits_.clear();
   for (int i = 0; i < 4; ++i) {
     auto unit = std::make_unique<Sprite>();
     unit->Initialize("numbers/0.png");
     unit->SetScale({20.0f, 32.0f});
-    float x = 1100.0f + i * 30.0f;
+    float x = 560.0f + i * 30.0f;
     if (i >= 2) {
       x += 7.0f; // ドット用の隙間
     }
-    unit->SetTranslate({x, 646.5f});
+    unit->SetTranslate({x, 75.0f});
     timerUnits_.push_back(std::move(unit));
   }
 
   timerDot_ = std::make_unique<Sprite>();
   timerDot_->Initialize("white.png");
-  timerDot_->SetTranslate({1158.0f, 672.0f});
+  timerDot_->SetTranslate({618.0f, 100.5f});
   timerDot_->SetScale({4.0f, 4.0f});
   timerDot_->SetColor({1.0f, 1.0f, 1.0f, 1.0f}); // 白色
 
@@ -1357,6 +1440,10 @@ void ShootingScene::Update() {
         enemy.spawnTimer = 0.0f;
         enemy.slideTimer = 0.0f;
         enemy.deathTimer = 0.0f;
+        enemy.maxHp = (enemy.type == EnemyType::Engineer) ? 3 : 1;
+        enemy.hp = enemy.maxHp;
+        enemy.damageBarRatio = 1.0f;
+        enemy.isHpGaugeVisible = false;
         float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
         enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
         enemy.object->SetTranslate(enemy.initialOffsetPosition);
@@ -2069,33 +2156,46 @@ void ShootingScene::Update() {
         ParticleManager::GetInstance()->Emit("AmmoSparkGroup", pPos, 6);
       }
     } else if (hitType == HitTargetType::Enemy && hitEnemy) {
-      hitEnemy->isDead = true;
-      hitEnemy->isActive = false;
-      hitEnemy->deathTimer = 0.0f; // 撃破ディゾルブ消滅開始
-      if (hitEnemy->model) {
-        hitEnemy->model->SetDissolveParams(1, 0.0f, 0.05f, Vector3(1.0f, 0.4f, 0.3f));
-      }
       Vector3 enemyPos = hitEnemy->object->GetTranslate();
-      score_ += 10;
+      hitEnemy->hp--;
 
-      // 敵のインデックスに応じて再生する撃破エフェクトを決定
-      std::string effectName =
-          ringParticleGroupName_; // デフォルトは1体目のリング
-      if (!enemies_.empty()) {
-        size_t idx = hitEnemy - &enemies_[0];
-        if (idx % 3 == 1) {
-          effectName = "CylinderGroup"; // 2体目：シリンダー
-        } else if (idx % 3 == 2) {
-          effectName = "SparkGroup"; // 3体目：火花
+      if (hitEnemy->hp > 0) {
+        // まだ耐久力が残っている場合：被弾火花を出して生存継続（頭上HPゲージが表示される）
+        if (auto *emitter = ParticleManager::GetInstance()->GetEmitter("AmmoSparkGroup")) {
+          emitter->isPlaying = true;
         }
-      }
+        ParticleManager::GetInstance()->Emit("AmmoSparkGroup", enemyPos, 10);
+      } else {
+        // HPが0以下になった場合：撃破処理
+        hitEnemy->hp = 0;
+        hitEnemy->isDead = true;
+        hitEnemy->isActive = false;
+        hitEnemy->isHpGaugeVisible = false;
+        hitEnemy->deathTimer = 0.0f; // 撃破ディゾルブ消滅開始
+        if (hitEnemy->model) {
+          hitEnemy->model->SetDissolveParams(1, 0.0f, 0.05f, Vector3(1.0f, 0.4f, 0.3f));
+        }
+        score_ += 10;
 
-      // 敵撃破時にパーティクルを放出
-      if (auto *emitter =
-              ParticleManager::GetInstance()->GetEmitter(effectName)) {
-        emitter->isPlaying = true;
+        // 敵のインデックスに応じて再生する撃破エフェクトを決定
+        std::string effectName =
+            ringParticleGroupName_; // デフォルトは1体目のリング
+        if (!enemies_.empty()) {
+          size_t idx = hitEnemy - &enemies_[0];
+          if (idx % 3 == 1) {
+            effectName = "CylinderGroup"; // 2体目：シリンダー
+          } else if (idx % 3 == 2) {
+            effectName = "SparkGroup"; // 3体目：火花
+          }
+        }
+
+        // 敵撃破時にパーティクルを放出
+        if (auto *emitter =
+                ParticleManager::GetInstance()->GetEmitter(effectName)) {
+          emitter->isPlaying = true;
+        }
+        ParticleManager::GetInstance()->Emit(effectName, enemyPos, 32);
       }
-      ParticleManager::GetInstance()->Emit(effectName, enemyPos, 32);
     }
   }
 
@@ -2239,14 +2339,167 @@ void ShootingScene::Update() {
     ammoBg_->Update();
   }
 
-  // 3. プログレスバーの更新
+  // 3. プログレスバー＆ウェーブ目盛り・アイコン・現在地マーカーの更新
   {
     float progressRatio = cameraProgress_ / maxProgress_;
+    if (progressRatio < 0.0f)
+      progressRatio = 0.0f;
     if (progressRatio > 1.0f)
       progressRatio = 1.0f;
-    progressBar_->SetScale({300.0f * progressRatio, 20.0f});
+    progressBar_->SetScale({300.0f * progressRatio, 16.0f});
     progressBar_->Update();
     progressBg_->Update();
+
+    for (auto &tick : waveTickSprites_) {
+      if (tick) tick->Update();
+    }
+
+    // 各ウェーブ区間のアイコン状態更新（sectionProgresses_[1..] に対応）
+    for (size_t i = 0; i < waveIconSprites_.size(); ++i) {
+      auto &icon = waveIconSprites_[i];
+      if (!icon) continue;
+
+      float waveDist = sectionProgresses_[i + 1];
+      // この区間の敵が全滅しているかチェック
+      bool sectionCleared = true;
+      for (const auto &enemy : enemies_) {
+        if (std::abs(enemy.distance - waveDist) < 0.1f && !enemy.isDead) {
+          sectionCleared = false;
+          break;
+        }
+      }
+
+      if (sectionCleared && cameraProgress_ >= waveDist) {
+        // 突破済み：半透明グレー
+        icon->SetColor({0.45f, 0.5f, 0.55f, 0.65f});
+        icon->SetScale({18.0f, 18.0f});
+      } else if (std::abs(cameraProgress_ - waveDist) < 0.5f && isMovementPaused_) {
+        // 現在交戦中：オレンジ〜赤で強調
+        float pulse = 1.0f + 0.12f * std::sin(lifeBlinkTimer_ * 10.0f);
+        icon->SetColor({1.0f, 0.35f, 0.1f, 1.0f});
+        icon->SetScale({22.0f * pulse, 22.0f * pulse});
+      } else {
+        // 未到達：白
+        icon->SetColor({0.95f, 0.95f, 1.0f, 0.95f});
+        icon->SetScale({20.0f, 20.0f});
+      }
+      icon->Update();
+    }
+
+    // ボスアイコンの更新
+    if (bossWaveIconSprite_) {
+      if (phase_ == Phase::SwarmBattle) {
+        float pulse = 1.0f + 0.15f * std::sin(lifeBlinkTimer_ * 12.0f);
+        bossWaveIconSprite_->SetColor({1.0f, 0.2f, 0.2f, 1.0f});
+        bossWaveIconSprite_->SetScale({28.0f * pulse, 28.0f * pulse});
+      } else {
+        bossWaveIconSprite_->SetColor({1.0f, 0.85f, 0.85f, 1.0f});
+        bossWaveIconSprite_->SetScale({26.0f, 26.0f});
+      }
+      bossWaveIconSprite_->Update();
+    }
+
+    // 現在地マーカーの更新
+    if (playerMarkerSprite_) {
+      float currentMarkerX = 480.0f + 300.0f * progressRatio;
+      playerMarkerSprite_->SetTranslate({currentMarkerX, 48.0f});
+      playerMarkerSprite_->Update();
+    }
+  }
+
+  // 3.5 高耐久エネミー（エンジニア兵など）の頭上HPゲージ更新
+  {
+    Matrix4x4 vp = camera_->GetViewProjectionMatrix();
+    Vector3 camPos = camera_->GetTranslate();
+    Vector3 camRot = camera_->GetRotate();
+    Vector3 camForward = {
+      std::cos(camRot.x) * std::sin(camRot.y),
+      -std::sin(camRot.x),
+      std::cos(camRot.x) * std::cos(camRot.y)
+    };
+
+    for (auto &enemy : enemies_) {
+      enemy.isHpGaugeVisible = false;
+      // 生存中 かつ 最大HPが2以上 かつ 一度でもダメージを受けている（hp < maxHp）場合のみ表示
+      if (enemy.isDead || enemy.maxHp <= 1 || enemy.hp >= enemy.maxHp) {
+        continue;
+      }
+
+      float distToBattle = enemy.distance - cameraProgress_;
+      if (!enemy.isActive && !(distToBattle <= 5.0f && distToBattle >= 0.0f)) {
+        continue;
+      }
+
+      // 敵の頭上ワールド座標（中心からY+1.6m上）
+      Vector3 headWorldPos = Add(enemy.object->GetTranslate(), {0.0f, 1.6f, 0.0f});
+      Vector3 toHead = Subtract(headWorldPos, camPos);
+      // カメラの後ろ側にある場合は非表示
+      if (Dot(toHead, camForward) <= 0.1f) {
+        continue;
+      }
+
+      // NDC座標 (-1.0 ～ +1.0) へ変換し、スクリーン座標 (1280x720) に投影
+      Vector3 ndc = TransformPoint(headWorldPos, vp);
+      if (ndc.z < 0.0f || ndc.z > 1.0f) {
+        continue;
+      }
+      float screenX = (ndc.x * 0.5f + 0.5f) * static_cast<float>(Win32Window::kClientWidth);
+      float screenY = (1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(Win32Window::kClientHeight);
+
+      // 目標HP比率と赤残像バーのイージング追従
+      float targetRatio = static_cast<float>(enemy.hp) / static_cast<float>(enemy.maxHp);
+      if (targetRatio < 0.0f) targetRatio = 0.0f;
+      if (enemy.damageBarRatio > targetRatio) {
+        enemy.damageBarRatio -= (enemy.damageBarRatio - targetRatio) * 0.10f;
+        if (enemy.damageBarRatio - targetRatio < 0.005f) {
+          enemy.damageBarRatio = targetRatio;
+        }
+      } else {
+        enemy.damageBarRatio = targetRatio;
+      }
+
+      const float kBarFullWidth = 74.0f;
+      const float kBarHeight = 8.0f;
+      float barLeftX = screenX - kBarFullWidth * 0.5f;
+
+      if (enemy.hpBgSprite) {
+        enemy.hpBgSprite->SetTranslate({barLeftX, screenY});
+        enemy.hpBgSprite->SetScale({kBarFullWidth, kBarHeight});
+        enemy.hpBgSprite->Update();
+      }
+      if (enemy.hpDamageSprite) {
+        enemy.hpDamageSprite->SetTranslate({barLeftX, screenY});
+        enemy.hpDamageSprite->SetScale({kBarFullWidth * enemy.damageBarRatio, kBarHeight});
+        enemy.hpDamageSprite->Update();
+      }
+      if (enemy.hpFillSprite) {
+        enemy.hpFillSprite->SetTranslate({barLeftX, screenY});
+        enemy.hpFillSprite->SetScale({kBarFullWidth * targetRatio, kBarHeight});
+        // 残りHPに応じた色変化（2/3: 黄色、1/3: オレンジ赤）
+        if (targetRatio <= 0.35f) {
+          enemy.hpFillSprite->SetColor({1.0f, 0.35f, 0.1f, 1.0f});
+        } else {
+          enemy.hpFillSprite->SetColor({1.0f, 0.85f, 0.1f, 1.0f});
+        }
+        enemy.hpFillSprite->Update();
+      }
+      if (enemy.hpFrameSprite) {
+        enemy.hpFrameSprite->SetTranslate({screenX, screenY});
+        enemy.hpFrameSprite->SetScale({84.0f, 16.0f});
+        enemy.hpFrameSprite->Update();
+      }
+
+      enemy.isHpGaugeVisible = true;
+    }
+
+    // ランチャー弾（破壊可能プロジェクタイル）のHPゲージ更新
+    for (auto &p : projectiles_) {
+      if (p) {
+        p->UpdateHpGauge(camera_.get(),
+                         static_cast<float>(Win32Window::kClientWidth),
+                         static_cast<float>(Win32Window::kClientHeight));
+      }
+    }
   }
 
   // 4. カバー演出の更新
@@ -2467,6 +2720,10 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
         enemy.spawnTimer = 0.0f;
         enemy.slideTimer = 0.0f;
         enemy.deathTimer = 0.0f;
+        enemy.maxHp = (enemy.type == EnemyType::Engineer) ? 3 : 1;
+        enemy.hp = enemy.maxHp;
+        enemy.damageBarRatio = 1.0f;
+        enemy.isHpGaugeVisible = false;
         float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
         enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
         enemy.object->SetTranslate(enemy.initialOffsetPosition);
@@ -2668,6 +2925,10 @@ void ShootingScene::UpdateImGui_Object3d() {
       ImGui::Separator();
       if (ImGui::Combo(("Enemy " + std::to_string(i) + " Type").c_str(), &typeInt, enemyTypeNames, IM_ARRAYSIZE(enemyTypeNames))) {
         enemy.type = static_cast<EnemyType>(typeInt);
+        enemy.maxHp = (enemy.type == EnemyType::Engineer) ? 3 : 1;
+        enemy.hp = enemy.maxHp;
+        enemy.damageBarRatio = 1.0f;
+        enemy.isHpGaugeVisible = false;
         if (enemy.model) {
           if (enemy.type == EnemyType::Engineer) {
             enemy.model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
@@ -2676,8 +2937,8 @@ void ShootingScene::UpdateImGui_Object3d() {
           }
         }
       }
-      ImGui::Text("[%zu] Dist: %.1f, Active: %s, Dead: %s", i, enemy.distance,
-                  enemy.isActive ? "Yes" : "No", enemy.isDead ? "Yes" : "No");
+      ImGui::Text("[%zu] Dist: %.1f, HP: %d/%d, Active: %s, Dead: %s", i, enemy.distance,
+                  enemy.hp, enemy.maxHp, enemy.isActive ? "Yes" : "No", enemy.isDead ? "Yes" : "No");
       ImGui::DragFloat3(("Enemy " + std::to_string(i) + " Position").c_str(),
                         &enemy.object->GetTransformDebug().translate.x, 0.1f);
       ImGui::DragFloat3(("Enemy " + std::to_string(i) + " Rotation").c_str(),
@@ -2971,9 +3232,42 @@ void ShootingScene::Draw() {
       }
     }
 
-    // プログレスバー
+    // プログレスバー＆ウェーブ目盛り・アイコン・現在地マーカー
     if (progressBar_) {
       progressBar_->Draw();
+    }
+    for (auto &tick : waveTickSprites_) {
+      if (tick) {
+        tick->Draw();
+      }
+    }
+    for (auto &icon : waveIconSprites_) {
+      if (icon) {
+        icon->Draw();
+      }
+    }
+    if (bossWaveIconSprite_) {
+      bossWaveIconSprite_->Draw();
+    }
+    if (playerMarkerSprite_) {
+      playerMarkerSprite_->Draw();
+    }
+
+    // 高耐久エネミー（エンジニア兵など）の頭上HPゲージ（一度でも被弾している生存敵のみ）
+    for (auto &enemy : enemies_) {
+      if (enemy.isHpGaugeVisible) {
+        if (enemy.hpBgSprite) enemy.hpBgSprite->Draw();
+        if (enemy.hpDamageSprite) enemy.hpDamageSprite->Draw();
+        if (enemy.hpFillSprite) enemy.hpFillSprite->Draw();
+        if (enemy.hpFrameSprite) enemy.hpFrameSprite->Draw();
+      }
+    }
+
+    // ランチャー弾（破壊可能プロジェクタイル）のHPゲージ描画
+    for (auto &p : projectiles_) {
+      if (p) {
+        p->DrawHpGauge();
+      }
     }
 
     // スコア表示スプライト
@@ -3116,6 +3410,10 @@ void ShootingScene::JumpToSection(int index) {
   for (auto &enemy : enemies_) {
     enemy.shootCount = 0;
     enemy.hitShotCount = 0;
+    enemy.maxHp = (enemy.type == EnemyType::Engineer) ? 3 : 1;
+    enemy.hp = enemy.maxHp;
+    enemy.damageBarRatio = 1.0f;
+    enemy.isHpGaugeVisible = false;
     // 敵のタイプに応じたモデルカラーの再適用
     if (enemy.model) {
       if (enemy.type == EnemyType::Engineer) {

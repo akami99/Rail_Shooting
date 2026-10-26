@@ -111,6 +111,14 @@ private:
         float slideDuration = 1.0f; // スライドイン所要時間
         float deathTimer = 0.0f; // 撃破後ディゾルブ消滅タイマー (0.0:生存 -> 0.0〜1.0:消滅中 -> 1.0:完全消滅)
         EnemyType type = EnemyType::Normal; // 敵のタイプ
+        int hp = 1; // 現在のHP
+        int maxHp = 1; // 最大HP
+        float damageBarRatio = 1.0f; // HPゲージ赤残像バーの比率
+        bool isHpGaugeVisible = false; // HPゲージ画面内描画フラグ
+        std::unique_ptr<Sprite> hpBgSprite; // HPゲージ黒下地
+        std::unique_ptr<Sprite> hpDamageSprite; // HPゲージ赤残像バー
+        std::unique_ptr<Sprite> hpFillSprite; // HPゲージ現在値バー
+        std::unique_ptr<Sprite> hpFrameSprite; // HPゲージ外枠フレーム
     };
 
     // レベルから読み取った敵オブジェクト群
@@ -259,6 +267,10 @@ private:
     // プログレスバーUI
     std::unique_ptr<Sprite> progressBg_;
     std::unique_ptr<Sprite> progressBar_;
+    std::vector<std::unique_ptr<Sprite>> waveTickSprites_; // 各ウェーブ区間の目盛り線
+    std::vector<std::unique_ptr<Sprite>> waveIconSprites_; // 各ウェーブ区間のアイコン（雑魚）
+    std::unique_ptr<Sprite> bossWaveIconSprite_;           // 終点スウォーム（ボス）アイコン
+    std::unique_ptr<Sprite> playerMarkerSprite_;           // 現在地マーカー
 
     // スコア・タイマーUI
     int score_ = 0;
