@@ -8,4 +8,5 @@ class BaseScene : public IScene {
 public:
     virtual ~BaseScene() = default;
     void DrawOffscreen() override {}
+    virtual void DrawForeground() {}
 };

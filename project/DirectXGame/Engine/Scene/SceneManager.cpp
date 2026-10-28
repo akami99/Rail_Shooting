@@ -76,6 +76,12 @@ void SceneManager::DrawOffscreen() {
     }
 }
 
+void SceneManager::DrawForeground() {
+    if (currentScene_) {
+        currentScene_->DrawForeground();
+    }
+}
+
 void SceneManager::Draw() { currentScene_->Draw(); }
 
 void SceneManager::ChangeScene(const std::string& sceneName) {

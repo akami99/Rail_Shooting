@@ -26,6 +26,7 @@ void ShootingScene::Initialize() {
 #ifdef USE_IMGUI
     ShowCursor(TRUE);
 #else
+
     ShowCursor(FALSE);
 #endif
 
@@ -594,6 +595,7 @@ void ShootingScene::Initialize() {
   crosshair_->Initialize(crosshairPath_);
   crosshair_->SetAnchorPoint({0.5f, 0.5f});
   crosshair_->SetScale({64.0f, 64.0f});
+  crosshair_->SetColor(crosshairSpriteSettings_.colorNoAim_);
 
   // マガジンとカバーの初期化
   ammo_ = kMaxAmmo;
@@ -666,13 +668,13 @@ void ShootingScene::Initialize() {
 
   progressBg_ = std::make_unique<Sprite>();
   progressBg_->Initialize("white.png");
-  progressBg_->SetTranslate({480.0f, 48.0f});
-  progressBg_->SetScale({300.0f, 16.0f});
+  progressBg_->SetTranslate(progressPos_);
+  progressBg_->SetScale(progressSize_);
   progressBg_->SetColor({0.1f, 0.15f, 0.35f, 0.75f}); // 半透明ダークブルー
 
   progressBar_ = std::make_unique<Sprite>();
   progressBar_->Initialize("white.png");
-  progressBar_->SetTranslate({480.0f, 48.0f});
+  progressBar_->SetTranslate(progressPos_);
   progressBar_->SetScale({0.0f, 16.0f});              // 最初は幅0
   progressBar_->SetColor({0.2f, 0.9f, 1.0f, 1.0f});   // シアン〜イエロー系プログレス
 
@@ -724,6 +726,42 @@ void ShootingScene::Initialize() {
   playerMarkerSprite_->SetAnchorPoint({0.5f, 0.5f});
   playerMarkerSprite_->SetTranslate({480.0f, 48.0f});
   playerMarkerSprite_->SetScale({16.0f, 16.0f});
+  UpdateProgressBarUI(progressPos_, progressSize_);
+
+  // ゲームオーバー選択肢（RETRY / TITLE）UIの初期化
+  TextureManager::GetInstance()->LoadTexture("gameover/selectRetry.png");
+  TextureManager::GetInstance()->LoadTexture("gameover/selectTitle.png");
+
+  retrySprite_ = std::make_unique<Sprite>();
+  retrySprite_->Initialize("gameover/selectRetry.png");
+  retrySprite_->SetAnchorPoint({ 0.5f, 0.5f });
+  retrySprite_->SetTranslate(retryPos_);
+  retrySprite_->SetScale(retryScale_);
+  retrySprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.4f });
+
+  titleSprite_ = std::make_unique<Sprite>();
+  titleSprite_->Initialize("gameover/selectTitle.png");
+
+  // ゲームオーバー敗北要因UIの初期化
+  TextureManager::GetInstance()->LoadTexture("gameover/NormalBullet.png");
+  TextureManager::GetInstance()->LoadTexture("gameover/EngineerRocket.png");
+  TextureManager::GetInstance()->LoadTexture("gameover/CoverBlast.png");
+  TextureManager::GetInstance()->LoadTexture("gameover/TimeUp.png");
+  TextureManager::GetInstance()->LoadTexture("gameover/DroneExplosion.png");
+
+  deathReasonSprite_ = std::make_unique<Sprite>();
+  deathReasonSprite_->Initialize("gameover/NormalBullet.png");
+  deathReasonSprite_->SetAnchorPoint({ 0.5f, 0.5f });
+  deathReasonSprite_->SetTranslate(deathReasonPos_);
+  deathReasonSprite_->SetScale(deathReasonScale_);
+  deathReasonSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+  titleSprite_->SetAnchorPoint({ 0.5f, 0.5f });
+  titleSprite_->SetTranslate(titlePos_);
+  titleSprite_->SetScale(titleScale_);
+  titleSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.4f });
+
+  selectedOption_ = GameOverSelectOption::None;
+  gameOverTransitionTimer_ = 0.0f;
 
   // 4. カバー演出UI
   coverOverlay_ = std::make_unique<Sprite>();
@@ -789,8 +827,8 @@ void ShootingScene::Initialize() {
   // 6. タイマーUIの初期化（プログレスバーの直下に配置）
   timerBg_ = std::make_unique<Sprite>();
   timerBg_->Initialize("white.png");
-  timerBg_->SetTranslate({550.0f, 70.0f});
-  timerBg_->SetScale({160.0f, 42.0f});
+  timerBg_->SetTranslate(timerPos_);
+  timerBg_->SetScale(timerBgSize_);
   timerBg_->SetColor({0.15f, 0.15f, 0.18f, 0.8f}); // 半透明ダークグレー
 
   timerUnits_.clear();
@@ -809,7 +847,8 @@ void ShootingScene::Initialize() {
   timerDot_ = std::make_unique<Sprite>();
   timerDot_->Initialize("white.png");
   timerDot_->SetTranslate({618.0f, 100.5f});
-  timerDot_->SetScale({4.0f, 4.0f});
+  timerDot_->SetScale(timerDotSize_);
+  UpdateTimerUI(gameTimer_, timerPos_, timerBgSize_, timerDigitSize_, timerDigitSpacing_, timerDotSize_);
   timerDot_->SetColor({1.0f, 1.0f, 1.0f, 1.0f}); // 白色
 
   score_ = 0;
@@ -891,17 +930,7 @@ void ShootingScene::Update() {
       gameTimer_ = 0.0f;
 
       // タイムアップによるゲームオーバー遷移
-      phase_ = Phase::GameOverVignette;
-      phaseTimer_ = 0.0f;
-      vignetteScale_ = 16.0f;
-      vignetteExponent_ = 0.8f;
-      damageEffectStrength_ = 0.0f;
-
-      MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
-      MyGame::SetPostEffectStrength(1.0f);
-      PostProcessManager::SetVignetteParams(vignetteScale_,
-                                            vignetteExponent_);
-      projectiles_.clear();
+      StartGameOver(DeathReason::TimeUp);
 
       return; // ここでUpdateを抜けてゲームを一時停止させる
     }
@@ -952,8 +981,9 @@ void ShootingScene::Update() {
         // ビネットパラメータの適用
         float scale = 16.0f * openness;
         float exponent = 5.0f + (0.8f - 5.0f) * openness;
+  
         PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-        PostProcessManager::SetVignetteParams(scale, exponent);
+      PostProcessManager::SetVignetteParams(scale, exponent);
       } else {
         // 瞬き完了後は通常描画（パススルー）
         PostProcessManager::SetMode(PostProcessManager::kModeCopy);
@@ -974,7 +1004,64 @@ void ShootingScene::Update() {
     GetCursorPos(&mousePos);
     ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
     crosshair_->SetTranslate({static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
-    crosshair_->Update();
+    // 照準レイの算出とホバー判定
+  bool isAiming = false;
+  if (!isCovering_ && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
+    float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+    float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+    Matrix4x4 vp = camera_->GetViewProjectionMatrix();
+    Matrix4x4 invVP = Inverse(vp);
+    Vector3 nearPos = TransformPoint({rayX, rayY, 0.0f}, invVP);
+    Vector3 farPos = TransformPoint({rayX, rayY, 1.0f}, invVP);
+    Vector3 rayDir = Normalize(Subtract(farPos, nearPos));
+
+    // 1. 爆発弾との当たり判定
+    for (auto &p : projectiles_) {
+      if (p->IsDead() || !p->IsExplosive())
+        continue;
+      Vector3 projPos = p->GetPosition();
+      Vector3 toProj = Subtract(projPos, nearPos);
+      float t = Dot(toProj, rayDir);
+      if (t > 0.0f) {
+        Vector3 closestPoint = Add(nearPos, Multiply(t, rayDir));
+        float dist = Length(Subtract(projPos, closestPoint));
+        if (dist < p->GetRadius() * 1.2f) {
+          isAiming = true;
+          break;
+        }
+      }
+    }
+
+    // 2. エネミーとの当たり判定
+    if (!isAiming) {
+      for (auto &enemy : enemies_) {
+        if (enemy.isDead)
+          continue;
+        float distToBattle = enemy.distance - cameraProgress_;
+        if (!enemy.isActive && !(distToBattle <= 5.0f && distToBattle >= 0.0f))
+          continue;
+        Vector3 enemyPos = enemy.object->GetTranslate();
+        Vector3 toEnemy = Subtract(enemyPos, nearPos);
+        float t = Dot(toEnemy, rayDir);
+        if (t > 0.0f) {
+          Vector3 closestPoint = Add(nearPos, Multiply(t, rayDir));
+          float dist = Length(Subtract(enemyPos, closestPoint));
+          if (dist < 1.0f) {
+            isAiming = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 4. クロスヘアの色変更(狙えている時は赤、外れ or カバー中は緑)
+  if (isAiming) {
+    crosshair_->SetColor(crosshairSpriteSettings_.colorAim_);
+  } else {
+    crosshair_->SetColor(crosshairSpriteSettings_.colorNoAim_);
+  }
+  crosshair_->Update();
 
     return; // 通常プレイの更新処理（レール移動・敵射撃等）をスキップ
   }
@@ -1173,7 +1260,64 @@ void ShootingScene::Update() {
           GetCursorPos(&mousePos);
           ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
           crosshair_->SetTranslate({ static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) });
-          crosshair_->Update();
+          // 照準レイの算出とホバー判定
+  bool isAiming = false;
+  if (!isCovering_ && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
+    float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+    float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+    Matrix4x4 vp = camera_->GetViewProjectionMatrix();
+    Matrix4x4 invVP = Inverse(vp);
+    Vector3 nearPos = TransformPoint({rayX, rayY, 0.0f}, invVP);
+    Vector3 farPos = TransformPoint({rayX, rayY, 1.0f}, invVP);
+    Vector3 rayDir = Normalize(Subtract(farPos, nearPos));
+
+    // 1. 爆発弾との当たり判定
+    for (auto &p : projectiles_) {
+      if (p->IsDead() || !p->IsExplosive())
+        continue;
+      Vector3 projPos = p->GetPosition();
+      Vector3 toProj = Subtract(projPos, nearPos);
+      float t = Dot(toProj, rayDir);
+      if (t > 0.0f) {
+        Vector3 closestPoint = Add(nearPos, Multiply(t, rayDir));
+        float dist = Length(Subtract(projPos, closestPoint));
+        if (dist < p->GetRadius() * 1.2f) {
+          isAiming = true;
+          break;
+        }
+      }
+    }
+
+    // 2. エネミーとの当たり判定
+    if (!isAiming) {
+      for (auto &enemy : enemies_) {
+        if (enemy.isDead)
+          continue;
+        float distToBattle = enemy.distance - cameraProgress_;
+        if (!enemy.isActive && !(distToBattle <= 5.0f && distToBattle >= 0.0f))
+          continue;
+        Vector3 enemyPos = enemy.object->GetTranslate();
+        Vector3 toEnemy = Subtract(enemyPos, nearPos);
+        float t = Dot(toEnemy, rayDir);
+        if (t > 0.0f) {
+          Vector3 closestPoint = Add(nearPos, Multiply(t, rayDir));
+          float dist = Length(Subtract(enemyPos, closestPoint));
+          if (dist < 1.0f) {
+            isAiming = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 4. クロスヘアの色変更(狙えている時は赤、外れ or カバー中は緑)
+  if (isAiming) {
+    crosshair_->SetColor(crosshairSpriteSettings_.colorAim_);
+  } else {
+    crosshair_->SetColor(crosshairSpriteSettings_.colorNoAim_);
+  }
+  crosshair_->Update();
 
           return; // 通常プレイの更新処理（レール移動・敵射撃等）をスキップ
       }
@@ -1305,6 +1449,7 @@ void ShootingScene::Update() {
 
       float scale = 16.0f * openness;
       float exponent = 0.8f + (5.0f - 0.8f) * closing;
+
       PostProcessManager::SetMode(PostProcessManager::kModeVignette);
       PostProcessManager::SetVignetteParams(scale, exponent);
 
@@ -1326,34 +1471,277 @@ void ShootingScene::Update() {
   }
 
   // =====================================================
-  // フェーズ: ゲームオーバービネット（更新停止・ビネット強化）
+  // フェーズ: ゲームオーバー演出（カウントダウン・進捗UI表示・照準操作）
   // =====================================================
-  if (phase_ == Phase::GameOverVignette) {
+  if (phase_ == Phase::GameOver) {
       phaseTimer_ += kDeltaTime;
-      float t = phaseTimer_ / kVignetteInDuration; // 0.0 → 1.0
-      if (t > 1.0f)
-          t = 1.0f;
 
-      // ビネットを徐々に強化: scale 16→0.5, exponent 0.8→6.0
-      vignetteScale_ = 16.0f + (0.5f - 16.0f) * t;
-      vignetteExponent_ = 0.8f + (6.0f - 0.8f) * t;
-      PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-      PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
-
-      if (phaseTimer_ >= kVignetteInDuration) {
-#ifndef USE_IMGUI
-          // USE_IMGUIでない場合はGameOverSceneへ遷移
-          PostProcessManager::SetMode(PostProcessManager::kModeCopy);
-          SceneManager::GetInstance()->ChangeScene("GAMEOVER");
-          return;
-#else
-          // USE_IMGUIの場合は暗転維持フェーズを経てその場でリスタート
-          phase_ = Phase::GameOverWait;
-          phaseTimer_ = 0.0f;
-#endif
-          return;
+      // カウントダウン（未選択時のみ進行、0で自動TITLE選択）
+      if (selectedOption_ == GameOverSelectOption::None) {
+          gameOverTimer_ -= kDeltaTime;
+          if (gameOverTimer_ <= 0.0f) {
+              gameOverTimer_ = 0.0f;
+              selectedOption_ = GameOverSelectOption::Title;
+              gameOverTransitionTimer_ = 0.0f;
+          }
       }
+      UpdateProgressBarUI(gameOverProgressPos_, gameOverProgressSize_);
+      UpdateTimerUI(gameOverTimer_, gameOverTimerPos_, gameOverTimerBgSize_, gameOverTimerDigitSize_, gameOverTimerDigitSpacing_, gameOverTimerDotSize_, false);
+
+      float t = std::min(1.0f, phaseTimer_ / 1.0f);
+      // 2. ビネット演出（選択前は周囲暗転、決定後は完全暗転へ移行）
+      if (selectedOption_ == GameOverSelectOption::None) {
+          vignetteScale_ = 16.0f + (5.0f - 16.0f) * t;
+          vignetteExponent_ = 0.8f + (1.5f - 0.8f) * t;
+      } else {
+          if (gameOverTransitionTimer_ >= kGameOverBlinkDuration) {
+              float fadeT = (gameOverTransitionTimer_ - kGameOverBlinkDuration) / kGameOverFadeOutDuration;
+              if (fadeT > 1.0f) fadeT = 1.0f;
+              vignetteScale_ = 5.0f * (1.0f - fadeT);
+              vignetteExponent_ = 1.5f + (6.0f - 1.5f) * fadeT;
+          }
+      }
+
+      PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
+      if (selectedOption_ == GameOverSelectOption::None) {
+
+          if (gameOverTimer_ <= 0.0f) {
+              gameOverTimer_ = 0.0f;
+              selectedOption_ = GameOverSelectOption::Title;
+              gameOverTransitionTimer_ = 0.0f;
+          }
+      }
+
+      // 2. ビネット演出（選択前は周囲暗転、決定後は完全暗転へ移行）
+      if (selectedOption_ == GameOverSelectOption::None) {
+    
+          vignetteScale_ = 16.0f + (5.0f - 16.0f) * t;
+    
+      } else {
+          if (gameOverTransitionTimer_ >= kGameOverBlinkDuration) {
+              float fadeT = (gameOverTransitionTimer_ - kGameOverBlinkDuration) / kGameOverFadeOutDuration;
+              if (fadeT > 1.0f) fadeT = 1.0f;
+              vignetteScale_ = 5.0f * (1.0f - fadeT);
+              vignetteExponent_ = 1.5f + (6.0f - 1.5f) * fadeT;
+          }
+      }
+
+      // 3. マウス照準位置の更新
+      POINT mousePos;
+      GetCursorPos(&mousePos);
+      ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+      Vector2 mPos = { static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) };
+      crosshair_->SetTranslate(mPos);
+      // 照準レイの算出とホバー判定
+  bool isAiming = false;
+  if (!isCovering_ && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
+    float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+    float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+    Matrix4x4 vp = camera_->GetViewProjectionMatrix();
+    Matrix4x4 invVP = Inverse(vp);
+    Vector3 nearPos = TransformPoint({rayX, rayY, 0.0f}, invVP);
+    Vector3 farPos = TransformPoint({rayX, rayY, 1.0f}, invVP);
+    Vector3 rayDir = Normalize(Subtract(farPos, nearPos));
+
+    // 1. 爆発弾との当たり判定
+    for (auto &p : projectiles_) {
+      if (p->IsDead() || !p->IsExplosive())
+        continue;
+      Vector3 projPos = p->GetPosition();
+      Vector3 toProj = Subtract(projPos, nearPos);
+      float t = Dot(toProj, rayDir);
+      if (t > 0.0f) {
+        Vector3 closestPoint = Add(nearPos, Multiply(t, rayDir));
+        float dist = Length(Subtract(projPos, closestPoint));
+        if (dist < p->GetRadius() * 1.2f) {
+          isAiming = true;
+          break;
+        }
+      }
+    }
+
+    // 2. エネミーとの当たり判定
+    if (!isAiming) {
+      for (auto &enemy : enemies_) {
+        if (enemy.isDead)
+          continue;
+        float distToBattle = enemy.distance - cameraProgress_;
+        if (!enemy.isActive && !(distToBattle <= 5.0f && distToBattle >= 0.0f))
+          continue;
+        Vector3 enemyPos = enemy.object->GetTranslate();
+        Vector3 toEnemy = Subtract(enemyPos, nearPos);
+        float t = Dot(toEnemy, rayDir);
+        if (t > 0.0f) {
+          Vector3 closestPoint = Add(nearPos, Multiply(t, rayDir));
+          float dist = Length(Subtract(enemyPos, closestPoint));
+          if (dist < 1.0f) {
+            isAiming = true;
+            break;
+          }
+        }
+      }
+    }
   }
+
+  // 4. クロスヘアの色変更(狙えている時は赤、外れ or カバー中は緑)
+  if (isAiming) {
+    crosshair_->SetColor(crosshairSpriteSettings_.colorAim_);
+  } else {
+    crosshair_->SetColor(crosshairSpriteSettings_.colorNoAim_);
+  }
+  crosshair_->Update();
+
+      // 4. RETRY / TITLE 看板の更新（ホバー判定・射撃決定・点滅）
+      if (retrySprite_ && titleSprite_) {
+          retrySprite_->SetTranslate(retryPos_);
+          retrySprite_->SetScale(retryScale_);
+          titleSprite_->SetTranslate(titlePos_);
+          titleSprite_->SetScale(titleScale_);
+
+          if (selectedOption_ == GameOverSelectOption::None) {
+              // 未決定: マウスホバー判定（ホバー時は1.0f、非ホバー時は0.4f）
+              bool isHoverRetry = IsPointInRect(mPos, retryPos_, retryScale_);
+              bool isHoverTitle = IsPointInRect(mPos, titlePos_, titleScale_);
+
+              retrySprite_->SetColor({ 1.0f, 1.0f, 1.0f, isHoverRetry ? 1.0f : 0.4f });
+              titleSprite_->SetColor({ 1.0f, 1.0f, 1.0f, isHoverTitle ? 1.0f : 0.4f });
+
+              // クロスヘアの色変更(看板にカーソルが重なっている時は赤、外れは緑)
+              if (isHoverRetry || isHoverTitle) {
+                  crosshair_->SetColor(crosshairSpriteSettings_.colorAim_);
+              } else {
+                  crosshair_->SetColor(crosshairSpriteSettings_.colorNoAim_);
+              }
+
+              // クリックで射撃決定
+              if (Input::GetInstance()->IsMouseButtonTriggered(0)) {
+                  if (isHoverRetry) {
+                      selectedOption_ = GameOverSelectOption::Retry;
+                      gameOverTransitionTimer_ = 0.0f;
+                  } else if (isHoverTitle) {
+                      selectedOption_ = GameOverSelectOption::Title;
+                      gameOverTransitionTimer_ = 0.0f;
+                  }
+              }
+          } else {
+              // 決定後: 点滅 ＆ 暗転遷移
+              gameOverTransitionTimer_ += kDeltaTime;
+
+              if (gameOverTransitionTimer_ < kGameOverBlinkDuration) {
+                  // 【第1段階】約0.6秒の高速点滅
+                  bool isBlinkOn = std::sin(gameOverTransitionTimer_ * 30.0f) > 0.0f;
+                  float blinkAlpha = isBlinkOn ? 1.0f : 0.0f;
+
+                  if (selectedOption_ == GameOverSelectOption::Retry) {
+                      retrySprite_->SetColor({ 1.0f, 1.0f, 1.0f, blinkAlpha });
+                      titleSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.1f });
+                  } else {
+                      titleSprite_->SetColor({ 1.0f, 1.0f, 1.0f, blinkAlpha });
+                      retrySprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.1f });
+                  }
+              } else {
+                  // 【第2段階】完全暗転（フェードアウト）
+                  float fadeElapsed = gameOverTransitionTimer_ - kGameOverBlinkDuration;
+                  float fadeT = (gameOverTransitionTimer_ - kGameOverBlinkDuration) / kGameOverFadeOutDuration;
+                  if (fadeT > 1.0f) fadeT = 1.0f;
+
+                  float remainAlpha = 1.0f - fadeT;
+                  if (timerBg_) {
+                      timerBg_->SetColor({ 0.15f, 0.15f, 0.18f, 0.8f * remainAlpha });
+                  }
+                  for (auto &unit : timerUnits_) {
+                      if (unit) {
+                          unit->SetColor({ 1.0f, 1.0f, 1.0f, remainAlpha });
+                      }
+                  }
+                  if (timerDot_) {
+                      timerDot_->SetColor({ 1.0f, 1.0f, 1.0f, remainAlpha });
+                  }
+                  // 進捗ゲージ一式のアルファ値をフェードアウトに追従
+                  if (progressBg_) {
+                      progressBg_->SetColor({ 0.1f, 0.15f, 0.35f, 0.75f * remainAlpha });
+                  }
+                  if (progressBar_) {
+                      progressBar_->SetColor({ 0.2f, 0.9f, 1.0f, remainAlpha });
+                  }
+                  for (size_t i = 0; i < waveTickSprites_.size(); ++i) {
+                      if (waveTickSprites_[i]) {
+                          if (i == waveTickSprites_.size() - 1) {
+                              waveTickSprites_[i]->SetColor({ 1.0f, 0.3f, 0.3f, 0.9f * remainAlpha });
+                          } else {
+                              waveTickSprites_[i]->SetColor({ 1.0f, 1.0f, 1.0f, 0.85f * remainAlpha });
+                          }
+                      }
+                  }
+                  for (auto &icon : waveIconSprites_) {
+                      if (icon) {
+                          Vector4 col = icon->GetColor();
+                          col.w *= remainAlpha;
+                          icon->SetColor(col);
+                      }
+                  }
+                  if (bossWaveIconSprite_) {
+                      Vector4 col = bossWaveIconSprite_->GetColor();
+                      col.w *= remainAlpha;
+                      bossWaveIconSprite_->SetColor(col);
+                  }
+                  if (playerMarkerSprite_) {
+                      playerMarkerSprite_->SetColor({ 1.0f, 1.0f, 1.0f, remainAlpha });
+                      if (true) {
+                  }
+
+                  }
+                  if (deathReasonSprite_) {
+                      deathReasonSprite_->SetColor({ 1.0f, 1.0f, 1.0f, remainAlpha });
+                  }
+                  if (selectedOption_ == GameOverSelectOption::Retry) {
+                      retrySprite_->SetColor({ 1.0f, 1.0f, 1.0f, remainAlpha });
+                      titleSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
+                  } else {
+                      titleSprite_->SetColor({ 1.0f, 1.0f, 1.0f, remainAlpha });
+                      retrySprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
+                  }
+                  if (crosshair_) {
+                      Vector4 cCol = crosshairSpriteSettings_.colorNoAim_;
+                      cCol.w *= remainAlpha;
+                      crosshair_->SetColor(cCol);
+                  }
+                  if (true) {
+                  }
+
+                  // 完全暗転後の維持時間を経てからシーン遷移
+                  if (fadeElapsed >= (kGameOverFadeOutDuration + kGameOverWaitAfterFade)) {
+                      if (selectedOption_ == GameOverSelectOption::Retry) {
+                          SceneManager::GetInstance()->ChangeScene("SHOOTING");
+                      } else {
+                          SceneManager::GetInstance()->ChangeScene("TITLE");
+                      }
+                      return;
+                  }
+              }
+          }
+
+          retrySprite_->Update();
+          titleSprite_->Update();
+          if (deathReasonSprite_) {
+              deathReasonSprite_->Update();
+          }
+      }
+
+      // 背後オブジェクトの更新
+      camera_->Update();
+      if (floorObject_) floorObject_->Update(mainViewIndex_, camera_.get());
+      if (skybox_) skybox_->Update(mainViewIndex_, camera_.get());
+      for (auto &enemy : enemies_) {
+          if (!enemy.isDead && enemy.object) enemy.object->Update(mainViewIndex_, camera_.get());
+      }
+
+      ParticleManager::GetInstance()->SetIsUpdate(true);
+      ParticleManager::GetInstance()->SetUseBillboard(false);
+      ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
+      return;
+  }
+
   // =====================================================
   // フェーズ: スウォーム戦闘（約100機がプレイヤー周辺20m以内を旋回・突撃）
   // =====================================================
@@ -1397,129 +1785,6 @@ void ShootingScene::Update() {
       ClearScene::SetResultData(score_, gameTimer_);
       SceneManager::GetInstance()->ChangeScene("CLEAR");
       return;
-    }
-
-    return;
-  }
-
-  // =====================================================
-  // フェーズ: ゲームオーバー暗転維持（3秒間停止）
-  // =====================================================
-  if (phase_ == Phase::GameOverWait) {
-    phaseTimer_ += kDeltaTime;
-
-    if (phaseTimer_ >= kGameOverWaitDuration) {
-      // --- シーンを初期化（論理リセット） ---
-      hitCount_ = 0;
-      orbitAngle_ = 0.0f;
-      targetTimer_ = 0.0f;
-      cameraYaw_ = 0.0f;
-      isHit_ = false;
-      damageEffectStrength_ = 0.0f;
-      projectileSpawnTimer_ = 0.0f;
-      isCovering_ = false;
-      coverYOffset_ = 0.0f;
-      isPaused_ = false;
-      projectiles_.clear();
-      score_ = 0;
-      gameTimer_ = 60.0f;
-      radialBlurStrength_ = 0.0f;
-      radialBlurTimer_ = 0.0f;
-      randomNoiseStrength_ = 0.0f;
-      randomNoiseTimer_ = 0.0f;
-      coverExplosionHits_ = 0;
-      lifeBlinkTimer_ = 0.0f;
-
-      // 敵の論理リセット（モデルのリロードは行わない）
-      for (auto &enemy : enemies_) {
-        enemy.isDead = false;
-        enemy.isActive = false;
-        enemy.shootTimer = 0.0f;
-        enemy.shootCount = 0;
-        enemy.hitShotCount = 0;
-        enemy.spawnTimer = 0.0f;
-        enemy.slideTimer = 0.0f;
-        enemy.deathTimer = 0.0f;
-        enemy.maxHp = (enemy.type == EnemyType::Engineer) ? 3 : 1;
-        enemy.hp = enemy.maxHp;
-        enemy.damageBarRatio = 1.0f;
-        enemy.isHpGaugeVisible = false;
-        float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
-        enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
-        enemy.object->SetTranslate(enemy.initialOffsetPosition);
-        enemy.object->SetRotation(enemy.baseRotation);
-        // 敵のタイプに応じたモデルカラーの再適用
-        if (enemy.model) {
-          if (enemy.type == EnemyType::Engineer) {
-            enemy.model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
-          } else {
-            enemy.model->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
-          }
-        }
-        // 初期状態は完全表示（出現ディゾルブなし、消滅時にのみ使用）
-        if (enemy.model) {
-          enemy.model->SetDissolveParams(0, 0.0f, 0.05f,
-                                         Vector3(1.0f, 0.4f, 0.3f));
-        }
-        enemy.object->Update(mainViewIndex_, camera_.get());
-      }
-
-      ammo_ = kMaxAmmo;
-      isCovering_ = false;
-      reloadTimer_ = 0.0f;
-
-      // UIのイージング座標を強制初期化（ちらつき防止）
-      int currentLife = kMaxHits - hitCount_;
-      for (int i = 0; i < kMaxHits; ++i) {
-        float initX = 1214.0f - (kMaxHits - 1 - i) * 24.0f;
-        lifeCurrentX_[i] = initX;
-        lifeTargetX_[i] = initX;
-        if (i < currentLife) {
-          lifeUnits_[i]->SetTranslate({initX, 37.0f});
-          lifeUnits_[i]->Update();
-        }
-      }
-
-      for (int i = 0; i < kMaxAmmo; ++i) {
-        float initX = 202.0f - i * 20.0f;
-        ammoCurrentX_[i] = initX;
-        ammoTargetX_[i] = initX;
-        ammoUnits_[i]->SetTranslate({initX, 648.0f});
-        ammoUnits_[i]->SetColor(
-            {183.0f / 255.0f, 132.0f / 255.0f, 48.0f / 255.0f, 1.0f});
-        ammoUnits_[i]->Update();
-      }
-
-      // カメラを初期位置に戻す
-      cameraProgress_ = 0.0f;
-      cameraShakeTimer_ = 0.0f;
-      isMovementPaused_ = false;
-      Vector3 startCamPos = CalculateRailPosition(cameraProgress_);
-      camera_->SetTranslate(startCamPos);
-      if (levelData_ && !levelData_->players.empty()) {
-        const auto &spawn = levelData_->players[0];
-        camera_->SetRotate(spawn.rotation);
-        cameraBasePitch_ = spawn.rotation.x;
-        cameraYaw_ = spawn.rotation.y;
-        cameraBaseRoll_ = spawn.rotation.z;
-      } else {
-        camera_->SetRotate({0.0f, 0.0f, 0.0f});
-        cameraBasePitch_ = 0.0f;
-        cameraYaw_ = 0.0f;
-        cameraBaseRoll_ = 0.0f;
-      }
-
-      // 残留パーティクルを完全にクリア
-      ParticleManager::GetInstance()->ClearAllParticles();
-
-      // スムージングを最大限（31）適用してリスタート
-      smoothingKernel_ = 31.0f;
-      PostProcessManager::SetMode(PostProcessManager::kModeSmoothing);
-      PostProcessManager::SetSmoothingParams(
-          static_cast<int>(smoothingKernel_));
-
-      phase_ = Phase::RestartSmoothing;
-      phaseTimer_ = 0.0f;
     }
 
     return;
@@ -1841,15 +2106,7 @@ void ShootingScene::Update() {
             MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
 
             if (hitCount_ >= kMaxHits) {
-              phase_ = Phase::GameOverVignette;
-              phaseTimer_ = 0.0f;
-              vignetteScale_ = 16.0f;
-              vignetteExponent_ = 0.8f;
-              damageEffectStrength_ = 0.0f;
-              MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
-              MyGame::SetPostEffectStrength(1.0f);
-              PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
-              projectiles_.clear();
+              StartGameOver(DeathReason::CoverBlast);
               return;
             }
           }
@@ -1899,15 +2156,11 @@ void ShootingScene::Update() {
 
           // 3回ヒットしたらゲームオーバー演出開始
           if (hitCount_ >= kMaxHits) {
-            phase_ = Phase::GameOverVignette;
-            phaseTimer_ = 0.0f;
-            vignetteScale_ = 16.0f;
-            vignetteExponent_ = 0.8f;
-            damageEffectStrength_ = 0.0f;
-            MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
-            MyGame::SetPostEffectStrength(1.0f);
-            PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
-            projectiles_.clear();
+            if (p->GetType() == EnemyProjectile::Type::Blast) {
+                StartGameOver(DeathReason::EngineerRocket);
+            } else {
+                StartGameOver(DeathReason::NormalBullet);
+            }
             return;
           }
         }
@@ -1955,15 +2208,11 @@ void ShootingScene::Update() {
 
           // 3回ヒットしたらゲームオーバー演出開始
           if (hitCount_ >= kMaxHits) {
-            phase_ = Phase::GameOverVignette;
-            phaseTimer_ = 0.0f;
-            vignetteScale_ = 16.0f;
-            vignetteExponent_ = 0.8f;
-            damageEffectStrength_ = 0.0f;
-            MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
-            MyGame::SetPostEffectStrength(1.0f);
-            PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
-            projectiles_.clear();
+              if (p->GetType() == EnemyProjectile::Type::Blast) {
+                  StartGameOver(DeathReason::EngineerRocket);
+              } else {
+                  StartGameOver(DeathReason::NormalBullet);
+              }
             return;
           }
         }
@@ -2043,6 +2292,63 @@ void ShootingScene::Update() {
   GetCursorPos(&mousePos);
   ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
   crosshair_->SetTranslate({static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
+  // 照準レイの算出とホバー判定
+  bool isAiming = false;
+  if (!isCovering_ && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
+    float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+    float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+    Matrix4x4 vp = camera_->GetViewProjectionMatrix();
+    Matrix4x4 invVP = Inverse(vp);
+    Vector3 nearPos = TransformPoint({rayX, rayY, 0.0f}, invVP);
+    Vector3 farPos = TransformPoint({rayX, rayY, 1.0f}, invVP);
+    Vector3 rayDir = Normalize(Subtract(farPos, nearPos));
+
+    // 1. 爆発弾との当たり判定
+    for (auto &p : projectiles_) {
+      if (p->IsDead() || !p->IsExplosive())
+        continue;
+      Vector3 projPos = p->GetPosition();
+      Vector3 toProj = Subtract(projPos, nearPos);
+      float t = Dot(toProj, rayDir);
+      if (t > 0.0f) {
+        Vector3 closestPoint = Add(nearPos, Multiply(t, rayDir));
+        float dist = Length(Subtract(projPos, closestPoint));
+        if (dist < p->GetRadius() * 1.2f) {
+          isAiming = true;
+          break;
+        }
+      }
+    }
+
+    // 2. エネミーとの当たり判定
+    if (!isAiming) {
+      for (auto &enemy : enemies_) {
+        if (enemy.isDead)
+          continue;
+        float distToBattle = enemy.distance - cameraProgress_;
+        if (!enemy.isActive && !(distToBattle <= 5.0f && distToBattle >= 0.0f))
+          continue;
+        Vector3 enemyPos = enemy.object->GetTranslate();
+        Vector3 toEnemy = Subtract(enemyPos, nearPos);
+        float t = Dot(toEnemy, rayDir);
+        if (t > 0.0f) {
+          Vector3 closestPoint = Add(nearPos, Multiply(t, rayDir));
+          float dist = Length(Subtract(enemyPos, closestPoint));
+          if (dist < 1.0f) {
+            isAiming = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 4. クロスヘアの色変更(狙えている時は赤、外れ or カバー中は緑)
+  if (isAiming) {
+    crosshair_->SetColor(crosshairSpriteSettings_.colorAim_);
+  } else {
+    crosshair_->SetColor(crosshairSpriteSettings_.colorNoAim_);
+  }
   crosshair_->Update();
   camera_->Update();
 
@@ -2340,6 +2646,8 @@ void ShootingScene::Update() {
   }
 
   // 3. プログレスバー＆ウェーブ目盛り・アイコン・現在地マーカーの更新
+  UpdateProgressBarUI(progressPos_, progressSize_);
+  if (false)
   {
     float progressRatio = cameraProgress_ / maxProgress_;
     if (progressRatio < 0.0f)
@@ -2538,6 +2846,8 @@ void ShootingScene::Update() {
   }
 
   // 6. タイマーUIの更新
+  UpdateTimerUI(gameTimer_, timerPos_, timerBgSize_, timerDigitSize_, timerDigitSpacing_, timerDotSize_);
+  if (false)
   {
     int tempTimer = static_cast<int>(std::round(gameTimer_ * 100.0f));
     if (tempTimer > 9999) tempTimer = 9999;
@@ -3065,7 +3375,7 @@ void ShootingScene::UpdateImGui_GameStatus() {
   ImGui::SetNextWindowSize(ImVec2(200.0f, 100.0f), ImGuiCond_Once);
   ImGui::Begin("Game Status", nullptr,
                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
-  if (phase_ == Phase::GameOverVignette || phase_ == Phase::GameOverWait) {
+  if (phase_ == Phase::GameOver) {
     if (hitCount_ >= kMaxHits) {
       ImGui::Text("GAME OVER");
     } else {
@@ -3114,6 +3424,59 @@ void ShootingScene::UpdateImGui_GameStatus() {
     if (changed && escTextSprite_) {
       escTextSprite_->SetTranslate(escTextPos_);
       escTextSprite_->SetScale(escTextScale_);
+    }
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNode("Progress Bar Layout")) {
+    ImGui::Text("Normal (Playing):");
+    ImGui::DragFloat2("Pos##ProgNorm", &progressPos_.x, 1.0f);
+    ImGui::DragFloat2("Size##ProgNorm", &progressSize_.x, 1.0f);
+    ImGui::Separator();
+    ImGui::Text("GameOver:");
+    ImGui::DragFloat2("Pos##ProgGO", &gameOverProgressPos_.x, 1.0f);
+    ImGui::DragFloat2("Size##ProgGO", &gameOverProgressSize_.x, 1.0f);
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNode("Timer Layout")) {
+    ImGui::Text("Normal (Playing):");
+    ImGui::DragFloat2("Pos##TimerNorm", &timerPos_.x, 1.0f);
+    ImGui::DragFloat2("BgSize##TimerNorm", &timerBgSize_.x, 1.0f);
+    ImGui::DragFloat2("DigitSize##TimerNorm", &timerDigitSize_.x, 1.0f);
+    ImGui::DragFloat("Spacing##TimerNorm", &timerDigitSpacing_, 1.0f);
+    ImGui::DragFloat2("DotSize##TimerNorm", &timerDotSize_.x, 1.0f);
+    ImGui::Separator();
+    ImGui::Text("GameOver:");
+    ImGui::DragFloat2("Pos##TimerGO", &gameOverTimerPos_.x, 1.0f);
+    ImGui::DragFloat2("BgSize##TimerGO", &gameOverTimerBgSize_.x, 1.0f);
+    ImGui::DragFloat2("DigitSize##TimerGO", &gameOverTimerDigitSize_.x, 1.0f);
+    ImGui::DragFloat("Spacing##TimerGO", &gameOverTimerDigitSpacing_, 1.0f);
+    ImGui::DragFloat2("DotSize##TimerGO", &gameOverTimerDotSize_.x, 1.0f);
+    ImGui::DragFloat("Timer Value", &gameOverTimer_, 0.1f, 0.0f, 60.0f);
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNode("Retry/Title Select UI")) {
+    ImGui::DragFloat2("Retry Pos", &retryPos_.x, 1.0f);
+    ImGui::DragFloat2("Retry Scale", &retryScale_.x, 1.0f);
+    ImGui::Separator();
+    ImGui::DragFloat2("Title Pos", &titlePos_.x, 1.0f);
+    ImGui::DragFloat2("Title Scale", &titleScale_.x, 1.0f);
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNode("GameOver Death Reason UI")) {
+    bool changed = false;
+    if (ImGui::DragFloat2("Pos##DeathReason", &deathReasonPos_.x, 1.0f)) {
+      changed = true;
+    }
+    if (ImGui::DragFloat2("Scale##DeathReason", &deathReasonScale_.x, 1.0f)) {
+      changed = true;
+    }
+    if (changed && deathReasonSprite_) {
+      deathReasonSprite_->SetTranslate(deathReasonPos_);
+      deathReasonSprite_->SetScale(deathReasonScale_);
     }
     ImGui::TreePop();
   }
@@ -3199,18 +3562,24 @@ void ShootingScene::Draw() {
     }
 
     // 2. UIの下地
-    if (lifeBg_)
-      lifeBg_->Draw();
-    if (ammoBg_)
-      ammoBg_->Draw();
-    if (progressBg_)
-      progressBg_->Draw();
-    if (scoreBg_)
-      scoreBg_->Draw();
-    if (timerBg_)
-      timerBg_->Draw();
+    if (lifeBg_) {
+        lifeBg_->Draw();
+    }
+    if (ammoBg_) {
+        ammoBg_->Draw();
+    }
+    if (progressBg_) {
+        progressBg_->Draw();
+    }
+    if (scoreBg_) {
+        scoreBg_->Draw();
+    }
+    if (timerBg_) {
+        timerBg_->Draw();
+    }
 
-    // 3. UIのゲージ（メモリやバー）
+    // UIのゲージ（メモリやバー）
+    if (showUI) {
     // ライフメモリ
     {
       int currentLife = kMaxHits - hitCount_;
@@ -3231,6 +3600,8 @@ void ShootingScene::Draw() {
         }
       }
     }
+
+    } // end if (showUI for life & ammo)
 
     // プログレスバー＆ウェーブ目盛り・アイコン・現在地マーカー
     if (progressBar_) {
@@ -3253,6 +3624,7 @@ void ShootingScene::Draw() {
       playerMarkerSprite_->Draw();
     }
 
+    if (showUI) {
     // 高耐久エネミー（エンジニア兵など）の頭上HPゲージ（一度でも被弾している生存敵のみ）
     for (auto &enemy : enemies_) {
       if (enemy.isHpGaugeVisible) {
@@ -3287,6 +3659,8 @@ void ShootingScene::Draw() {
       rTextSprite_->Draw();
     }
 
+    } // end if (showUI for scores & enemies)
+
     // タイマー表示スプライト
     for (int i = 0; i < 4; ++i) {
       if (timerUnits_[i]) {
@@ -3298,7 +3672,7 @@ void ShootingScene::Draw() {
     }
   }
 
-  // 3.8. スタート演出（Ready / Go 帯リール演出）
+  // スタート演出（Ready / Go 帯リール演出）
   if (phase_ == Phase::IntroReadyGo) {
     if (readyGoRibbon_ && isRibbonVisible_) {
       readyGoRibbon_->Draw();
@@ -3311,11 +3685,81 @@ void ShootingScene::Draw() {
     }
   }
 
-  // 4. 照準
+  // 照準
   if (isShowSprite_ && showUI) {
     if (crosshair_)
       crosshair_->Draw();
   }
+}
+
+void ShootingScene::DrawForeground() {
+    // ゲームオーバー時以外は何もしない
+    if (phase_ != Phase::GameOver) {
+        return;
+    }
+
+    // スプライトの描画
+    SpriteCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_));
+
+    // カバー演出
+    if (isCovering_ && coverOverlay_) {
+        coverOverlay_->Draw();
+    }
+
+    // UIの下地
+    if (progressBg_) {
+        progressBg_->Draw();
+    }
+    if (timerBg_) {
+        timerBg_->Draw();
+    }
+
+    // 進捗ゲージ一式
+    if (progressBar_) {
+        progressBar_->Draw();
+    }
+    for (auto &tick : waveTickSprites_) {
+        if (tick) tick->Draw();
+    }
+    for (auto &icon : waveIconSprites_) {
+        if (icon) icon->Draw();
+    }
+    if (bossWaveIconSprite_) {
+        bossWaveIconSprite_->Draw();
+    }
+    if (playerMarkerSprite_) {
+        playerMarkerSprite_->Draw();
+    }
+
+    // カウントダウンタイマー一式
+    for (int i = 0; i < 2; ++i) {
+        if (timerUnits_[i]) {
+            timerUnits_[i]->Draw();
+        }
+    }
+    if (timerDot_) {
+        timerDot_->Draw();
+    }
+
+    // 選択肢（RETRY / TITLE 看板）
+    if (retrySprite_) {
+        retrySprite_->Draw();
+    }
+    if (titleSprite_) {
+        titleSprite_->Draw();
+    }
+
+    // マウス照準スプライトを最前面に描画
+    if (crosshair_) {
+        crosshair_->Draw();
+    }
+
+    // 敗北要因テキスト
+    if (deathReasonSprite_) {
+        deathReasonSprite_->Draw();
+    }
+
 }
 
 void ShootingScene::Finalize() {
@@ -3566,6 +4010,267 @@ bool ShootingScene::IsInvincible() const {
   }
 
   return false;
+}
+
+void ShootingScene::StartGameOver(DeathReason reason) {
+    // 敗北要因テクスチャの切り替え
+    std::string reasonTexturePath = "gameover/NormalBullet.png";
+    switch (reason) {
+    case DeathReason::NormalBullet:
+        reasonTexturePath = "gameover/NormalBullet.png";
+        break;
+    case DeathReason::EngineerRocket:
+        reasonTexturePath = "gameover/EngineerRocket.png";
+        break;
+    case DeathReason::CoverBlast:
+        reasonTexturePath = "gameover/CoverBlast.png";
+        break;
+    case DeathReason::TimeUp:
+        reasonTexturePath = "gameover/TimeUp.png";
+        break;
+    case DeathReason::DroneExplosion:
+        reasonTexturePath = "gameover/DroneExplosion.png";
+        break;
+    }
+    if (deathReasonSprite_) {
+        deathReasonSprite_->SetTexture(reasonTexturePath);
+        deathReasonSprite_->SetTranslate(deathReasonPos_);
+        deathReasonSprite_->SetScale(deathReasonScale_);
+        deathReasonSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+        deathReasonSprite_->Update();
+    }
+    phase_ = Phase::GameOver;
+    phaseTimer_ = 0.0f;
+    deathReason_ = reason;
+
+    // タイマーUIのアルファ値を通常状態へリセット
+    if (timerBg_) {
+        timerBg_->SetColor({ 0.15f, 0.15f, 0.18f, 0.8f });
+    }
+    for (auto &unit : timerUnits_) {
+        if (unit) {
+            unit->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+        }
+    }
+    if (timerDot_) {
+        timerDot_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+    }
+
+    // 進捗ゲージUIのアルファ値を通常状態へリセット
+    if (progressBg_) {
+        progressBg_->SetColor({ 0.1f, 0.15f, 0.35f, 0.75f });
+    }
+    if (progressBar_) {
+        progressBar_->SetColor({ 0.2f, 0.9f, 1.0f, 1.0f });
+    }
+    for (size_t i = 0; i < waveTickSprites_.size(); ++i) {
+        if (waveTickSprites_[i]) {
+            if (i == waveTickSprites_.size() - 1) {
+                waveTickSprites_[i]->SetColor({ 1.0f, 0.3f, 0.3f, 0.9f });
+            } else {
+                waveTickSprites_[i]->SetColor({ 1.0f, 1.0f, 1.0f, 0.85f });
+            }
+        }
+    }
+    if (playerMarkerSprite_) {
+        playerMarkerSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+    }
+    if (false) {
+    }
+
+    // 自機を強制カバー状態へ
+    isCovering_ = true;
+    coverYOffset_ = coverYTarget_;
+
+    // ビネットを周辺減光モードで開始
+    vignetteScale_ = 16.0f;
+    vignetteExponent_ = 0.8f;
+    damageEffectStrength_ = 0.0f;
+    MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
+    MyGame::SetPostEffectStrength(1.0f);
+    PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
+
+    // 20秒タイマーのセット
+    gameOverTimer_ = 20.0f;
+    selectedOption_ = GameOverSelectOption::None;
+    gameOverTransitionTimer_ = 0.0f;
+}
+
+void ShootingScene::UpdateProgressBarUI(const Vector2& basePos, const Vector2& baseSize) {
+  if (!progressBar_ || !progressBg_) return;
+
+  float progressRatio = cameraProgress_ / maxProgress_;
+  if (progressRatio < 0.0f) progressRatio = 0.0f;
+  if (progressRatio > 1.0f) progressRatio = 1.0f;
+
+  // 背景バー
+  progressBg_->SetTranslate(basePos);
+  progressBg_->SetScale(baseSize);
+  progressBg_->Update();
+
+  // 進行度バー
+  progressBar_->SetTranslate(basePos);
+  progressBar_->SetScale({ baseSize.x * progressRatio, baseSize.y });
+  progressBar_->Update();
+
+  // 各ウェーブ区間の目盛り線・アイコン（basePos, baseSize からの相対配置）
+  for (size_t i = 0; i < waveIconSprites_.size(); ++i) {
+    if (i + 1 >= sectionProgresses_.size()) break;
+    float waveDist = sectionProgresses_[i + 1];
+    float ratio = waveDist / maxProgress_;
+    if (ratio < 0.0f) ratio = 0.0f;
+    if (ratio > 1.0f) ratio = 1.0f;
+    float markerX = basePos.x + baseSize.x * ratio;
+
+    if (i < waveTickSprites_.size() && waveTickSprites_[i]) {
+      waveTickSprites_[i]->SetTranslate({ markerX, basePos.y + baseSize.y * 0.5f });
+      waveTickSprites_[i]->SetScale({ 2.0f, baseSize.y + 4.0f });
+      waveTickSprites_[i]->Update();
+    }
+
+    auto& icon = waveIconSprites_[i];
+    if (icon) {
+      // アイコンY位置: バーの上側
+      icon->SetTranslate({ markerX, basePos.y - 11.0f });
+
+      // この区間の敵が全滅しているかチェック
+      bool sectionCleared = true;
+      for (const auto& enemy : enemies_) {
+        if (std::abs(enemy.distance - waveDist) < 0.1f && !enemy.isDead) {
+          sectionCleared = false;
+          break;
+        }
+      }
+
+      if (sectionCleared && cameraProgress_ >= waveDist) {
+        // 突破済み：半透明グレー
+        icon->SetColor({ 0.45f, 0.5f, 0.55f, 0.65f });
+        icon->SetScale({ 18.0f, 18.0f });
+      } else if (std::abs(cameraProgress_ - waveDist) < 0.5f && isMovementPaused_) {
+        // 現在交戦中：オレンジ〜赤で強調
+        float pulse = 1.0f + 0.12f * std::sin(lifeBlinkTimer_ * 10.0f);
+        icon->SetColor({ 1.0f, 0.35f, 0.1f, 1.0f });
+        icon->SetScale({ 22.0f * pulse, 22.0f * pulse });
+      } else {
+        // 未到達：白
+        icon->SetColor({ 0.95f, 0.95f, 1.0f, 0.95f });
+        icon->SetScale({ 20.0f, 20.0f });
+      }
+      icon->Update();
+    }
+  }
+
+  // 終点（ボス）の目盛り＆アイコン
+  if (!waveTickSprites_.empty()) {
+    size_t lastTickIdx = waveTickSprites_.size() - 1;
+    if (waveTickSprites_[lastTickIdx]) {
+      waveTickSprites_[lastTickIdx]->SetTranslate({ basePos.x + baseSize.x, basePos.y + baseSize.y * 0.5f });
+      waveTickSprites_[lastTickIdx]->SetScale({ 3.0f, baseSize.y + 6.0f });
+      waveTickSprites_[lastTickIdx]->Update();
+    }
+  }
+  if (bossWaveIconSprite_) {
+    bossWaveIconSprite_->SetTranslate({ basePos.x + baseSize.x, basePos.y - 11.0f });
+    if (phase_ == Phase::SwarmBattle) {
+      float pulse = 1.0f + 0.15f * std::sin(lifeBlinkTimer_ * 12.0f);
+      bossWaveIconSprite_->SetColor({ 1.0f, 0.2f, 0.2f, 1.0f });
+      bossWaveIconSprite_->SetScale({ 28.0f * pulse, 28.0f * pulse });
+    } else {
+      bossWaveIconSprite_->SetColor({ 1.0f, 0.85f, 0.85f, 1.0f });
+      bossWaveIconSprite_->SetScale({ 26.0f, 26.0f });
+    }
+    bossWaveIconSprite_->Update();
+  }
+
+  // プレイヤー現在地マーカー
+  if (playerMarkerSprite_) {
+    float currentMarkerX = basePos.x + baseSize.x * progressRatio;
+    playerMarkerSprite_->SetTranslate({ currentMarkerX, basePos.y + baseSize.y * 0.5f });
+    playerMarkerSprite_->Update();
+  }
+}
+
+void ShootingScene::UpdateTimerUI(float timeValue, const Vector2& basePos, const Vector2& bgSize, const Vector2& digitSize, float spacing, const Vector2& dotSize, bool showDecimals) {
+  if (!timerBg_) return;
+
+  // 背景の更新
+  timerBg_->SetTranslate(basePos);
+  timerBg_->SetScale(bgSize);
+  timerBg_->Update();
+
+  if (showDecimals) {
+      int tempTimer = static_cast<int>(std::round(timeValue * 100.0f));
+      if (tempTimer > 9999) tempTimer = 9999;
+      if (tempTimer < 0) tempTimer = 0;
+
+      int tDigits[4];
+      tDigits[0] = tempTimer / 1000;
+      tDigits[1] = (tempTimer % 1000) / 100;
+      tDigits[2] = (tempTimer % 100) / 10;
+      tDigits[3] = tempTimer % 10;
+
+      // 4文字＋ドットの合計幅を算出して背景内で中央揃えにする
+      float dotGap = spacing * 0.25f;
+      float totalContentWidth = digitSize.x + spacing * 3.0f + dotGap;
+      float startX = basePos.x + (bgSize.x - totalContentWidth) * 0.5f;
+      float startY = basePos.y + (bgSize.y - digitSize.y) * 0.5f;
+
+      for (int i = 0; i < 4; ++i) {
+          if (i < static_cast<int>(timerUnits_.size()) && timerUnits_[i]) {
+              timerUnits_[i]->SetTexture("numbers/" + std::to_string(tDigits[i]) + ".png");
+              float x = startX + i * spacing + (i >= 2 ? dotGap : 0.0f);
+              timerUnits_[i]->SetTranslate({ x, startY });
+              timerUnits_[i]->SetScale(digitSize);
+              timerUnits_[i]->Update();
+          }
+      }
+
+      if (timerDot_) {
+          float dotX = startX + 2.0f * spacing - (dotGap * 0.5f) - (dotSize.x * 0.5f);
+          float dotY = startY + digitSize.y - dotSize.y * 1.5f;
+          timerDot_->SetTranslate({ dotX, dotY });
+          timerDot_->SetScale(dotSize);
+          timerDot_->Update();
+      }
+  } else {
+      // ==========================================
+      // ゲームオーバー時：整数2桁のみ（ceilでカウントダウン）
+      // ==========================================
+      int sec = static_cast<int>(std::ceil(timeValue));
+      if (sec > 99) sec = 99;
+      if (sec < 0)  sec = 0;
+      int tDigits[2] = { sec / 10, sec % 10 };
+      // 2文字の中央揃え幅
+      float totalContentWidth = digitSize.x + spacing;
+      float startX = basePos.x + (bgSize.x - totalContentWidth) * 0.5f;
+      float startY = basePos.y + (bgSize.y - digitSize.y) * 0.5f;
+      for (int i = 0; i < 2; ++i) {
+          if (i < static_cast<int>(timerUnits_.size()) && timerUnits_[i]) {
+              timerUnits_[i]->SetTexture("numbers/" + std::to_string(tDigits[i]) + ".png");
+              timerUnits_[i]->SetTranslate({ startX + i * spacing, startY });
+              timerUnits_[i]->SetScale(digitSize);
+              timerUnits_[i]->Update();
+          }
+      }
+      // 小数部とドットは幅0にして非表示
+      for (size_t i = 2; i < timerUnits_.size(); ++i) {
+          if (timerUnits_[i]) {
+              timerUnits_[i]->SetScale({ 0.0f, 0.0f });
+              timerUnits_[i]->Update();
+          }
+      }
+      if (timerDot_) {
+          timerDot_->SetScale({ 0.0f, 0.0f });
+          timerDot_->Update();
+      }
+  }
+}
+
+bool ShootingScene::IsPointInRect(const Vector2& point, const Vector2& center, const Vector2& size) {
+  float halfW = size.x * 0.5f;
+  float halfH = size.y * 0.5f;
+  return (point.x >= center.x - halfW && point.x <= center.x + halfW &&
+          point.y >= center.y - halfH && point.y <= center.y + halfH);
 }
 
 void ShootingScene::DrawObjectWithIntroTransition(Object3d *obj, float startTime, float duration) {

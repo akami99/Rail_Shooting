@@ -1238,4 +1238,4 @@ ComPtr<ID3D12RootSignature> PipelineManager::CreateComputeRootSignature(
 		0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
 	assert(SUCCEEDED(hr));
 	return rootSignature;
-}
+}

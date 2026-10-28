@@ -251,6 +251,8 @@ void MyGame::Draw() {
   DX12Context::GetInstance()->SetBackBufferAsRenderTarget();
   SrvManager::GetInstance()->PreDraw();
   PostProcessManager::GetInstance()->Draw(renderTexture_.get());
+  // ポストエフェクトの影響を受けない前面UIを描画
+  SceneManager::GetInstance()->DrawForeground();
 
   // ImGuiの描画
   imGuiManager_->Draw();

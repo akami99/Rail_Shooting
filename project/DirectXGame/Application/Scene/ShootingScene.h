@@ -24,6 +24,7 @@ public:
     void Update() override;
 
     void Draw() override;
+    void DrawForeground() override;
     void Finalize() override;
 
     // ゲームオーバー/クリア/入場演出フェーズ
@@ -35,8 +36,7 @@ public:
         IntroReadyGo,       // スタート演出:Ready Go帯リール演出
         Playing,            // 通常プレイ
         SwarmBattle,        // レール終点でのスウォーム演出/戦闘
-        GameOverVignette,   // ビネットで覆っていく（ゲームオーバー）
-        GameOverWait,       // 暗転維持
+        GameOver,           // ゲームオーバー
         RestartSmoothing,   // リセット後スムージングを徐々に消す
         ClearVignette,      // クリア時ビネット暗転
         ReturnToTitleVignette, // ESCで目を閉じる退場暗転
@@ -132,8 +132,25 @@ private:
     const uint32_t kMaxSwarmCount = 128;
     const uint32_t kSpawnSwarmCount = 100;
 
+    enum class DeathReason {
+        NormalBullet,     // 一般兵の銃弾
+        EngineerRocket,   // 工兵の砲弾
+        CoverBlast,       // 工兵による爆風(カバー被弾)
+        TimeUp,           // 時間切れ
+        DroneExplosion,   // ドローンの爆発
+    };
+    DeathReason deathReason_ = DeathReason::NormalBullet;
+
     // 照準（スプライト）
     std::unique_ptr<Sprite> crosshair_;
+
+    struct CrosshairSpriteSettings {
+        Vector4 colorAim_;   // 攻撃可能時の色
+        Vector4 colorNoAim_; // 攻撃不可能時の色
+    };
+    CrosshairSpriteSettings crosshairSpriteSettings_ = {
+        {1.0f, 0.0f, 0.0f, 1.0f},  // 攻撃可能時は赤
+        {0.0f, 1.0f, 0.0f, 0.4f}}; // 攻撃不可能時は緑
 
     // オフスクリーン用分岐戦闘の際には記述する
 
@@ -204,6 +221,19 @@ private:
     float introCameraYaw_ = 0.0f;                       // 左右角度オフセット (Yaw)
     bool isIntroPreviewMode_ = false;                   // 終点カメラプレビュー固定フラグ
 
+    // ゲームオーバー演出用パラメータ
+    enum class GameOverSelectOption {
+        None,
+        Retry,
+        Title
+    };
+    GameOverSelectOption selectedOption_ = GameOverSelectOption::None;
+    float gameOverTransitionTimer_ = 0.0f;
+    static constexpr float kGameOverBlinkDuration = 0.6f;   // 決定後の点滅時間(秒)
+    static constexpr float kGameOverFadeOutDuration = 0.8f; // ビネット完全暗転時間(秒)
+    static constexpr float kGameOverWaitAfterFade = 0.5f;   // 完全暗転後の静止維持時間(秒)
+    float gameOverTimer_ = 20.0f;
+
     // ビネット演出パラメータ（徐々に強化）
     float vignetteScale_ = 16.0f;                      // 小さいほど暗くなる
     float vignetteExponent_ = 0.8f;                    // 大きいほど急激に暗くなる
@@ -272,6 +302,12 @@ private:
     std::unique_ptr<Sprite> bossWaveIconSprite_;           // 終点スウォーム（ボス）アイコン
     std::unique_ptr<Sprite> playerMarkerSprite_;           // 現在地マーカー
 
+    // プログレスバー配置設定（通常時 / ゲームオーバー時）
+    Vector2 progressPos_ = { 480.0f, 48.0f };
+    Vector2 progressSize_ = { 300.0f, 16.0f };
+    Vector2 gameOverProgressPos_ = { 440.0f, 620.0f };
+    Vector2 gameOverProgressSize_ = { 400.0f, 18.0f };
+
     // スコア・タイマーUI
     int score_ = 0;
     float gameTimer_ = 60.0f;
@@ -280,6 +316,19 @@ private:
     std::unique_ptr<Sprite> timerBg_;
     std::vector<std::unique_ptr<Sprite>> timerUnits_;
     std::unique_ptr<Sprite> timerDot_;
+
+    // タイマー配置設定（通常時 / ゲームオーバー時）
+    Vector2 timerPos_ = { 550.0f, 70.0f };
+    Vector2 timerBgSize_ = { 160.0f, 42.0f };
+    Vector2 timerDigitSize_ = { 20.0f, 32.0f };
+    float timerDigitSpacing_ = 30.0f;
+    Vector2 timerDotSize_ = { 4.0f, 4.0f };
+
+    Vector2 gameOverTimerPos_ = { 540.0f, 310.0f };
+    Vector2 gameOverTimerBgSize_ = { 200.0f, 100.0f };
+    Vector2 gameOverTimerDigitSize_ = { 52.0f, 76.0f };
+    float gameOverTimerDigitSpacing_ = 60.0f;
+    Vector2 gameOverTimerDotSize_ = { 6.0f, 6.0f };
 
     // ESCキー案内スプライト
     std::unique_ptr<Sprite> escTextSprite_;
@@ -303,6 +352,19 @@ private:
     bool isReadyVisible_ = false;
     bool isGoVisible_ = false;
     static constexpr float kReadyGoTotalDuration = 2.4f; // Ready Go演出の総時間(秒)
+
+    // ゲームオーバー選択肢（RETRY / TITLE）UI
+    std::unique_ptr<Sprite> retrySprite_;
+    std::unique_ptr<Sprite> titleSprite_;
+    Vector2 retryPos_ = { 300.0f, 360.0f };
+    Vector2 retryScale_ = { 300.0f, 150.0f };
+    Vector2 titlePos_ = { 980.0f, 360.0f };
+    Vector2 titleScale_ = { 300.0f, 150.0f };
+
+    // ゲームオーバー敗北要因UI
+    std::unique_ptr<Sprite> deathReasonSprite_;
+    Vector2 deathReasonPos_ = { 640.0f, 140.0f };
+    Vector2 deathReasonScale_ = { 512.0f, 64.0f };
 
     // カバー演出UI
     std::unique_ptr<Sprite> coverOverlay_;
@@ -339,4 +401,16 @@ private:
 
     // プレイヤーが無敵状態か判定
     bool IsInvincible() const;
+
+    // ゲームオーバー演出開始との要因受け渡し
+    void StartGameOver(DeathReason reason);
+
+    // 点が矩形（中心基準）内にあるか判定
+    static bool IsPointInRect(const Vector2& point, const Vector2& center, const Vector2& size);
+
+    // プログレスバーUIのレイアウト・状態更新ヘルパー
+    void UpdateProgressBarUI(const Vector2& basePos, const Vector2& baseSize);
+
+    // タイマーUIのレイアウト・表示更新ヘルパー
+    void UpdateTimerUI(float timeValue, const Vector2& basePos, const Vector2& bgSize, const Vector2& digitSize, float spacing, const Vector2& dotSize, bool showDecimals = true);
 };

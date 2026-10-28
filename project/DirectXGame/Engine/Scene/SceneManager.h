@@ -31,6 +31,9 @@ public:
     // オフスクリーン描画処理
     void DrawOffscreen();
 
+    // ポストエフェクト影響なしの描画処理
+    void DrawForeground();
+
     // 描画処理
     void Draw();
 
