@@ -408,6 +408,18 @@ private:
     // 点が矩形（中心基準）内にあるか判定
     static bool IsPointInRect(const Vector2& point, const Vector2& center, const Vector2& size);
 
+    // デモモード用処理
+    Vector3 WorldToScreen(const Vector3& worldPos, Camera* camera);
+    void UpdateDemo();
+
+    bool isDemoMode_ = true;
+    int demoLoop_ = 1; // 1: 通常弾敗北, 2: 爆発弾敗北, 3: カバー爆風敗北
+    Vector2 demoMousePos_ = { 640.0f, 360.0f };
+    bool isDemoCovering_ = false;
+    bool isDemoShootTriggered_ = false;
+    float demoStateTimer_ = 0.0f;
+    float demoShootCooldown_ = 0.0f;
+
     // プログレスバーUIのレイアウト・状態更新ヘルパー
     void UpdateProgressBarUI(const Vector2& basePos, const Vector2& baseSize);
 

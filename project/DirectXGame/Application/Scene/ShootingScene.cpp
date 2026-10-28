@@ -19,6 +19,10 @@
 using namespace MathUtils;
 using namespace BlendMode;
 
+// デモモード用静的変数（シーン遷移間もループ数を維持）
+static int sDemoLoopCount = 1;
+static bool sIsDemoMode = true;
+
 ShootingScene::ShootingScene() = default;
 ShootingScene::~ShootingScene() = default;
 
@@ -594,6 +598,22 @@ void ShootingScene::Initialize() {
   crosshair_ = std::make_unique<Sprite>();
   crosshair_->Initialize(crosshairPath_);
   crosshair_->SetAnchorPoint({0.5f, 0.5f});
+
+  // デモモード初期化
+  isDemoMode_ = sIsDemoMode;
+  demoLoop_ = sDemoLoopCount;
+  demoMousePos_ = { 640.0f, 360.0f };
+  isDemoCovering_ = false;
+  isDemoShootTriggered_ = false;
+  demoStateTimer_ = 0.0f;
+  demoShootCooldown_ = 0.0f;
+
+  if (isDemoMode_) {
+    hitShotRate_ = 1.0f;
+    for (auto &enemy : enemies_) {
+      enemy.isNextHitShot = true;
+    }
+  }
   crosshair_->SetScale({64.0f, 64.0f});
   crosshair_->SetColor(crosshairSpriteSettings_.colorNoAim_);
 
@@ -908,6 +928,9 @@ void ShootingScene::Update() {
   }
 
   // 現在の cameraProgress_ から currentSectionIndex_ を更新
+  // デモモードの更新処理
+  UpdateDemo();
+
   for (int i = static_cast<int>(sectionProgresses_.size()) - 1; i >= 0; --i) {
     if (cameraProgress_ >= sectionProgresses_[i]) {
       currentSectionIndex_ = i;
@@ -1001,7 +1024,14 @@ void ShootingScene::Update() {
 
     // 照準スプライトをマウス位置に追従させる
     POINT mousePos;
+    if (isDemoMode_) {
+    mousePos.x = static_cast<LONG>(demoMousePos_.x);
+    mousePos.y = static_cast<LONG>(demoMousePos_.y);
+  } else {
     GetCursorPos(&mousePos);
+    ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+  }
+  if (false)
     ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
     crosshair_->SetTranslate({static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
     // 照準レイの算出とホバー判定
@@ -1257,7 +1287,21 @@ void ShootingScene::Update() {
 
           // 照準スプライトをマウス位置に追従させる
           POINT mousePos;
-          GetCursorPos(&mousePos);
+          if (isDemoMode_) {
+          mousePos.x = static_cast<LONG>(demoMousePos_.x);
+          mousePos.y = static_cast<LONG>(demoMousePos_.y);
+      } else {
+          if (isDemoMode_) {
+    mousePos.x = static_cast<LONG>(demoMousePos_.x);
+    mousePos.y = static_cast<LONG>(demoMousePos_.y);
+  } else {
+    GetCursorPos(&mousePos);
+    ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+  }
+  if (false)
+          ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+      }
+      if (false)
           ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
           crosshair_->SetTranslate({ static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) });
           // 照準レイの算出とホバー判定
@@ -1528,7 +1572,21 @@ void ShootingScene::Update() {
 
       // 3. マウス照準位置の更新
       POINT mousePos;
-      GetCursorPos(&mousePos);
+      if (isDemoMode_) {
+          mousePos.x = static_cast<LONG>(demoMousePos_.x);
+          mousePos.y = static_cast<LONG>(demoMousePos_.y);
+      } else {
+          if (isDemoMode_) {
+    mousePos.x = static_cast<LONG>(demoMousePos_.x);
+    mousePos.y = static_cast<LONG>(demoMousePos_.y);
+  } else {
+    GetCursorPos(&mousePos);
+    ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+  }
+  if (false)
+          ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+      }
+      if (false)
       ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
       Vector2 mPos = { static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) };
       crosshair_->SetTranslate(mPos);
@@ -1823,7 +1881,7 @@ void ShootingScene::Update() {
   // =====================================================
 
   // 隠れるアクションの更新
-  isCovering_ = Input::GetInstance()->IsKeyDown(DIK_SPACE);
+  isCovering_ = Input::GetInstance()->IsKeyDown(DIK_SPACE) || (isDemoMode_ && isDemoCovering_);
   if (isCovering_) {
     if (ammo_ < kMaxAmmo) {
       reloadTimer_ += kDeltaTime;
@@ -2057,7 +2115,7 @@ void ShootingScene::Update() {
         // 次回撃つ弾が必中弾かどうかを事前抽選
         float nextHitRate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
         float nextRand = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-        enemy.isNextHitShot = (nextRand < nextHitRate);
+        enemy.isNextHitShot = isDemoMode_ ? true : (nextRand < nextHitRate);
       }
     }
 
@@ -2289,7 +2347,14 @@ void ShootingScene::Update() {
 
   // スプライト更新（照準をマウス位置に合わせる）
   POINT mousePos;
-  GetCursorPos(&mousePos);
+  if (isDemoMode_) {
+    mousePos.x = static_cast<LONG>(demoMousePos_.x);
+    mousePos.y = static_cast<LONG>(demoMousePos_.y);
+  } else {
+    GetCursorPos(&mousePos);
+    ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+  }
+  if (false)
   ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
   crosshair_->SetTranslate({static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
   // 照準レイの算出とホバー判定
@@ -2354,7 +2419,7 @@ void ShootingScene::Update() {
 
   // 射撃（クリック）処理
   if (!isCovering_ && (ammo_ > 0 || isDebugInfiniteAmmo_) &&
-      Input::GetInstance()->IsMouseButtonTriggered(0)) {
+      (Input::GetInstance()->IsMouseButtonTriggered(0) || (isDemoMode_ && isDemoShootTriggered_))) {
     if (!isDebugInfiniteAmmo_) {
       ammo_--; // 弾数を減らす
     }
@@ -3396,6 +3461,17 @@ void ShootingScene::UpdateImGui_GameStatus() {
   }
   ImGui::Separator();
   ImGui::Text("Player Status");
+  if (ImGui::Checkbox("Auto Demo Mode", &sIsDemoMode)) {
+    isDemoMode_ = sIsDemoMode;
+  }
+  if (isDemoMode_) {
+    const char* loopNames[] = { "1: Normal Bullet", "2: Engineer Rocket", "3: Cover Blast" };
+    int loopIdx = demoLoop_ - 1;
+    if (ImGui::Combo("Demo Loop", &loopIdx, loopNames, IM_ARRAYSIZE(loopNames))) {
+      demoLoop_ = loopIdx + 1;
+      sDemoLoopCount = demoLoop_;
+    }
+  }
   ImGui::Separator();
   ImGui::Text("Hit Count: %d / %d", hitCount_, kMaxHits);
   ImGui::Text("Ammo: %d / %d", ammo_, kMaxAmmo);
@@ -4042,6 +4118,7 @@ void ShootingScene::StartGameOver(DeathReason reason) {
     phase_ = Phase::GameOver;
     phaseTimer_ = 0.0f;
     deathReason_ = reason;
+    demoStateTimer_ = 0.0f;
 
     // タイマーUIのアルファ値を通常状態へリセット
     if (timerBg_) {
@@ -4094,6 +4171,154 @@ void ShootingScene::StartGameOver(DeathReason reason) {
     gameOverTimer_ = 20.0f;
     selectedOption_ = GameOverSelectOption::None;
     gameOverTransitionTimer_ = 0.0f;
+}
+
+Vector3 ShootingScene::WorldToScreen(const Vector3& worldPos, Camera* camera) {
+  if (!camera) return { 640.0f, 360.0f, 0.0f };
+  Matrix4x4 vp = camera->GetViewProjectionMatrix();
+  Vector3 ndc = TransformPoint(worldPos, vp);
+  float screenX = (ndc.x * 0.5f + 0.5f) * static_cast<float>(Win32Window::kClientWidth);
+  float screenY = (1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(Win32Window::kClientHeight);
+  return { screenX, screenY, ndc.z };
+}
+
+void ShootingScene::UpdateDemo() {
+  if (!isDemoMode_) return;
+
+  isDemoShootTriggered_ = false;
+  demoShootCooldown_ -= kDeltaTime;
+  demoStateTimer_ += kDeltaTime;
+
+  // 1. ゲームオーバー中の自動操作（リトライ看板へ移動してクリック）
+  if (phase_ == Phase::GameOver) {
+    isDemoCovering_ = false;
+
+    if (selectedOption_ == GameOverSelectOption::None) {
+      Vector2 targetPos = retryPos_;
+
+      demoMousePos_.x += (targetPos.x - demoMousePos_.x) * 0.10f;
+      demoMousePos_.y += (targetPos.y - demoMousePos_.y) * 0.10f;
+
+      float distToRetry = Length(Vector3{ demoMousePos_.x - targetPos.x, demoMousePos_.y - targetPos.y, 1.0f });
+      if (distToRetry < 40.0f && demoStateTimer_ > 1.2f) {
+        selectedOption_ = GameOverSelectOption::Retry;
+        gameOverTransitionTimer_ = 0.0f;
+        sDemoLoopCount = (sDemoLoopCount % 3) + 1;
+      }
+    }
+    return;
+  }
+
+  // 2. 通常戦闘中の自動操作
+  if (phase_ == Phase::Playing) {
+    if (demoLoop_ == 1) {
+      // 一週目: 最初の敵2体にやられ通常弾敗北
+      isDemoCovering_ = false;
+      demoMousePos_.x = 640.0f + std::sin(demoStateTimer_ * 1.5f) * 40.0f;
+      demoMousePos_.y = 360.0f + std::cos(demoStateTimer_ * 1.2f) * 25.0f;
+    }
+    else if (demoLoop_ == 2) {
+      // 2週目: 一発被弾するペースで最初の敵を順に倒し、次区間の通常敵を倒して工兵の爆発弾により敗北
+      if (cameraProgress_ < 20.0f) {
+        if (hitCount_ < 1) {
+          isDemoCovering_ = false;
+          demoMousePos_.x = 640.0f + std::sin(demoStateTimer_ * 1.5f) * 30.0f;
+          demoMousePos_.y = 360.0f + std::cos(demoStateTimer_ * 1.2f) * 20.0f;
+        } else {
+          int targetIdx = -1;
+          if (enemies_.size() > 0 && !enemies_[0].isDead && enemies_[0].isActive) {
+            targetIdx = 0;
+          } else if (enemies_.size() > 1 && !enemies_[1].isDead && enemies_[1].isActive) {
+            targetIdx = 1;
+          }
+
+          if (targetIdx >= 0) {
+            Vector3 enemyWorldPos = enemies_[targetIdx].object->GetTranslate();
+            enemyWorldPos.y += 0.5f;
+            Vector3 screenPos = WorldToScreen(enemyWorldPos, camera_.get());
+
+            demoMousePos_.x += (screenPos.x - demoMousePos_.x) * 0.18f;
+            demoMousePos_.y += (screenPos.y - demoMousePos_.y) * 0.18f;
+
+            float distToTarget = Length(Vector3{ demoMousePos_.x - screenPos.x, demoMousePos_.y - screenPos.y, 1.0f });
+            if (distToTarget < 45.0f && demoShootCooldown_ <= 0.0f) {
+              isDemoShootTriggered_ = true;
+              demoShootCooldown_ = 0.35f;
+            }
+          }
+        }
+      } else {
+        // --- 次区間 (distance: 40.0, 工兵(爆発弾)と通常敵) ---
+        // 通常敵をすぐに倒して、工兵の爆発弾を待つ
+        isDemoCovering_ = false;
+
+        int normalTargetIdx = -1;
+        for (size_t i = 2; i < enemies_.size(); ++i) {
+          if (!enemies_[i].isDead && enemies_[i].isActive && enemies_[i].type != EnemyType::Engineer) {
+            normalTargetIdx = static_cast<int>(i);
+            break;
+          }
+        }
+
+        if (normalTargetIdx >= 0) {
+          // 通常敵をすばやく狙って撃破
+          Vector3 enemyWorldPos = enemies_[normalTargetIdx].object->GetTranslate();
+          enemyWorldPos.y += 0.5f;
+          Vector3 screenPos = WorldToScreen(enemyWorldPos, camera_.get());
+
+          demoMousePos_.x += (screenPos.x - demoMousePos_.x) * 0.25f;
+          demoMousePos_.y += (screenPos.y - demoMousePos_.y) * 0.25f;
+
+          float distToTarget = Length(Vector3{ demoMousePos_.x - screenPos.x, demoMousePos_.y - screenPos.y, 1.0f });
+          if (distToTarget < 45.0f && demoShootCooldown_ <= 0.0f) {
+            isDemoShootTriggered_ = true;
+            demoShootCooldown_ = 0.35f;
+          }
+        } else {
+          // 通常敵撃破後は工兵の爆発弾を待つ
+          demoMousePos_.x = 640.0f + std::sin(demoStateTimer_ * 1.5f) * 30.0f;
+          demoMousePos_.y = 360.0f + std::cos(demoStateTimer_ * 1.2f) * 20.0f;
+        }
+      }
+    }
+    else if (demoLoop_ == 3) {
+      // 3週目: 二発被弾するペースで最初の敵を順に倒し、次区間はずっとカバーを行い爆風により敗北
+      if (cameraProgress_ < 20.0f) {
+        if (hitCount_ < 2) {
+          isDemoCovering_ = false;
+          demoMousePos_.x = 640.0f + std::sin(demoStateTimer_ * 1.5f) * 30.0f;
+          demoMousePos_.y = 360.0f + std::cos(demoStateTimer_ * 1.2f) * 20.0f;
+        } else {
+          int targetIdx = -1;
+          if (enemies_.size() > 0 && !enemies_[0].isDead && enemies_[0].isActive) {
+            targetIdx = 0;
+          } else if (enemies_.size() > 1 && !enemies_[1].isDead && enemies_[1].isActive) {
+            targetIdx = 1;
+          }
+
+          if (targetIdx >= 0) {
+            Vector3 enemyWorldPos = enemies_[targetIdx].object->GetTranslate();
+            enemyWorldPos.y += 0.5f;
+            Vector3 screenPos = WorldToScreen(enemyWorldPos, camera_.get());
+
+            demoMousePos_.x += (screenPos.x - demoMousePos_.x) * 0.18f;
+            demoMousePos_.y += (screenPos.y - demoMousePos_.y) * 0.18f;
+
+            float distToTarget = Length(Vector3{ demoMousePos_.x - screenPos.x, demoMousePos_.y - screenPos.y, 1.0f });
+            if (distToTarget < 45.0f && demoShootCooldown_ <= 0.0f) {
+              isDemoShootTriggered_ = true;
+              demoShootCooldown_ = 0.35f;
+            }
+          }
+        }
+      } else {
+        // 次区間はずっとカバーを行い、爆風により敗北
+        isDemoCovering_ = true;
+        demoMousePos_.x = 640.0f;
+        demoMousePos_.y = 360.0f;
+      }
+    }
+  }
 }
 
 void ShootingScene::UpdateProgressBarUI(const Vector2& basePos, const Vector2& baseSize) {
