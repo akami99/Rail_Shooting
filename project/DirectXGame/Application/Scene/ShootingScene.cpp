@@ -862,6 +862,28 @@ void ShootingScene::Initialize() {
   swarmManager_->SpawnDrones(introSwarmCount_, swarmCenter, introSwarmRadius_);
   // スタート演出用に突撃を無効化
   swarmManager_->SetAttackDistance(0.0f);
+
+  // ボス全体HPゲージUIの初期化
+  bossDamageBarRatio_ = 1.0f;
+  bossHpBgSprite_ = std::make_unique<Sprite>();
+  bossHpBgSprite_->Initialize("white.png");
+  bossHpBgSprite_->SetAnchorPoint({ 0.0f, 0.5f });
+  bossHpBgSprite_->SetColor({ 0.08f, 0.08f, 0.08f, 0.85f });
+
+  bossHpDamageSprite_ = std::make_unique<Sprite>();
+  bossHpDamageSprite_->Initialize("white.png");
+  bossHpDamageSprite_->SetAnchorPoint({ 0.0f, 0.5f });
+  bossHpDamageSprite_->SetColor({ 1.0f, 0.2f, 0.1f, 0.9f });
+
+  bossHpFillSprite_ = std::make_unique<Sprite>();
+  bossHpFillSprite_->Initialize("white.png");
+  bossHpFillSprite_->SetAnchorPoint({ 0.0f, 0.5f });
+  bossHpFillSprite_->SetColor({ 0.2f, 0.95f, 0.7f, 1.0f });
+
+  bossHpFrameSprite_ = std::make_unique<Sprite>();
+  bossHpFrameSprite_->Initialize("ui/enemyHpFrame.png");
+  bossHpFrameSprite_->SetAnchorPoint({ 0.5f, 0.5f });
+  bossHpFrameSprite_->SetScale({ 380.0f, 22.0f });
 }
 
 void ShootingScene::Update() {
@@ -1029,6 +1051,13 @@ void ShootingScene::Update() {
           isAiming = true;
           break;
         }
+      }
+    }
+
+    // 1.5 スウォーム群体・突撃グループとの当たり判定
+    if (!isAiming && swarmManager_ && swarmManager_->IsActive()) {
+      if (swarmManager_->IsRayHitting(nearPos, rayDir)) {
+        isAiming = true;
       }
     }
 
@@ -1285,6 +1314,13 @@ void ShootingScene::Update() {
           isAiming = true;
           break;
         }
+      }
+    }
+
+    // 1.5 スウォーム群体・突撃グループとの当たり判定
+    if (!isAiming && swarmManager_ && swarmManager_->IsActive()) {
+      if (swarmManager_->IsRayHitting(nearPos, rayDir)) {
+        isAiming = true;
       }
     }
 
@@ -1560,6 +1596,13 @@ void ShootingScene::Update() {
       }
     }
 
+    // 1.5 スウォーム群体・突撃グループとの当たり判定
+    if (!isAiming && swarmManager_ && swarmManager_->IsActive()) {
+      if (swarmManager_->IsRayHitting(nearPos, rayDir)) {
+        isAiming = true;
+      }
+    }
+
     // 2. エネミーとの当たり判定
     if (!isAiming) {
       for (auto &enemy : enemies_) {
@@ -1749,8 +1792,8 @@ void ShootingScene::Update() {
     swarmBattleTimer_ += kDeltaTime;
 
     // 制限時間経過（例: 25秒）で最終クリア暗転へ遷移
-    const float kSwarmBattleDuration = 25.0f;
-    if (swarmBattleTimer_ >= kSwarmBattleDuration) {
+    // ボスの最終突撃グループの体力ゲージを削り切ったらクリア暗転へ遷移
+    if (swarmManager_ && swarmManager_->IsBossDefeated()) {
       phase_ = Phase::ClearVignette;
       phaseTimer_ = 0.0f;
       vignetteScale_ = 16.0f;
@@ -1890,6 +1933,14 @@ void ShootingScene::Update() {
     cameraYaw_ += kHalfPI / 100.0f;
   }
 #endif // USE_IMGUI
+
+  // ボス戦（SwarmBattle）中はドローンがいる3区間（左・正面・右）に合わせてカメラ角度を切り替え
+  if (phase_ == Phase::SwarmBattle && swarmManager_ && swarmManager_->IsBossMode()) {
+    float targetYaw = swarmManager_->GetTargetCameraYaw();
+    float targetPitch = swarmManager_->GetTargetCameraPitch();
+    cameraYaw_ += (targetYaw - cameraYaw_) * 0.08f;
+    cameraBasePitch_ += (targetPitch - cameraBasePitch_) * 0.08f;
+  }
 
   // 基準回転（basePitch, cameraYaw, baseRoll）にシェイクオフセットを加算（累積せず完全復元）
   camera_->SetRotate({
@@ -2320,6 +2371,13 @@ void ShootingScene::Update() {
       }
     }
 
+    // 1.5 スウォーム群体・突撃グループとの当たり判定
+    if (!isAiming && swarmManager_ && swarmManager_->IsActive()) {
+      if (swarmManager_->IsRayHitting(nearPos, rayDir)) {
+        isAiming = true;
+      }
+    }
+
     // 2. エネミーとの当たり判定
     if (!isAiming) {
       for (auto &enemy : enemies_) {
@@ -2418,6 +2476,13 @@ void ShootingScene::Update() {
           hitType = HitTargetType::BlastProjectile;
           hitProjectile = p.get();
         }
+      }
+    }
+
+    // 1.5 スウォーム群体・突撃グループとの当たり判定
+    if (!isAiming && swarmManager_ && swarmManager_->IsActive()) {
+      if (swarmManager_->IsRayHitting(nearPos, rayDir)) {
+        isAiming = true;
       }
     }
 
@@ -2536,7 +2601,11 @@ void ShootingScene::Update() {
         swarmBattleTimer_ = 0.0f;
         Vector3 camPos = camera_->GetTranslate();
         if (swarmManager_) {
-          swarmManager_->SpawnDrones(kSpawnSwarmCount, { camPos.x, camPos.y, camPos.z }, 20.0f);
+          float baseYaw = (levelData_ && !levelData_->players.empty()) ? levelData_->players[0].rotation.y : 0.0f;
+          Vector3 basePos = CalculateRailPosition(maxProgress_);
+          bossDamageBarRatio_ = 1.0f;
+          (void)camPos;
+          swarmManager_->StartBossBattle(kSpawnSwarmCount, basePos, baseYaw);
         }
       }
     }
@@ -2552,6 +2621,90 @@ void ShootingScene::Update() {
       hasPendingSwarmAttack_ = false;
     } else {
       swarmManager_->Update(kDeltaTime, playerPos, camera_.get(), nullptr);
+    }
+
+    // ボス戦中のイベント処理（エフェクト発生・スコア・突撃被弾・クリア判定）
+    const auto& swarmEvents = swarmManager_->GetFrameEvents();
+    for (const auto& pos : swarmEvents.hitPositions) {
+      if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("AmmoSparkGroup")) {
+        emitter->isPlaying = true;
+      }
+      ParticleManager::GetInstance()->Emit("AmmoSparkGroup", pos, 10);
+    }
+    for (const auto& pos : swarmEvents.destroyedPositions) {
+      if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("SparkGroup")) {
+        emitter->isPlaying = true;
+      }
+      ParticleManager::GetInstance()->Emit("SparkGroup", pos, 24);
+      if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("CylinderGroup")) {
+        emitter->isPlaying = true;
+      }
+      ParticleManager::GetInstance()->Emit("CylinderGroup", pos, 8);
+    }
+    if (swarmEvents.dronesKilledByPlayer > 0) {
+      score_ += swarmEvents.dronesKilledByPlayer * 5;
+    }
+    for (const auto& pos : swarmEvents.selfDestructPositions) {
+      if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("SparkGroup")) {
+        emitter->isPlaying = true;
+      }
+      ParticleManager::GetInstance()->Emit("SparkGroup", pos, 30);
+    }
+    // 突撃自爆によるプレイヤー被弾処理（爆発弾と同じカバー/直撃ダメージ仕様）
+    if (swarmEvents.playerExplosionHits > 0) {
+      if (isCovering_) {
+        radialBlurStrength_ = 0.04f;
+        radialBlurTimer_ = kRadialBlurDuration;
+        PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
+        cameraShakeIntensity_ = 0.30f;
+        cameraShakeDuration_ = 0.35f;
+        cameraShakeTimer_ = 0.35f;
+
+        for (int hitIdx = 0; hitIdx < swarmEvents.playerExplosionHits; ++hitIdx) {
+          coverExplosionHits_++;
+          if (coverExplosionHits_ >= 2) {
+            coverExplosionHits_ = 0;
+            hitCount_++;
+            damageEffectStrength_ = 1.0f;
+            MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
+            if (hitCount_ >= kMaxHits) {
+              StartGameOver(DeathReason::DroneExplosion);
+              return;
+            }
+          }
+        }
+      } else {
+        if (!isInvincible) {
+          radialBlurStrength_ = 0.05f;
+          radialBlurTimer_ = kRadialBlurDuration;
+          PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
+          cameraShakeIntensity_ = 0.45f;
+          cameraShakeDuration_ = 0.45f;
+          cameraShakeTimer_ = 0.45f;
+
+          coverExplosionHits_ = 0;
+          hitCount_++;
+          damageEffectStrength_ = 1.0f;
+          MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
+          if (hitCount_ >= kMaxHits) {
+            StartGameOver(DeathReason::DroneExplosion);
+            return;
+          }
+        }
+      }
+    }
+    // 最終15機グループの体力ゲージを削り切った場合はクリア演出へ遷移
+    if (swarmEvents.bossDefeated) {
+      phase_ = Phase::ClearVignette;
+      phaseTimer_ = 0.0f;
+      vignetteScale_ = 16.0f;
+      vignetteExponent_ = 0.8f;
+      damageEffectStrength_ = 0.0f;
+      MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
+      MyGame::SetPostEffectStrength(1.0f);
+      PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
+      projectiles_.clear();
+      return;
     }
   }
 
@@ -2800,6 +2953,62 @@ void ShootingScene::Update() {
       enemy.isHpGaugeVisible = true;
     }
 
+    // ボス（スウォーム群体）の突撃グループ頭上HPゲージ＆ボス全体HPゲージ更新
+    if (swarmManager_ && swarmManager_->IsActive()) {
+      swarmManager_->UpdateHpGauges(camera_.get(),
+                                    static_cast<float>(Win32Window::kClientWidth),
+                                    static_cast<float>(Win32Window::kClientHeight));
+
+      if (phase_ == Phase::SwarmBattle && swarmManager_->IsBossMode()) {
+        float maxHp = static_cast<float>((std::max)(1u, swarmManager_->GetMaxBossHp()));
+        float curHp = static_cast<float>(swarmManager_->GetAliveDroneCount());
+        float targetRatio = std::clamp(curHp / maxHp, 0.0f, 1.0f);
+        if (bossDamageBarRatio_ > targetRatio) {
+          bossDamageBarRatio_ -= (bossDamageBarRatio_ - targetRatio) * 0.10f;
+          if (bossDamageBarRatio_ - targetRatio < 0.003f) {
+            bossDamageBarRatio_ = targetRatio;
+          }
+        } else {
+          bossDamageBarRatio_ = targetRatio;
+        }
+
+        const float kBossBarWidth = 360.0f;
+        const float kBossBarHeight = 12.0f;
+        const float kBossBarCenterX = 640.0f;
+        const float kBossBarCenterY = 128.0f;
+        float barLeftX = kBossBarCenterX - kBossBarWidth * 0.5f;
+
+        if (bossHpBgSprite_) {
+          bossHpBgSprite_->SetTranslate({ barLeftX, kBossBarCenterY });
+          bossHpBgSprite_->SetScale({ kBossBarWidth, kBossBarHeight });
+          bossHpBgSprite_->Update();
+        }
+        if (bossHpDamageSprite_) {
+          bossHpDamageSprite_->SetTranslate({ barLeftX, kBossBarCenterY });
+          bossHpDamageSprite_->SetScale({ kBossBarWidth * bossDamageBarRatio_, kBossBarHeight });
+          bossHpDamageSprite_->Update();
+        }
+        if (bossHpFillSprite_) {
+          bossHpFillSprite_->SetTranslate({ barLeftX, kBossBarCenterY });
+          bossHpFillSprite_->SetScale({ kBossBarWidth * targetRatio, kBossBarHeight });
+          int bPhase = swarmManager_->GetBossPhase();
+          if (bPhase == 3) {
+            bossHpFillSprite_->SetColor({ 1.0f, 0.2f, 0.15f, 1.0f });
+          } else if (bPhase == 2) {
+            bossHpFillSprite_->SetColor({ 1.0f, 0.75f, 0.1f, 1.0f });
+          } else {
+            bossHpFillSprite_->SetColor({ 0.2f, 0.95f, 0.7f, 1.0f });
+          }
+          bossHpFillSprite_->Update();
+        }
+        if (bossHpFrameSprite_) {
+          bossHpFrameSprite_->SetTranslate({ kBossBarCenterX, kBossBarCenterY });
+          bossHpFrameSprite_->SetScale({ kBossBarWidth + 20.0f, kBossBarHeight + 10.0f });
+          bossHpFrameSprite_->Update();
+        }
+      }
+    }
+
     // ランチャー弾（破壊可能プロジェクタイル）のHPゲージ更新
     for (auto &p : projectiles_) {
       if (p) {
@@ -2995,6 +3204,27 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
                        static_cast<int>(comboChars.size()))) {
         JumpToSection(selIdx);
       }
+      if (ImGui::Button("Jump to Swarm Boss Battle")) {
+        for (auto &enemy : enemies_) {
+          enemy.isDead = true;
+          enemy.isActive = false;
+          enemy.isHpGaugeVisible = false;
+          enemy.deathTimer = 1.0f;
+        }
+        projectiles_.clear();
+        cameraProgress_ = maxProgress_;
+        isMovementPaused_ = false;
+        phase_ = Phase::SwarmBattle;
+        swarmBattleTimer_ = 0.0f;
+        bossDamageBarRatio_ = 1.0f;
+        float baseYaw = (levelData_ && !levelData_->players.empty()) ? levelData_->players[0].rotation.y : 0.0f;
+        Vector3 basePos = CalculateRailPosition(maxProgress_);
+        camera_->SetTranslate(basePos);
+        if (swarmManager_) {
+          swarmManager_->StartBossBattle(kSpawnSwarmCount, basePos, baseYaw);
+        }
+        PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      }
       ImGui::Separator();
     }
 
@@ -3100,6 +3330,9 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
       }
 
       // 残留パーティクルを完全にクリア
+      if (swarmManager_) {
+        swarmManager_->ClearDrones();
+      }
       ParticleManager::GetInstance()->ClearAllParticles();
       // スムージングを最大限（31）適用してリスタート
       smoothingKernel_ = 31.0f;
@@ -3263,6 +3496,14 @@ void ShootingScene::UpdateImGui_Object3d() {
     auto& settings = swarmManager_->GetSettings();
     ImGui::Text("Active: %s", swarmManager_->IsActive() ? "YES" : "NO");
     ImGui::Text("Alive / Total: %u / %u", swarmManager_->GetAliveDroneCount(), swarmManager_->GetDroneCount());
+    if (swarmManager_->IsBossMode()) {
+      const char* secStr = (swarmManager_->GetCurrentCameraSection() < 0) ? "Left (-1)" :
+                           (swarmManager_->GetCurrentCameraSection() > 0) ? "Right (+1)" : "Center (0)";
+      ImGui::Text("Boss Phase: %d | Camera Section: %s", swarmManager_->GetBossPhase(), secStr);
+      ImGui::Text("No-Shoot Timer: %.2f / 2.0s | 10s Timer: %.2f / 10.0s",
+                  swarmManager_->GetNoShootTimer(), swarmManager_->GetPeriodicAttackTimer());
+      ImGui::Text("Evade Cooldown: %.2f s", swarmManager_->GetEvadeCooldownTimer());
+    }
 
     if (ImGui::Button("Spawn Swarm (100 drones, 20m around player)")) {
       Vector3 camPos = camera_->GetTranslate();
@@ -3553,7 +3794,7 @@ void ShootingScene::Draw() {
       static_cast<BlendState>(currentBlendMode_));
 
   // UIの下地・ゲージを非表示にする
-  bool showUI = (phase_ == Phase::Playing);
+  bool showUI = (phase_ == Phase::Playing || phase_ == Phase::SwarmBattle || phase_ == Phase::RestartSmoothing);
 
   if (showUI) {
     // 1. カバー演出
@@ -3632,6 +3873,17 @@ void ShootingScene::Draw() {
         if (enemy.hpDamageSprite) enemy.hpDamageSprite->Draw();
         if (enemy.hpFillSprite) enemy.hpFillSprite->Draw();
         if (enemy.hpFrameSprite) enemy.hpFrameSprite->Draw();
+      }
+    }
+
+    // ボス（スウォーム群体）の突撃グループ頭上HPゲージ＆ボス全体HPゲージ描画
+    if (swarmManager_ && swarmManager_->IsActive()) {
+      swarmManager_->DrawHpGauges();
+      if (phase_ == Phase::SwarmBattle && swarmManager_->IsBossMode()) {
+        if (bossHpBgSprite_) bossHpBgSprite_->Draw();
+        if (bossHpDamageSprite_) bossHpDamageSprite_->Draw();
+        if (bossHpFillSprite_) bossHpFillSprite_->Draw();
+        if (bossHpFrameSprite_) bossHpFrameSprite_->Draw();
       }
     }
 
@@ -3826,6 +4078,9 @@ void ShootingScene::JumpToSection(int index) {
       kSectionJumpInvincibleDuration; // ワープ後の無敵タイマーをセット
 
   // 状態の復元（論理リセット）
+  if (swarmManager_) {
+    swarmManager_->ClearDrones();
+  }
   hitCount_ = 0;
   orbitAngle_ = 0.0f;
   targetTimer_ = 0.0f;

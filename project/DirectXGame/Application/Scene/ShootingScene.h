@@ -132,6 +132,13 @@ private:
     const uint32_t kMaxSwarmCount = 128;
     const uint32_t kSpawnSwarmCount = 100;
 
+    // ボス全体HPゲージUI
+    std::unique_ptr<Sprite> bossHpBgSprite_;
+    std::unique_ptr<Sprite> bossHpDamageSprite_;
+    std::unique_ptr<Sprite> bossHpFillSprite_;
+    std::unique_ptr<Sprite> bossHpFrameSprite_;
+    float bossDamageBarRatio_ = 1.0f;
+
     enum class DeathReason {
         NormalBullet,     // 一般兵の銃弾
         EngineerRocket,   // 工兵の砲弾
@@ -275,7 +282,7 @@ private:
     float coverYOffset_ = 0.0f;
     float coverYTarget_ = -0.2f;
     float reloadTimer_ = 0.0f;
-    static constexpr float kReloadDuration = 1.0f;
+    static constexpr float kReloadDuration = 0.5f;
 
     // レール座標計算用ヘルパー関数
     Vector3 CalculateRailPosition(float progress);
