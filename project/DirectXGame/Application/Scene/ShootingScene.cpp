@@ -487,6 +487,14 @@ void ShootingScene::Initialize() {
       enemy.basePosition = enemyData.translation;
       enemy.baseRotation = enemyData.rotation;
       enemy.distance = enemyData.distance;
+      if (enemyData.enemyType == "ENGINEER" || enemyData.enemyType == "Engineer") {
+        enemy.type = EnemyType::Engineer;
+        if (enemy.model) {
+          enemy.model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
+        }
+      } else {
+        enemy.type = EnemyType::Normal;
+      }
       enemy.isActive = false;
       enemy.isDead = false;
       enemy.shootTimer = 0.0f;
@@ -499,7 +507,7 @@ void ShootingScene::Initialize() {
     }
     
     // 3体目の敵（インデックス2）を工兵（Engineer）タイプに設定
-    if (enemies_.size() >= 3) {
+    if (false && enemies_.size() >= 3) {
       enemies_[2].type = EnemyType::Engineer;
       enemies_[2].isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < 0.75f);
       // 工兵のモデルカラーを爆発物イメージの黄色系に変更
@@ -545,7 +553,7 @@ void ShootingScene::Initialize() {
       auto &enemy = enemies_[i];
       Vector3 camPosAtBattle = CalculateRailPosition(enemy.distance);
       Vector3 camNextPos = CalculateRailPosition(enemy.distance + 0.1f);
-      Vector3 camForward = Normalize(Subtract(camNextPos, camPosAtBattle));
+      Vector3 camForward = { 0.0f, 0.0f, 1.0f };
       Vector3 camUp = { 0.0f, 1.0f, 0.0f };
       Vector3 camRight = Normalize(Cross(camUp, camForward));
 
@@ -553,7 +561,15 @@ void ShootingScene::Initialize() {
       float sideDot = Dot(toEnemy, camRight);
 
       // 移動時間とディレイのばらつき（敵ごとに順番に飛び込んでくる）
-      enemy.slideDelay = static_cast<float>(i % 3) * 0.35f; // 0.0秒, 0.35秒, 0.7秒
+      // 同一区間内でのインデックスを算出して出現タイミングと初期射撃タイマーを分散
+      size_t localIdx = 0;
+      for (size_t j = 0; j < i; ++j) {
+        if (std::abs(enemies_[j].distance - enemy.distance) < 0.1f) {
+          localIdx++;
+        }
+      }
+      enemy.slideDelay = static_cast<float>(localIdx) * 0.16f;
+      enemy.shootTimer = static_cast<float>((localIdx % 4) * 20);
       enemy.slideDuration = 0.85f; // スライド所要時間
 
       // 出現バリエーション：
@@ -1952,6 +1968,16 @@ void ShootingScene::Update() {
   // 敵の射撃予兆リンググループを毎フレームリセット
   ParticleManager::GetInstance()->ClearParticles("EnemyChargeRing");
 
+  // 部隊内の必中弾制限（2発出た後2秒間は必中弾を通常弾に変更）のクールダウン更新
+  if (squadHitShotCooldown_ > 0.0f) {
+    squadHitShotCooldown_ -= kDeltaTime;
+    if (squadHitShotCooldown_ <= 0.0f) {
+      squadHitShotCooldown_ = 0.0f;
+      squadHitShotCount_ = 0;
+      squadFiredHitShotCount_ = 0;
+    }
+  }
+
   // 各エネミーの更新と射撃処理
   for (size_t enemyIdx = 0; enemyIdx < enemies_.size(); ++enemyIdx) {
     auto &enemy = enemies_[enemyIdx];
@@ -2018,8 +2044,20 @@ void ShootingScene::Update() {
       float spawnInterval = (enemy.type == EnemyType::Engineer) ? kEngineerSpawnInterval : kProjectileSpawnInterval;
       float chargeStart = spawnInterval - kChargeDuration; // 発射前0.6秒（36フレーム前）
 
+      // 部隊内の同時必中攻撃数を最大2発までに制限、および2発発射後2秒間は通常弾に変更
+      // 予兆リングが出る開始フレーム（chargeStart到達時）で枠を確定し、制限で通常弾になる場合は予兆パーティクルを一切出さない
+      if (enemy.isNextHitShot && !enemy.isHitShotReserved && enemy.shootTimer >= chargeStart) {
+        if (squadHitShotCooldown_ <= 0.0f && squadHitShotCount_ < kMaxSquadHitShots) {
+          squadHitShotCount_++;
+          enemy.isHitShotReserved = true;
+        } else {
+          enemy.isNextHitShot = false;
+          enemy.isHitShotReserved = false;
+        }
+      }
+
       // 次回が必中弾（プレイヤーに当たる弾）の場合のみ、発射前0.6秒間にリングを射出口に表示し、徐々に縮小させる
-      if (enemy.isNextHitShot && enemy.shootTimer >= chargeStart && enemy.shootTimer < spawnInterval) {
+      if (enemy.isNextHitShot && enemy.isHitShotReserved && enemy.shootTimer >= chargeStart && enemy.shootTimer < spawnInterval) {
         float t = (enemy.shootTimer - chargeStart) / kChargeDuration; // 0.0 -> 1.0
         if (t < 0.0f) t = 0.0f;
         if (t > 1.0f) t = 1.0f;
@@ -2055,7 +2093,15 @@ void ShootingScene::Update() {
         
         enemy.shootCount++;
         
-        // 事前抽選されていた判定を使用 (必中弾か演出弾か)
+        // 事前抽選および予兆開始時に枠確保されていた判定を使用 (必中弾か演出弾か)
+        enemy.isNextHitShot = (enemy.isNextHitShot && enemy.isHitShotReserved);
+        enemy.isHitShotReserved = false;
+        if (enemy.isNextHitShot) {
+          squadFiredHitShotCount_++;
+          if (squadFiredHitShotCount_ >= kMaxSquadHitShots) {
+            squadHitShotCooldown_ = kSquadHitShotCooldownDuration;
+          }
+        }
         bool isHitShot = enemy.isNextHitShot;
         
         Vector3 targetPos = playerPos;
@@ -2428,6 +2474,18 @@ void ShootingScene::Update() {
     Vector3 spawnPos =
         Add(camPos, Add(Multiply(1.5f, forward),
                         Add(Multiply(-0.4f, right), Multiply(-0.3f, up))));
+    {
+      // 残り弾薬UIの右端の上部分（スクリーン座標 X:208, Y:646）を現在の視野角・カメラ姿勢で逆投影して発生位置を決定
+      const float sparkScreenX = 208.0f;
+      const float sparkScreenY = 646.0f;
+      float sparkNdcX = sparkScreenX / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+      float sparkNdcY = 1.0f - sparkScreenY / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+      Matrix4x4 invVPForSpark = Inverse(camera_->GetViewProjectionMatrix());
+      Vector3 sparkNear = TransformPoint({sparkNdcX, sparkNdcY, 0.0f}, invVPForSpark);
+      Vector3 sparkFar = TransformPoint({sparkNdcX, sparkNdcY, 1.0f}, invVPForSpark);
+      Vector3 sparkDir = Normalize(Subtract(sparkFar, sparkNear));
+      spawnPos = Add(camPos, Multiply(1.5f, sparkDir));
+    }
 
     if (auto *emitter =
             ParticleManager::GetInstance()->GetEmitter("AmmoSparkGroup")) {
@@ -2543,6 +2601,12 @@ void ShootingScene::Update() {
         hitEnemy->isActive = false;
         hitEnemy->isHpGaugeVisible = false;
         hitEnemy->deathTimer = 0.0f; // 撃破ディゾルブ消滅開始
+        if (hitEnemy->isHitShotReserved) {
+          hitEnemy->isHitShotReserved = false;
+          if (squadHitShotCount_ > squadFiredHitShotCount_) {
+            squadHitShotCount_--;
+          }
+        }
         if (hitEnemy->model) {
           hitEnemy->model->SetDissolveParams(1, 0.0f, 0.05f, Vector3(1.0f, 0.4f, 0.3f));
         }
@@ -3251,12 +3315,17 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
       lifeBlinkTimer_ = 0.0f;
 
       // 敵の論理リセット（モデルのリロードは行わない）
+      squadHitShotCount_ = 0;
+      squadFiredHitShotCount_ = 0;
+      squadHitShotCooldown_ = 0.0f;
       for (auto &enemy : enemies_) {
         enemy.isDead = false;
         enemy.isActive = false;
         enemy.shootTimer = 0.0f;
         enemy.shootCount = 0;
         enemy.hitShotCount = 0;
+    enemy.isHitShotReserved = false;
+        enemy.isHitShotReserved = false;
         enemy.spawnTimer = 0.0f;
         enemy.slideTimer = 0.0f;
         enemy.deathTimer = 0.0f;
@@ -4078,6 +4147,9 @@ void ShootingScene::JumpToSection(int index) {
       kSectionJumpInvincibleDuration; // ワープ後の無敵タイマーをセット
 
   // 状態の復元（論理リセット）
+  squadHitShotCount_ = 0;
+  squadFiredHitShotCount_ = 0;
+  squadHitShotCooldown_ = 0.0f;
   if (swarmManager_) {
     swarmManager_->ClearDrones();
   }
@@ -4109,6 +4181,7 @@ void ShootingScene::JumpToSection(int index) {
   for (auto &enemy : enemies_) {
     enemy.shootCount = 0;
     enemy.hitShotCount = 0;
+    enemy.isHitShotReserved = false;
     enemy.maxHp = (enemy.type == EnemyType::Engineer) ? 3 : 1;
     enemy.hp = enemy.maxHp;
     enemy.damageBarRatio = 1.0f;
@@ -4239,6 +4312,9 @@ void ShootingScene::UpdateRailMovement() {
 
     if (triggered) {
       // トリガーを引いたエネミーの出現距離にピッタリ吸着させて停止
+      squadHitShotCount_ = 0;
+      squadFiredHitShotCount_ = 0;
+      squadHitShotCooldown_ = 0.0f;
       cameraProgress_ = triggerDistance;
       isMovementPaused_ = true;
     } else {

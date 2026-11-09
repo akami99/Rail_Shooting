@@ -105,6 +105,7 @@ private:
         int shootCount = 0; // 射撃回数カウンター
         int hitShotCount = 0; // 必中弾カウンター (属性弾ローテーション用)
         bool isNextHitShot = false; // 次回射撃が必中弾かどうか (予兆リング表示用)
+        bool isHitShotReserved = false; // 部隊内の必中弾枠を確保済みか (予兆リング発生許可)
         Vector3 initialOffsetPosition = { 0.0f, 0.0f, 0.0f }; // カメライン前の初期画面外位置
         float slideTimer = 0.0f; // スライドイン進行時間
         float slideDelay = 0.0f; // スライドイン開始ディレイ時間
@@ -399,6 +400,11 @@ private:
     // 演出弾・必中弾の撃ち分け設定
     float hitShotRate_ = 0.35f;      // 必中弾の割合 (0.0f: 全て演出弾 〜 1.0f: 全て必中弾)
     float missShotSpread_ = 3.0f;    // 演出弾の散布オフセット半径 (プレイヤー周辺を掠める範囲)
+    int squadHitShotCount_ = 0;      // 部隊内の同時/連続必中弾カウント (最大2発)
+    int squadFiredHitShotCount_ = 0; // 部隊内で実際に発射された必中弾カウント (2発発射でクールダウン開始)
+    float squadHitShotCooldown_ = 0.0f; // 2発発射後の必中弾制限クールダウンタイマー (2.0秒)
+    static constexpr int kMaxSquadHitShots = 2;
+    static constexpr float kSquadHitShotCooldownDuration = 2.0f;
 
     // 区間ジャンプ処理
     void JumpToSection(int index);

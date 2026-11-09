@@ -23,6 +23,7 @@ struct LevelData {
 		std::string name;
 		// モデルファイル名 (MESHのみ)
 		std::string fileName;
+		std::string enemyType = "NORMAL";
 		// 平行移動
 		Vector3 translation;
 		// 回転角 (ラジアン)
@@ -44,6 +45,7 @@ struct LevelData {
 
 	struct EnemySpawnData {
 		std::string fileName;
+		std::string enemyType = "NORMAL";
 		Vector3 translation;
 		Vector3 rotation;
 		float distance = 0.0f;

@@ -67,6 +67,9 @@ std::unique_ptr<LevelData> LevelLoader::LoadFile(const std::string& fileName) {
 				if (object.contains("file_name")) {
 					levelData->enemies.back().fileName = object["file_name"].get<std::string>();
 				}
+				if (object.contains("enemy_type")) {
+					levelData->enemies.back().enemyType = object["enemy_type"].get<std::string>();
+				}
 				if (object.contains("distance")) {
 					levelData->enemies.back().distance = object["distance"].get<float>();
 				}

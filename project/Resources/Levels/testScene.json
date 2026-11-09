@@ -342,8 +342,8 @@
             "name": "EnemySpawn",
             "transform": {
                 "translation": [
-                    -19.03400993347168,
-                    -25.89984130859375,
+                    -6.5,
+                    -23.5,
                     1.0
                 ],
                 "rotation": [
@@ -359,6 +359,7 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
             "distance": 5.0,
             "area": 1,
             "collider": {
@@ -380,9 +381,9 @@
             "name": "EnemySpawn.001",
             "transform": {
                 "translation": [
-                    -9.32060432434082,
-                    -27.24473762512207,
-                    1.0
+                    -11.0,
+                    -27.5,
+                    3.2
                 ],
                 "rotation": [
                     0.0,
@@ -397,6 +398,7 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
             "distance": 5.0,
             "area": 1,
             "collider": {
@@ -418,8 +420,8 @@
             "name": "EnemySpawn.002",
             "transform": {
                 "translation": [
-                    -10.927297592163086,
-                    -20.773062705993652,
+                    -15.5,
+                    -24.5,
                     1.0
                 ],
                 "rotation": [
@@ -435,7 +437,8 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "distance": 40.0,
+            "enemy_type": "NORMAL",
+            "distance": 5.0,
             "area": 1,
             "collider": {
                 "type": "BOX",
@@ -456,9 +459,9 @@
             "name": "EnemySpawn.003",
             "transform": {
                 "translation": [
-                    -1.366940975189209,
-                    -23.698554992675781,
-                    1.0
+                    -20.0,
+                    -28.0,
+                    2.8
                 ],
                 "rotation": [
                     0.0,
@@ -473,7 +476,8 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "distance": 40.0,
+            "enemy_type": "NORMAL",
+            "distance": 5.0,
             "area": 1,
             "collider": {
                 "type": "BOX",
@@ -494,9 +498,9 @@
             "name": "EnemySpawn.004",
             "transform": {
                 "translation": [
-                    0.0,
-                    -24.031034469604492,
-                    4.0
+                    4.5,
+                    -22.0,
+                    1.0
                 ],
                 "rotation": [
                     0.0,
@@ -511,7 +515,8 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "distance": 80.0,
+            "enemy_type": "NORMAL",
+            "distance": 40.0,
             "area": 1,
             "collider": {
                 "type": "BOX",
@@ -532,9 +537,9 @@
             "name": "EnemySpawn.005",
             "transform": {
                 "translation": [
-                    -2.9835078716278076,
-                    -26.30649185180664,
-                    4.0
+                    0.8,
+                    -25.5,
+                    3.8
                 ],
                 "rotation": [
                     0.0,
@@ -549,7 +554,8 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "distance": 80.0,
+            "enemy_type": "NORMAL",
+            "distance": 40.0,
             "area": 1,
             "collider": {
                 "type": "BOX",
@@ -570,8 +576,8 @@
             "name": "EnemySpawn.006",
             "transform": {
                 "translation": [
-                    -8.697830200195312,
-                    -26.46242904663086,
+                    -3.3,
+                    -20.5,
                     1.0
                 ],
                 "rotation": [
@@ -587,7 +593,8 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "distance": 110.0,
+            "enemy_type": "NORMAL",
+            "distance": 40.0,
             "area": 1,
             "collider": {
                 "type": "BOX",
@@ -608,9 +615,9 @@
             "name": "EnemySpawn.007",
             "transform": {
                 "translation": [
-                    -4.81553840637207,
-                    -25.0,
-                    1.0
+                    -7.4,
+                    -26.0,
+                    3.8
                 ],
                 "rotation": [
                     0.0,
@@ -625,7 +632,8 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "distance": 110.0,
+            "enemy_type": "NORMAL",
+            "distance": 40.0,
             "area": 1,
             "collider": {
                 "type": "BOX",
@@ -646,8 +654,8 @@
             "name": "EnemySpawn.008",
             "transform": {
                 "translation": [
-                    -3.1903584003448486,
-                    -52.576013565063477,
+                    -11.2,
+                    -22.5,
                     1.0
                 ],
                 "rotation": [
@@ -663,7 +671,8 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "distance": 150.0,
+            "enemy_type": "NORMAL",
+            "distance": 40.0,
             "area": 1,
             "collider": {
                 "type": "BOX",
@@ -684,9 +693,9 @@
             "name": "EnemySpawn.009",
             "transform": {
                 "translation": [
-                    -5.674449920654297,
-                    -52.581111907958984,
-                    1.0
+                    1.5,
+                    -28.0,
+                    4.2
                 ],
                 "rotation": [
                     0.0,
@@ -701,7 +710,8 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "distance": 150.0,
+            "enemy_type": "NORMAL",
+            "distance": 80.0,
             "area": 1,
             "collider": {
                 "type": "BOX",
@@ -722,8 +732,8 @@
             "name": "EnemySpawn.010",
             "transform": {
                 "translation": [
-                    3.83004093170166,
-                    -59.679203033447266,
+                    -2.5,
+                    -24.5,
                     1.0
                 ],
                 "rotation": [
@@ -739,7 +749,8 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "distance": 190.0,
+            "enemy_type": "NORMAL",
+            "distance": 80.0,
             "area": 1,
             "collider": {
                 "type": "BOX",
@@ -760,8 +771,47 @@
             "name": "EnemySpawn.011",
             "transform": {
                 "translation": [
-                    6.680231094360352,
-                    -58.47999954223633,
+                    -6.5,
+                    -30.5,
+                    4.5
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 80.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.012",
+            "transform": {
+                "translation": [
+                    -10.5,
+                    -25.0,
                     1.0
                 ],
                 "rotation": [
@@ -777,6 +827,670 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 80.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.013",
+            "transform": {
+                "translation": [
+                    -14.5,
+                    -28.5,
+                    3.8
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 80.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.014",
+            "transform": {
+                "translation": [
+                    1.2,
+                    -35.0,
+                    1.0
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 110.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.015",
+            "transform": {
+                "translation": [
+                    -2.8,
+                    -39.5,
+                    3.8
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 110.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.016",
+            "transform": {
+                "translation": [
+                    -6.6,
+                    -37.0,
+                    1.2
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "ENGINEER",
+            "distance": 110.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.017",
+            "transform": {
+                "translation": [
+                    -10.4,
+                    -40.0,
+                    3.8
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 110.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.018",
+            "transform": {
+                "translation": [
+                    -14.4,
+                    -35.5,
+                    1.0
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 110.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.019",
+            "transform": {
+                "translation": [
+                    0.0,
+                    -55.0,
+                    4.2
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 150.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.020",
+            "transform": {
+                "translation": [
+                    -4.0,
+                    -53.0,
+                    1.0
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "ENGINEER",
+            "distance": 150.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.021",
+            "transform": {
+                "translation": [
+                    -7.9,
+                    -51.0,
+                    2.5
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 150.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.022",
+            "transform": {
+                "translation": [
+                    -11.8,
+                    -53.5,
+                    1.0
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "ENGINEER",
+            "distance": 150.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.023",
+            "transform": {
+                "translation": [
+                    -15.8,
+                    -56.0,
+                    4.2
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 150.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.024",
+            "transform": {
+                "translation": [
+                    18.5,
+                    -52.5,
+                    1.0
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 190.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.025",
+            "transform": {
+                "translation": [
+                    15.0,
+                    -56.5,
+                    2.2
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "ENGINEER",
+            "distance": 190.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.026",
+            "transform": {
+                "translation": [
+                    11.8,
+                    -59.5,
+                    4.5
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 190.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.027",
+            "transform": {
+                "translation": [
+                    8.2,
+                    -51.5,
+                    1.0
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
+            "distance": 190.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.028",
+            "transform": {
+                "translation": [
+                    5.0,
+                    -56.5,
+                    2.2
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "ENGINEER",
+            "distance": 190.0,
+            "area": 1,
+            "collider": {
+                "type": "BOX",
+                "center": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "size": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "type": "MESH",
+            "name": "EnemySpawn.029",
+            "transform": {
+                "translation": [
+                    1.5,
+                    -54.0,
+                    3.8
+                ],
+                "rotation": [
+                    0.0,
+                    -0.0,
+                    0.0
+                ],
+                "scaling": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "file_name": "enemy/enemy.obj",
+            "spawn": "ENEMY",
+            "enemy_type": "NORMAL",
             "distance": 190.0,
             "area": 1,
             "collider": {
