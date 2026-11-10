@@ -75,15 +75,30 @@ private:
     // スカイボックス
     std::unique_ptr<Skybox> skybox_;
 
-    // フロアオブジェクト
+    // 地形オブジェクト (フロア、エスカレーター、高台/坂道)
     std::unique_ptr<Object3d> floorObject_;
+    std::unique_ptr<Object3d> escalatorObject_;
+    std::unique_ptr<Object3d> hillObject_;
     // フロア設定
     struct FloorSettings {
         Vector3 position;
         Vector3 rotation;
         Vector3 scale;
+        Vector2 uvScale; // タイルテクスチャのUVスケール
     };
-    FloorSettings floorSettings_ = { {0.0f, 0.0f, 100.0f}, {0.0f, 0.0f, 0.0f}, {5.0f, 1.0f, 25.0f} };
+    struct escalatorSettings {
+        Vector3 position;
+        Vector3 rotation;
+        Vector3 scale;
+    };
+    struct hillSettings {
+        Vector3 position;
+        Vector3 rotation;
+        Vector3 scale;
+    };
+    FloorSettings floorSettings_ = { {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {60.0f, 80.0f} };
+    escalatorSettings escalatorSettings_ = { {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f} };
+    hillSettings hillSettings_ = { {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f} };
 
     // 敵のタイプ（種類）
     enum class EnemyType {
@@ -264,6 +279,11 @@ private:
     const std::string bulletModel_ = "bullet.obj";
     const std::string floorModelDirectory_ = "Resources/Assets/Models/ShootingScene/floor";
     const std::string floorModel_ = "floor.obj";
+    const std::string escalatorModelDirectory_ = "Resources/Assets/Models/ShootingScene/escalator";
+    const std::string escalatorModel_ = "escalator.obj";
+    const std::string hillModelDirectory_ = "Resources/Assets/Models/ShootingScene/hill";
+    const std::string hillModel_ = "hill.obj";
+    const std::string tilePath_ = "tile.png";
     // テクスチャファイルパスを保持
     const std::string crosshairPath_ = "ui/crosshair.png";
     const std::string ringParticleGroupName_ = "RingShapeGroup";
@@ -311,6 +331,7 @@ private:
     // レール座標計算用ヘルパー関数
     Vector3 CalculateRailPosition(float progress) const;
     Vector3 GetCameraRailPosition(float progress) const;
+    void UpdateTerrainObjects();
 
     // UI用スプライト
     // ライフUI

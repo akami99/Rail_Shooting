@@ -451,19 +451,51 @@ void ShootingScene::Initialize() {
   Object3dCommon::GetInstance()->SetEnvironmentMap(
       TextureManager::GetInstance()->GetSrvIndex("skybox.dds"));
 
-  // フロアモデルをロード
+  // タイルテクスチャのロード
+  TextureManager::GetInstance()->LoadTexture(tilePath_);
+
+  // 地形モデルをロード
   ModelManager::GetInstance()->LoadModel(floorModelDirectory_, floorModel_);
+  ModelManager::GetInstance()->LoadModel(escalatorModelDirectory_, escalatorModel_);
+  ModelManager::GetInstance()->LoadModel(hillModelDirectory_, hillModel_);
 
   // フロアオブジェクトの初期化
   floorObject_ = std::make_unique<Object3d>();
   floorObject_->Initialize();
   floorObject_->SetModel(floorModel_);
+  floorObject_->SetOverrideTexturePath(tilePath_);
+  floorObject_->SetUvScale({floorSettings_.uvScale.x, floorSettings_.uvScale.y});
   floorObject_->SetTranslate(floorSettings_.position);
+  floorSettings_.rotation = { 0.0f, std::numbers::pi_v<float>, 0.0f }; // Y軸方向に180度回転させる
   floorObject_->SetRotation(floorSettings_.rotation);
   floorObject_->SetScale(floorSettings_.scale);
   floorObject_->SetCamera(camera_.get());
   floorObject_->SetDissolveMaskTexture("masks/noise0.png");
   floorObject_->SetDissolveParams(1, 1.0f, 0.05f, kTransitionEdgeColor);
+
+  // エスカレーターオブジェクトの初期化
+  escalatorObject_ = std::make_unique<Object3d>();
+  escalatorObject_->Initialize();
+  escalatorObject_->SetModel(escalatorModel_);
+  escalatorObject_->SetTranslate(escalatorSettings_.position);
+  escalatorSettings_.rotation = {0.0f, std::numbers::pi_v<float>, 0.0f}; // Y軸方向に180度回転させる
+  escalatorObject_->SetRotation(escalatorSettings_.rotation);
+  escalatorObject_->SetScale(escalatorSettings_.scale);
+  escalatorObject_->SetCamera(camera_.get());
+  escalatorObject_->SetDissolveMaskTexture("masks/noise0.png");
+  escalatorObject_->SetDissolveParams(1, 1.0f, 0.05f, kTransitionEdgeColor);
+
+  // 高低差（坂道・高台）オブジェクトの初期化
+  hillObject_ = std::make_unique<Object3d>();
+  hillObject_->Initialize();
+  hillObject_->SetModel(hillModel_);
+  hillObject_->SetTranslate(hillSettings_.position);
+  hillSettings_.rotation = { 0.0f, std::numbers::pi_v<float>, 0.0f }; // Y軸方向に180度回転させる
+  hillObject_->SetRotation(hillSettings_.rotation);
+  hillObject_->SetScale(hillSettings_.scale);
+  hillObject_->SetCamera(camera_.get());
+  hillObject_->SetDissolveMaskTexture("masks/noise0.png");
+  hillObject_->SetDissolveParams(1, 1.0f, 0.05f, kTransitionEdgeColor);
 
   // レベルデータから敵キャラを生成・配置
   enemies_.clear();
@@ -1039,6 +1071,12 @@ void ShootingScene::Update() {
       if (floorObject_) {
         floorObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
       }
+      if (escalatorObject_) {
+        escalatorObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+      }
+      if (hillObject_) {
+        hillObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+      }
     } else {
       // 瞬き（まばたき）明転演出の更新 (0.0s ～ kBlinkDuration)
       if (phaseTimer_ < kBlinkDuration) {
@@ -1074,9 +1112,7 @@ void ShootingScene::Update() {
 
     // カメラおよび背景オブジェクトの更新
     camera_->Update();
-    if (floorObject_) {
-      floorObject_->Update(mainViewIndex_, camera_.get());
-    }
+    UpdateTerrainObjects();
     if (skybox_) {
       skybox_->Update(mainViewIndex_, camera_.get());
     }
@@ -1164,9 +1200,7 @@ void ShootingScene::Update() {
       camera_->SetTranslate(GetCameraRailPosition(cameraProgress_));
       camera_->SetRotate({ cameraBasePitch_ + introCameraPitch_, cameraYaw_ + introCameraYaw_, 0.0f });
       camera_->Update();
-      if (floorObject_) {
-          floorObject_->Update(mainViewIndex_, camera_.get());
-      }
+      UpdateTerrainObjects();
       if (skybox_) {
           skybox_->Update(mainViewIndex_, camera_.get());
       }
@@ -1221,9 +1255,7 @@ void ShootingScene::Update() {
 
           // オブジェクトの更新
           camera_->Update();
-          if (floorObject_) {
-              floorObject_->Update(mainViewIndex_, camera_.get());
-          }
+          UpdateTerrainObjects();
           if (skybox_) {
               skybox_->Update(mainViewIndex_, camera_.get());
           }
@@ -1275,9 +1307,7 @@ void ShootingScene::Update() {
 
           // オブジェクトの更新
           camera_->Update();
-          if (floorObject_) {
-              floorObject_->Update(mainViewIndex_, camera_.get());
-          }
+          UpdateTerrainObjects();
           if (skybox_) {
               skybox_->Update(mainViewIndex_, camera_.get());
           }
@@ -1334,9 +1364,7 @@ void ShootingScene::Update() {
 
           // オブジェクトの更新
           camera_->Update();
-          if (floorObject_) {
-              floorObject_->Update(mainViewIndex_, camera_.get());
-          }
+          UpdateTerrainObjects();
           if (skybox_) {
               skybox_->Update(mainViewIndex_, camera_.get());
           }
@@ -1520,9 +1548,7 @@ void ShootingScene::Update() {
 
           // オブジェクトの更新
           camera_->Update();
-          if (floorObject_) {
-              floorObject_->Update(mainViewIndex_, camera_.get());
-          }
+          UpdateTerrainObjects();
           if (skybox_) {
               skybox_->Update(mainViewIndex_, camera_.get());
           }
@@ -1553,9 +1579,7 @@ void ShootingScene::Update() {
 
       // カメラおよび背景オブジェクトの更新
       camera_->Update();
-      if (floorObject_) {
-          floorObject_->Update(mainViewIndex_, camera_.get());
-      }
+      UpdateTerrainObjects();
       if (skybox_) {
           skybox_->Update(mainViewIndex_, camera_.get());
       }
@@ -1836,7 +1860,7 @@ void ShootingScene::Update() {
 
       // 背後オブジェクトの更新
       camera_->Update();
-      if (floorObject_) floorObject_->Update(mainViewIndex_, camera_.get());
+      UpdateTerrainObjects();
       if (skybox_) skybox_->Update(mainViewIndex_, camera_.get());
       for (auto &enemy : enemies_) {
           if (!enemy.isDead && enemy.object) enemy.object->Update(mainViewIndex_, camera_.get());
@@ -2246,8 +2270,8 @@ void ShootingScene::Update() {
   // スカイボックスの更新
   skybox_->Update(mainViewIndex_, camera_.get());
 
-  // フロアオブジェクトの更新
-  floorObject_->Update(mainViewIndex_, camera_.get());
+  // 地形オブジェクトの更新
+  UpdateTerrainObjects();
 
   // プロジェクタイルの移動・行列更新
   for (auto &p : projectiles_) {
@@ -3830,15 +3854,38 @@ void ShootingScene::UpdateImGui_Object3d() {
     ImGui::TreePop();
   }
   ImGui::Separator();
-  // フロアオブジェクトのパラメータを調整
-  if (ImGui::TreeNode("Floor Object")) {
-    if (floorObject_) {
+  // 地形オブジェクトのパラメータを調整
+  if (ImGui::TreeNode("Terrain Objects")) {
+    if (floorObject_ && ImGui::TreeNode("Floor Object")) {
       ImGui::DragFloat3("translate",
                         &floorObject_->GetTransformDebug().translate.x, 0.1f);
       ImGui::DragFloat3("rotate", &floorObject_->GetTransformDebug().rotate.x,
                         0.01f);
       ImGui::DragFloat3("scale", &floorObject_->GetTransformDebug().scale.x,
                         0.1f);
+      ImGui::DragFloat2("UV Scale", &floorSettings_.uvScale.x, 0.1f);
+      if (floorObject_) {
+          floorObject_->SetUvScale(floorSettings_.uvScale);
+      }
+      ImGui::TreePop();
+    }
+    if (escalatorObject_ && ImGui::TreeNode("Escalator Object")) {
+      ImGui::DragFloat3("translate",
+                        &escalatorObject_->GetTransformDebug().translate.x, 0.1f);
+      ImGui::DragFloat3("rotate", &escalatorObject_->GetTransformDebug().rotate.x,
+                        0.01f);
+      ImGui::DragFloat3("scale", &escalatorObject_->GetTransformDebug().scale.x,
+                        0.1f);
+      ImGui::TreePop();
+    }
+    if (hillObject_ && ImGui::TreeNode("Hill Object")) {
+      ImGui::DragFloat3("translate",
+                        &hillObject_->GetTransformDebug().translate.x, 0.1f);
+      ImGui::DragFloat3("rotate", &hillObject_->GetTransformDebug().rotate.x,
+                        0.01f);
+      ImGui::DragFloat3("scale", &hillObject_->GetTransformDebug().scale.x,
+                        0.1f);
+      ImGui::TreePop();
     }
     ImGui::TreePop();
   }
@@ -3997,12 +4044,16 @@ void ShootingScene::Draw() {
       static_cast<BlendState>(currentBlendMode_));
 
   // メインカメラ (ViewIndex 0)
-  // 1. 床オブジェクトの描画
-  if (isShowMaterial_ && floorObject_) {
+  // 1. 地形オブジェクト（床・エスカレーター・高台/坂道）の描画
+  if (isShowMaterial_) {
     if (phase_ == Phase::IntroConstruct) {
-      DrawObjectWithIntroTransition(floorObject_.get(), 0.0f, 1.4f);
+      if (floorObject_) DrawObjectWithIntroTransition(floorObject_.get(), 0.0f, 1.4f);
+      if (escalatorObject_) DrawObjectWithIntroTransition(escalatorObject_.get(), 0.0f, 1.4f);
+      if (hillObject_) DrawObjectWithIntroTransition(hillObject_.get(), 0.0f, 1.4f);
     } else {
-      floorObject_->Draw(0);
+      if (floorObject_) floorObject_->Draw(0);
+      if (escalatorObject_) escalatorObject_->Draw(0);
+      if (hillObject_) hillObject_->Draw(0);
     }
   }
 
@@ -4285,6 +4336,8 @@ void ShootingScene::Finalize() {
   Object3dCommon::GetInstance()->SetDefaultCamera(nullptr);
   enemies_.clear();
   floorObject_.reset();
+  escalatorObject_.reset();
+  hillObject_.reset();
   skybox_.reset();
   projectiles_.clear();
   ParticleManager::GetInstance()->ClearAllParticles();
@@ -4336,6 +4389,18 @@ Vector3 ShootingScene::GetCameraRailPosition(float progress) const {
   Vector3 pos = CalculateRailPosition(progress);
   pos.y += playerEyeHeight_;
   return pos;
+}
+
+void ShootingScene::UpdateTerrainObjects() {
+  if (floorObject_) {
+    floorObject_->Update(mainViewIndex_, camera_.get());
+  }
+  if (escalatorObject_) {
+    escalatorObject_->Update(mainViewIndex_, camera_.get());
+  }
+  if (hillObject_) {
+    hillObject_->Update(mainViewIndex_, camera_.get());
+  }
 }
 
 void ShootingScene::JumpToSection(int index) {
