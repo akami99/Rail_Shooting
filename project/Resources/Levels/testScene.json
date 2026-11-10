@@ -398,7 +398,7 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "enemy_type": "NORMAL",
+            "enemy_type": "ELITE",
             "distance": 5.0,
             "area": 1,
             "collider": {
@@ -554,7 +554,7 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "enemy_type": "NORMAL",
+            "enemy_type": "ELITE",
             "distance": 40.0,
             "area": 1,
             "collider": {
@@ -749,7 +749,7 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "enemy_type": "NORMAL",
+            "enemy_type": "ELITE",
             "distance": 80.0,
             "area": 1,
             "collider": {
@@ -944,7 +944,7 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "enemy_type": "NORMAL",
+            "enemy_type": "ELITE",
             "distance": 110.0,
             "area": 1,
             "collider": {
@@ -1178,7 +1178,7 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "enemy_type": "NORMAL",
+            "enemy_type": "ELITE",
             "distance": 150.0,
             "area": 1,
             "collider": {
@@ -1373,7 +1373,7 @@
             },
             "file_name": "enemy/enemy.obj",
             "spawn": "ENEMY",
-            "enemy_type": "NORMAL",
+            "enemy_type": "ELITE",
             "distance": 190.0,
             "area": 1,
             "collider": {

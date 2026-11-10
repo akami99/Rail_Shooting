@@ -492,6 +492,11 @@ void ShootingScene::Initialize() {
         if (enemy.model) {
           enemy.model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
         }
+      } else if (enemyData.enemyType == "ELITE" || enemyData.enemyType == "Elite") {
+        enemy.type = EnemyType::Elite;
+        if (enemy.model) {
+          enemy.model->SetColor({1.0f, 0.2f, 0.2f, 1.0f}); // 赤色
+        }
       } else {
         enemy.type = EnemyType::Normal;
       }
@@ -501,6 +506,7 @@ void ShootingScene::Initialize() {
       enemy.spawnTimer = 0.0f;
       enemy.slideTimer = 0.0f;
       enemy.deathTimer = 0.0f;
+      enemy.hasFiredEliteFirstShot = false;
       float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
       enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
       enemies_.push_back(std::move(enemy));
@@ -520,7 +526,7 @@ void ShootingScene::Initialize() {
     TextureManager::GetInstance()->LoadTexture("white.png");
     TextureManager::GetInstance()->LoadTexture("ui/enemyHpFrame.png");
     for (auto &enemy : enemies_) {
-      enemy.maxHp = (enemy.type == EnemyType::Engineer) ? 3 : 1;
+      enemy.maxHp = (enemy.type == EnemyType::Engineer || enemy.type == EnemyType::Elite) ? 3 : 1;
       enemy.hp = enemy.maxHp;
       enemy.damageBarRatio = 1.0f;
       enemy.isHpGaugeVisible = false;
@@ -614,7 +620,10 @@ void ShootingScene::Initialize() {
   crosshair_->SetColor(crosshairSpriteSettings_.colorNoAim_);
 
   // マガジンとカバーの初期化
+  currentWeapon_ = WeaponType::Handgun;
   ammo_ = kMaxAmmo;
+  machineGunAmmo_ = 0;
+  shootCooldownTimer_ = 0.0f;
   isCovering_ = false;
   reloadTimer_ = 0.0f;
 
@@ -676,6 +685,41 @@ void ShootingScene::Initialize() {
     ammoCurrentX_.push_back(initX);
     ammoTargetX_.push_back(initX);
   }
+
+  // 2.5 マシンガン残弾ゲージUI（ammoBg_の上にオーバーレイ表示）
+  machineGunAmmoBar_ = std::make_unique<Sprite>();
+  machineGunAmmoBar_->Initialize("white.png");
+  machineGunAmmoBar_->SetAnchorPoint({0.0f, 0.5f});
+  machineGunAmmoBar_->SetTranslate({35.0f, 660.0f});
+  machineGunAmmoBar_->SetScale({0.0f, 20.0f});
+  machineGunAmmoBar_->SetColor({1.0f, 0.65f, 0.15f, 1.0f}); // オレンジ系
+
+  // 2.6 武器選択UI（画面中央下部）
+  weaponHandgunIcon_ = std::make_unique<Sprite>();
+  weaponHandgunIcon_->Initialize("white.png");
+  weaponHandgunIcon_->SetAnchorPoint({0.5f, 0.5f});
+  weaponHandgunIcon_->SetTranslate(weaponHandgunPos_);
+  weaponHandgunIcon_->SetScale(weaponIconSize_);
+  weaponHandgunIcon_->SetColor({0.8f, 0.9f, 1.0f, 1.0f});
+
+  weaponMachineGunIcon_ = std::make_unique<Sprite>();
+  weaponMachineGunIcon_->Initialize("white.png");
+  weaponMachineGunIcon_->SetAnchorPoint({0.5f, 0.5f});
+  weaponMachineGunIcon_->SetTranslate(weaponMachineGunPos_);
+  weaponMachineGunIcon_->SetScale(weaponIconSize_);
+  weaponMachineGunIcon_->SetColor({0.3f, 0.3f, 0.3f, 0.6f}); // 初期は残弾0のため暗く
+
+  TextureManager::GetInstance()->LoadTexture("ui/playerMarker.png");
+  weaponSelectCursor_ = std::make_unique<Sprite>();
+  weaponSelectCursor_->Initialize("ui/playerMarker.png");
+  weaponSelectCursor_->SetAnchorPoint({0.5f, 0.5f});
+  weaponSelectCursor_->SetTranslate(weaponHandgunPos_);
+  weaponSelectCursor_->SetScale(weaponCursorSize_);
+  weaponSelectCursor_->SetColor({1.0f, 0.85f, 0.2f, 0.9f}); // 黄色カーソル
+
+  currentWeapon_ = WeaponType::Handgun;
+  machineGunAmmo_ = 0;
+  shootCooldownTimer_ = 0.0f;
 
   // 3. プログレスバーUI（ウェーブ目盛り・アイコン・現在地マーカー付き）
   TextureManager::GetInstance()->LoadTexture("ui/waveIconNormal.png");
@@ -1044,7 +1088,8 @@ void ShootingScene::Update() {
     crosshair_->SetTranslate({static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
     // 照準レイの算出とホバー判定
   bool isAiming = false;
-  if (!isCovering_ && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
+  int currentWeaponAmmo = (currentWeapon_ == WeaponType::Handgun) ? ammo_ : machineGunAmmo_;
+  if (!isCovering_ && (currentWeaponAmmo > 0 || isDebugInfiniteAmmo_)) {
     float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
     float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
     Matrix4x4 vp = camera_->GetViewProjectionMatrix();
@@ -1307,7 +1352,8 @@ void ShootingScene::Update() {
           crosshair_->SetTranslate({ static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) });
           // 照準レイの算出とホバー判定
   bool isAiming = false;
-  if (!isCovering_ && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
+  int currentWeaponAmmo = (currentWeapon_ == WeaponType::Handgun) ? ammo_ : machineGunAmmo_;
+  if (!isCovering_ && (currentWeaponAmmo > 0 || isDebugInfiniteAmmo_)) {
     float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
     float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
     Matrix4x4 vp = camera_->GetViewProjectionMatrix();
@@ -1586,7 +1632,8 @@ void ShootingScene::Update() {
       crosshair_->SetTranslate(mPos);
       // 照準レイの算出とホバー判定
   bool isAiming = false;
-  if (!isCovering_ && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
+  int currentWeaponAmmo = (currentWeapon_ == WeaponType::Handgun) ? ammo_ : machineGunAmmo_;
+  if (!isCovering_ && (currentWeaponAmmo > 0 || isDebugInfiniteAmmo_)) {
     float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
     float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
     Matrix4x4 vp = camera_->GetViewProjectionMatrix();
@@ -1881,6 +1928,23 @@ void ShootingScene::Update() {
   // 通常プレイ時のゲームロジック (Playing / RestartSmoothing共通)
   // =====================================================
 
+  // 射撃クールダウンタイマーの更新
+  if (shootCooldownTimer_ > 0.0f) {
+    shootCooldownTimer_ -= kDeltaTime;
+    if (shootCooldownTimer_ < 0.0f) {
+      shootCooldownTimer_ = 0.0f;
+    }
+  }
+
+  // 右クリックによる武器切り替え（ハンドガン ⇔ マシンガン）
+  if (Input::GetInstance()->IsMouseButtonTriggered(1)) {
+    if (currentWeapon_ == WeaponType::Handgun) {
+      currentWeapon_ = WeaponType::MachineGun;
+    } else {
+      currentWeapon_ = WeaponType::Handgun;
+    }
+  }
+
   // 隠れるアクションの更新
   isCovering_ = Input::GetInstance()->IsKeyDown(DIK_SPACE);
   if (isCovering_) {
@@ -2044,6 +2108,14 @@ void ShootingScene::Update() {
       float spawnInterval = (enemy.type == EnemyType::Engineer) ? kEngineerSpawnInterval : kProjectileSpawnInterval;
       float chargeStart = spawnInterval - kChargeDuration; // 発射前0.6秒（36フレーム前）
 
+      // エリート兵：登場完了時に即座に一発だけ必中弾を撃つ
+      if (enemy.type == EnemyType::Elite && !enemy.hasFiredEliteFirstShot) {
+        if (enemy.shootTimer < chargeStart) {
+          enemy.shootTimer = chargeStart;
+          enemy.isNextHitShot = true;
+        }
+      }
+
       // 部隊内の同時必中攻撃数を最大2発までに制限、および2発発射後2秒間は通常弾に変更
       // 予兆リングが出る開始フレーム（chargeStart到達時）で枠を確定し、制限で通常弾になる場合は予兆パーティクルを一切出さない
       if (enemy.isNextHitShot && !enemy.isHitShotReserved && enemy.shootTimer >= chargeStart) {
@@ -2088,6 +2160,9 @@ void ShootingScene::Update() {
       enemy.shootTimer += 1.0f;
       if (enemy.shootTimer >= spawnInterval) {
         enemy.shootTimer = 0.0f; // リセットにより次フレームでリングは即座に消失
+        if (enemy.type == EnemyType::Elite && !enemy.hasFiredEliteFirstShot) {
+          enemy.hasFiredEliteFirstShot = true;
+        }
         Vector3 startPos = enemy.object->GetTranslate();
         Vector3 playerPos = GetCameraRailPosition(cameraProgress_);
         
@@ -2408,7 +2483,8 @@ void ShootingScene::Update() {
   crosshair_->SetTranslate({static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
   // 照準レイの算出とホバー判定
   bool isAiming = false;
-  if (!isCovering_ && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
+  int currentWeaponAmmo = (currentWeapon_ == WeaponType::Handgun) ? ammo_ : machineGunAmmo_;
+  if (!isCovering_ && (currentWeaponAmmo > 0 || isDebugInfiniteAmmo_)) {
     float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
     float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
     Matrix4x4 vp = camera_->GetViewProjectionMatrix();
@@ -2473,12 +2549,29 @@ void ShootingScene::Update() {
   crosshair_->Update();
   camera_->Update();
 
-  // 射撃（クリック）処理
-  if (!isCovering_ && (ammo_ > 0 || isDebugInfiniteAmmo_) &&
-      Input::GetInstance()->IsMouseButtonTriggered(0)) {
-    if (!isDebugInfiniteAmmo_) {
-      ammo_--; // 弾数を減らす
+  // 射撃（クリック / 連射）処理
+  bool wantToShoot = false;
+  if (!isCovering_ && shootCooldownTimer_ <= 0.0f) {
+    if (currentWeapon_ == WeaponType::Handgun) {
+      if (Input::GetInstance()->IsMouseButtonTriggered(0) && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
+        wantToShoot = true;
+        shootCooldownTimer_ = kHandgunFireInterval;
+        if (!isDebugInfiniteAmmo_) {
+          ammo_--; // 弾数を減らす
+        }
+      }
+    } else if (currentWeapon_ == WeaponType::MachineGun) {
+      if (Input::GetInstance()->IsMouseButtonDown(0) && (machineGunAmmo_ > 0 || isDebugInfiniteAmmo_)) {
+        wantToShoot = true;
+        shootCooldownTimer_ = kMachineGunFireInterval;
+        if (!isDebugInfiniteAmmo_) {
+          machineGunAmmo_--; // 弾数を減らす
+        }
+      }
     }
+  }
+
+  if (wantToShoot) {
 
     // アモUI消費エフェクトをカメラの左下前方に発生させる
     Vector3 camPos = camera_->GetTranslate();
@@ -2618,6 +2711,10 @@ void ShootingScene::Update() {
         hitEnemy->isActive = false;
         hitEnemy->isHpGaugeVisible = false;
         hitEnemy->deathTimer = 0.0f; // 撃破ディゾルブ消滅開始
+        if (hitEnemy->type == EnemyType::Elite) {
+          // エリート兵撃破時にマシンガンの弾を20発ゲット（最大60発）
+          machineGunAmmo_ = (std::min)(kMaxMachineGunAmmo, machineGunAmmo_ + kEliteDropMachineGunAmmo);
+        }
         if (hitEnemy->isHitShotReserved) {
           hitEnemy->isHitShotReserved = false;
           if (squadHitShotCount_ > squadFiredHitShotCount_) {
@@ -2860,23 +2957,79 @@ void ShootingScene::Update() {
       // 通常時
       lastReloadCount_ = 0; // 通常時はカウントをリセット
 
-      int currentAmmo = ammo_;
-      for (int i = 0; i < kMaxAmmo; ++i) {
-        if (i >= 9 - currentAmmo) {
-          // 残っている弾
-          ammoTargetX_[i] = 202.0f - (i - 9 + currentAmmo) * 20.0f;
-          ammoCurrentX_[i] += (ammoTargetX_[i] - ammoCurrentX_[i]) * 0.15f;
-          ammoUnits_[i]->SetTranslate({ammoCurrentX_[i], 648.0f});
-          ammoUnits_[i]->SetColor(
-              {183.0f / 255.0f, 132.0f / 255.0f, 48.0f / 255.0f, 1.0f});
-        } else {
-          // 消費された弾（非表示）
+      if (currentWeapon_ == WeaponType::MachineGun) {
+        // マシンガン選択中はハンドガン弾薬ユニットを非表示
+        for (int i = 0; i < kMaxAmmo; ++i) {
           ammoUnits_[i]->SetColor({0.0f, 0.0f, 0.0f, 0.0f});
+          ammoUnits_[i]->Update();
         }
-        ammoUnits_[i]->Update();
+      } else {
+        int currentAmmo = ammo_;
+        for (int i = 0; i < kMaxAmmo; ++i) {
+          if (i >= 9 - currentAmmo) {
+            // 残っている弾
+            ammoTargetX_[i] = 202.0f - (i - 9 + currentAmmo) * 20.0f;
+            ammoCurrentX_[i] += (ammoTargetX_[i] - ammoCurrentX_[i]) * 0.15f;
+            ammoUnits_[i]->SetTranslate({ammoCurrentX_[i], 648.0f});
+            ammoUnits_[i]->SetColor(
+                {183.0f / 255.0f, 132.0f / 255.0f, 48.0f / 255.0f, 1.0f});
+          } else {
+            // 消費された弾（非表示）
+            ammoUnits_[i]->SetColor({0.0f, 0.0f, 0.0f, 0.0f});
+          }
+          ammoUnits_[i]->Update();
+        }
       }
     }
     ammoBg_->Update();
+
+    // マシンガン残弾ゲージの更新
+    if (machineGunAmmoBar_) {
+      if (currentWeapon_ == WeaponType::MachineGun) {
+        float ammoRatio = static_cast<float>(machineGunAmmo_) / static_cast<float>(kMaxMachineGunAmmo);
+        if (ammoRatio < 0.0f) ammoRatio = 0.0f;
+        if (ammoRatio > 1.0f) ammoRatio = 1.0f;
+        machineGunAmmoBar_->SetScale({190.0f * ammoRatio, 24.0f});
+        machineGunAmmoBar_->SetColor({1.0f, 0.65f, 0.15f, 1.0f});
+      } else {
+        machineGunAmmoBar_->SetScale({0.0f, 0.0f});
+        machineGunAmmoBar_->SetColor({0.0f, 0.0f, 0.0f, 0.0f});
+      }
+      machineGunAmmoBar_->Update();
+    }
+  }
+
+  // 2.5 武器選択UIの更新（画面中央下部）
+  {
+    // ハンドガンアイコン：残弾なし（ammo_ == 0）なら暗く
+    if (weaponHandgunIcon_) {
+      weaponHandgunIcon_->SetTranslate(weaponHandgunPos_);
+      if (ammo_ > 0) {
+        weaponHandgunIcon_->SetColor({0.8f, 0.9f, 1.0f, 1.0f});
+      } else {
+        weaponHandgunIcon_->SetColor({0.25f, 0.25f, 0.3f, 0.5f}); // 暗い
+      }
+      weaponHandgunIcon_->Update();
+    }
+
+    // マシンガンアイコン：残弾なし（machineGunAmmo_ == 0）なら暗く
+    if (weaponMachineGunIcon_) {
+      weaponMachineGunIcon_->SetTranslate(weaponMachineGunPos_);
+      if (machineGunAmmo_ > 0) {
+        weaponMachineGunIcon_->SetColor({1.0f, 0.75f, 0.3f, 1.0f});
+      } else {
+        weaponMachineGunIcon_->SetColor({0.3f, 0.25f, 0.2f, 0.5f}); // 暗い
+      }
+      weaponMachineGunIcon_->Update();
+    }
+
+    // 選択カーソル：現在選択中の武器アイコン位置に配置
+    if (weaponSelectCursor_) {
+      Vector2 targetCursorPos = (currentWeapon_ == WeaponType::Handgun) ? weaponHandgunPos_ : weaponMachineGunPos_;
+      weaponSelectCursor_->SetTranslate(targetCursorPos);
+      weaponSelectCursor_->SetColor({1.0f, 0.85f, 0.2f, 0.9f});
+      weaponSelectCursor_->Update();
+    }
   }
 
   // 3. プログレスバー＆ウェーブ目盛り・アイコン・現在地マーカーの更新
@@ -3732,8 +3885,10 @@ void ShootingScene::UpdateImGui_GameStatus() {
   ImGui::Separator();
   ImGui::Text("Player Status");
   ImGui::Separator();
+  ImGui::Text("Weapon: %s", (currentWeapon_ == WeaponType::Handgun) ? "Handgun" : "MachineGun");
   ImGui::Text("Hit Count: %d / %d", hitCount_, kMaxHits);
-  ImGui::Text("Ammo: %d / %d", ammo_, kMaxAmmo);
+  ImGui::Text("Handgun Ammo: %d / %d", ammo_, kMaxAmmo);
+  ImGui::Text("MachineGun Ammo: %d / %d", machineGunAmmo_, kMaxMachineGunAmmo);
   ImGui::Text("Covering (SPACE): %s", isCovering_ ? "YES (Invincible)" : "NO");
   if (isCovering_ && ammo_ < kMaxAmmo) {
     ImGui::ProgressBar(reloadTimer_ / kReloadDuration, ImVec2(0.0f, 0.0f),
@@ -3743,8 +3898,9 @@ void ShootingScene::UpdateImGui_GameStatus() {
   ImGui::Text("Control");
   ImGui::Separator();
   ImGui::Text("Mouse: Aim");
-  ImGui::Text("LMB: Shoot");
-  ImGui::Text("SPACE: Cover (Reload)");
+  ImGui::Text("LMB: Shoot (Handgun: 0.5s Single / MachineGun: 0.3s Auto)");
+  ImGui::Text("RMB: Switch Weapon (Handgun <-> MachineGun)");
+  ImGui::Text("SPACE: Cover (Reload Handgun)");
   ImGui::Text("ESC: Return to Title");
   ImGui::Text("R: Reset Scene");
 
@@ -3927,16 +4083,33 @@ void ShootingScene::Draw() {
       }
     }
 
-    // 弾薬メモリ
+    // 弾薬メモリ / マシンガン残弾バー
     {
-      for (int i = 0; i < kMaxAmmo; ++i) {
-        if (ammoUnits_[i]) {
-          ammoUnits_[i]->Draw();
+      if (currentWeapon_ == WeaponType::MachineGun) {
+        if (machineGunAmmoBar_) {
+          machineGunAmmoBar_->Draw();
+        }
+      } else {
+        for (int i = 0; i < kMaxAmmo; ++i) {
+          if (ammoUnits_[i]) {
+            ammoUnits_[i]->Draw();
+          }
         }
       }
     }
 
     } // end if (showUI for life & ammo)
+
+    // 武器選択UI（画面中央下部）
+    if (weaponHandgunIcon_) {
+      weaponHandgunIcon_->Draw();
+    }
+    if (weaponMachineGunIcon_) {
+      weaponMachineGunIcon_->Draw();
+    }
+    if (weaponSelectCursor_) {
+      weaponSelectCursor_->Draw();
+    }
 
     // プログレスバー＆ウェーブ目盛り・アイコン・現在地マーカー
     if (progressBar_) {
@@ -4213,14 +4386,17 @@ void ShootingScene::JumpToSection(int index) {
     enemy.shootCount = 0;
     enemy.hitShotCount = 0;
     enemy.isHitShotReserved = false;
-    enemy.maxHp = (enemy.type == EnemyType::Engineer) ? 3 : 1;
+    enemy.maxHp = (enemy.type == EnemyType::Engineer || enemy.type == EnemyType::Elite) ? 3 : 1;
     enemy.hp = enemy.maxHp;
     enemy.damageBarRatio = 1.0f;
     enemy.isHpGaugeVisible = false;
+    enemy.hasFiredEliteFirstShot = false;
     // 敵のタイプに応じたモデルカラーの再適用
     if (enemy.model) {
       if (enemy.type == EnemyType::Engineer) {
         enemy.model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
+      } else if (enemy.type == EnemyType::Elite) {
+        enemy.model->SetColor({1.0f, 0.2f, 0.2f, 1.0f});
       } else {
         enemy.model->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
       }
@@ -4258,7 +4434,10 @@ void ShootingScene::JumpToSection(int index) {
     enemy.object->Update(mainViewIndex_, camera_.get());
   }
 
+  currentWeapon_ = WeaponType::Handgun;
   ammo_ = kMaxAmmo;
+  machineGunAmmo_ = 0;
+  shootCooldownTimer_ = 0.0f;
   isCovering_ = false;
   reloadTimer_ = 0.0f;
 

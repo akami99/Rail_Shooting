@@ -88,7 +88,8 @@ private:
     // 敵のタイプ（種類）
     enum class EnemyType {
         Normal,   // 通常タイプ (グローバル必中率, Normal/Jamming弾)
-        Engineer  // 工兵タイプ (必中率0.75, Blast爆発弾のみ)
+        Engineer, // 工兵タイプ (必中率0.75, Blast爆発弾のみ)
+        Elite     // エリート兵タイプ (登場完了時に即座に必中弾1発、以降通常ループ、赤色)
     };
 
     // 敵情報構造体
@@ -106,6 +107,7 @@ private:
         int hitShotCount = 0; // 必中弾カウンター (属性弾ローテーション用)
         bool isNextHitShot = false; // 次回射撃が必中弾かどうか (予兆リング表示用)
         bool isHitShotReserved = false; // 部隊内の必中弾枠を確保済みか (予兆リング発生許可)
+        bool hasFiredEliteFirstShot = false; // エリート兵の登場時初弾必中弾を発射済みか
         Vector3 initialOffsetPosition = { 0.0f, 0.0f, 0.0f }; // カメライン前の初期画面外位置
         float slideTimer = 0.0f; // スライドイン進行時間
         float slideDelay = 0.0f; // スライドイン開始ディレイ時間
@@ -276,9 +278,27 @@ private:
     bool isMovementPaused_ = false;
     const float kCameraSpeed = 0.35f;
 
+    // 武器種別
+    enum class WeaponType {
+        Handgun,    // ハンドガン (9発マガジン、0.5秒間隔、単発)
+        MachineGun  // マシンガン (60発マガジン、0.3秒間隔、長押し連射、初期0発、エリート撃破で+20発)
+    };
+    WeaponType currentWeapon_ = WeaponType::Handgun;
+
     // マガジン・隠れるアクション用
     int ammo_ = 9;
     static constexpr int kMaxAmmo = 9;
+    static constexpr float kHandgunFireInterval = 0.2f;
+
+    // マシンガン設定
+    int machineGunAmmo_ = 0;
+    static constexpr int kMaxMachineGunAmmo = 60;
+    static constexpr float kMachineGunFireInterval = 0.1f;
+    static constexpr int kEliteDropMachineGunAmmo = 20;
+
+    // プレイヤー射撃クールダウンタイマー
+    float shootCooldownTimer_ = 0.0f;
+
     bool isCovering_ = false;
     float playerEyeHeight_ = 1.4f;        // ルート（足元）からの立ち視点高さ
     float coverDepth_ = -0.7f;            // カバー時のしゃがみ深さ
@@ -305,6 +325,16 @@ private:
     std::vector<float> ammoCurrentX_;
     std::vector<float> ammoTargetX_;
     int lastReloadCount_ = 0;
+    std::unique_ptr<Sprite> machineGunAmmoBar_; // マシンガン残弾ゲージ
+
+    // 武器選択UI（画面中央下部）
+    std::unique_ptr<Sprite> weaponHandgunIcon_;
+    std::unique_ptr<Sprite> weaponMachineGunIcon_;
+    std::unique_ptr<Sprite> weaponSelectCursor_;
+    Vector2 weaponHandgunPos_ = { 590.0f, 665.0f };
+    Vector2 weaponMachineGunPos_ = { 690.0f, 665.0f };
+    Vector2 weaponIconSize_ = { 60.0f, 36.0f };
+    Vector2 weaponCursorSize_ = { 72.0f, 48.0f };
 
     // プログレスバーUI
     std::unique_ptr<Sprite> progressBg_;
