@@ -54,6 +54,7 @@ void EnemyProjectile::Initialize(const Vector3& position, const Vector3& velocit
     position_ = position;
     velocity_ = velocity;
     type_ = type;
+    isHitShot_ = true;
     trailRotation_ = 0.0f;
     
     object_ = std::make_unique<Object3d>();

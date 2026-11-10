@@ -73,7 +73,7 @@ void ShootingScene::Initialize() {
 
   cameraProgress_ = 0.0f;
   isMovementPaused_ = false;
-  Vector3 startCamPos = CalculateRailPosition(cameraProgress_);
+  Vector3 startCamPos = GetCameraRailPosition(cameraProgress_);
   camera_->SetTranslate(startCamPos);
   camera_->SetFovY(cameraFovY_ * (std::numbers::pi_v<float> / 180.0f));
 
@@ -1116,7 +1116,7 @@ void ShootingScene::Update() {
   // =====================================================
   if (isIntroPreviewMode_) {
       cameraProgress_ = maxProgress_ - introCameraStopOffset_;
-      camera_->SetTranslate(CalculateRailPosition(cameraProgress_));
+      camera_->SetTranslate(GetCameraRailPosition(cameraProgress_));
       camera_->SetRotate({ cameraBasePitch_ + introCameraPitch_, cameraYaw_ + introCameraYaw_, 0.0f });
       camera_->Update();
       if (floorObject_) {
@@ -1166,7 +1166,7 @@ void ShootingScene::Update() {
               float t = phaseTimer_ / kFastForwardDuration;
               float ease = t * t;
               cameraProgress_ = ease * maxProgress_;
-              camera_->SetTranslate(CalculateRailPosition(cameraProgress_));
+              camera_->SetTranslate(GetCameraRailPosition(cameraProgress_));
 
               PostProcessManager::SetMode(PostProcessManager::kModeRadialBlur);
               // 速度に合わせて width を変化させる
@@ -1219,7 +1219,7 @@ void ShootingScene::Update() {
                   weight = std::cos(p * (std::numbers::pi_v<float> / 2.0f)); // easeIn
               }
               cameraProgress_ = maxProgress_ - introCameraStopOffset_;
-              camera_->SetTranslate(CalculateRailPosition(cameraProgress_));
+              camera_->SetTranslate(GetCameraRailPosition(cameraProgress_));
               // カメラ回転の適用
               camera_->SetRotate({
                   cameraBasePitch_ + weight * introCameraPitch_,
@@ -1259,7 +1259,7 @@ void ShootingScene::Update() {
               phase_ = Phase::IntroReadyGo;
               phaseTimer_ = 0.0f;
               cameraProgress_ = 0.0f;
-              camera_->SetTranslate(CalculateRailPosition(0.0f));
+              camera_->SetTranslate(GetCameraRailPosition(0.0f));
               if (levelData_ && !levelData_->players.empty()) {
                   camera_->SetRotate(levelData_->players[0].rotation);
               } else {
@@ -1279,7 +1279,7 @@ void ShootingScene::Update() {
               float t = phaseTimer_ / kRewindDuration;
               float ease = 1.0f - (t * t);
               cameraProgress_ = ease * maxProgress_;
-              camera_->SetTranslate(CalculateRailPosition(cameraProgress_));
+              camera_->SetTranslate(GetCameraRailPosition(cameraProgress_));
 
               PostProcessManager::SetMode(PostProcessManager::kModeRadialBlur);
               // 速度に合わせて width を変化させる
@@ -1914,8 +1914,8 @@ void ShootingScene::Update() {
   UpdateRailMovement();
 
   // カバーYオフセットのイージング更新（スムーズなしゃがみ・立ち上がり）
-  float targetOffset = isCovering_ ? -1.0f : 0.0f;
-  coverYOffset_ += (targetOffset - coverYOffset_) * 0.15f;
+  float targetOffset = isCovering_ ? coverDepth_ : 0.0f;
+  coverYOffset_ += (targetOffset - coverYOffset_) * coverEasingSpeed_;
 
   // カメラシェイクオフセットの計算（被弾時の画面揺れ）
   Vector3 shakeOffset = {0.0f, 0.0f, 0.0f};
@@ -1935,7 +1935,7 @@ void ShootingScene::Update() {
     shakeRotOffset = {rx * currentIntensity * 0.06f, ry * currentIntensity * 0.06f, rRot * currentIntensity * 0.10f};
   }
 
-  Vector3 camPos = CalculateRailPosition(cameraProgress_);
+  Vector3 camPos = GetCameraRailPosition(cameraProgress_);
   camPos.y += coverYOffset_;
   camPos = Add(camPos, shakeOffset);
   camera_->SetTranslate(camPos);
@@ -2067,7 +2067,7 @@ void ShootingScene::Update() {
         Vector3 ringScale = { shrinkRate * 2.5f, shrinkRate * 1.0f, shrinkRate * 2.5f };
 
         Vector3 startPos = enemy.object->GetTranslate();
-        Vector3 playerPos = CalculateRailPosition(cameraProgress_);
+        Vector3 playerPos = GetCameraRailPosition(cameraProgress_);
         Vector3 dir = Normalize(Subtract(playerPos, startPos));
         Vector3 muzzlePos = Add(startPos, Multiply(1.2f, dir)); // 敵の前方（射出口）
 
@@ -2089,7 +2089,7 @@ void ShootingScene::Update() {
       if (enemy.shootTimer >= spawnInterval) {
         enemy.shootTimer = 0.0f; // リセットにより次フレームでリングは即座に消失
         Vector3 startPos = enemy.object->GetTranslate();
-        Vector3 playerPos = CalculateRailPosition(cameraProgress_);
+        Vector3 playerPos = GetCameraRailPosition(cameraProgress_);
         
         enemy.shootCount++;
         
@@ -2122,14 +2122,19 @@ void ShootingScene::Update() {
           }
         } else {
           // --- 演出弾 (プレイヤーの周囲を掠める当たらない弾) ---
-          // プレイヤーの衝突判定半径(1.0f)より確実に外側の安全距離(1.8f〜missShotSpread_)にオフセット
-          float minOffset = 1.8f;
-          float maxOffset = (missShotSpread_ > minOffset) ? missShotSpread_ : minOffset + 1.0f;
+          // プレイヤーの衝突判定半径(1.0f)およびカバー時のしゃがみ移動(-1.0f)より確実に外側の安全距離(2.5f〜)にオフセット
+          float minOffset = 2.5f;
+          float maxOffset = (missShotSpread_ > minOffset) ? missShotSpread_ : minOffset + 1.5f;
           float angle = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 6.2831853f;
           float offsetDist = minOffset + (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * (maxOffset - minOffset);
           
           targetPos.x += std::cos(angle) * offsetDist;
-          targetPos.y += std::sin(angle) * offsetDist * 0.7f; // 上下のオフセット
+          // Y方向はしゃがみ(-1.0f)があっても直撃しないよう、下方向はさらに安全マージンを確保
+          float offsetY = std::sin(angle) * offsetDist;
+          if (offsetY < 0.0f) {
+            offsetY -= 1.0f; // しゃがみ高度分の安全オフセット
+          }
+          targetPos.y += offsetY;
           
           if (enemy.type == EnemyType::Engineer) {
             pType = EnemyProjectile::Type::Blast;   // 工兵は演出弾も爆発弾 (黄)
@@ -2149,6 +2154,7 @@ void ShootingScene::Update() {
         
         auto newProjectile = std::make_unique<EnemyProjectile>();
         newProjectile->Initialize(startPos, velocity, pType);
+        newProjectile->SetHitShot(isHitShot);
         projectiles_.push_back(std::move(newProjectile));
 
         // 次回撃つ弾が必中弾かどうかを事前抽選
@@ -2185,8 +2191,8 @@ void ShootingScene::Update() {
         continue;
       Vector3 toProjectile = Subtract(p->GetPosition(), targetPos);
       if (Dot(toProjectile, p->GetVelocity()) >= 0.0f) {
-        if (p->IsExplosive()) {
-          // ランチャー弾（爆発弾）はカバー時でも演出発生＆2回被弾で1ダメージ
+        if (p->IsExplosive() && p->IsHitShot()) {
+          // ランチャー弾（爆発弾）はカバー時でも演出発生＆2回被弾で1ダメージ（※予兆のある必中弾のみ）
           radialBlurStrength_ = 0.04f;
           radialBlurTimer_ = kRadialBlurDuration;
           PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
@@ -2213,10 +2219,10 @@ void ShootingScene::Update() {
     }
 
     // しゃがみ動作中でまだ完全に隠れきっていない（無敵になっていない）場合は、
-    // 頭上を通る前にカメラ座標（しゃがみかけの高さ）への当たり判定を行う
+    // 頭上を通る前にカメラ座標（しゃがみかけの高さ）への当たり判定を行う（※予兆のある必中弾のみ）
     if (!isInvincible) {
       for (auto &p : projectiles_) {
-        if (p->IsDead())
+        if (p->IsDead() || !p->IsHitShot())
           continue;
         float dist =
             Length(Subtract(p->GetPosition(), camera_->GetTranslate()));
@@ -2265,54 +2271,65 @@ void ShootingScene::Update() {
     }
   } else {
     // 遮蔽していない通常時
+    Vector3 targetPos = CalculateRailPosition(cameraProgress_);
     for (auto &p : projectiles_) {
       if (p->IsDead())
         continue;
-      float dist = Length(Subtract(p->GetPosition(), camera_->GetTranslate()));
-      if (dist < 1.0f) {
-        if (p->IsExplosive() && !isInvincible && hitCount_ + 1 < kMaxHits) {
-          radialBlurStrength_ = 0.05f; // 被弾時
-          radialBlurTimer_ = kRadialBlurDuration;
-          PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
-          cameraShakeIntensity_ = 0.45f;
-          cameraShakeDuration_ = 0.45f;
-          cameraShakeTimer_ = 0.45f;
-        } else if (!isInvincible) {
-          cameraShakeIntensity_ = 0.20f;
-          cameraShakeDuration_ = 0.25f;
-          cameraShakeTimer_ = 0.25f;
-        }
 
-        // ジャミング弾被弾時：無敵でなければノイズ効果のみ適用し、ライフは減らさない
-        if (p->IsJamming()) {
+      // 予兆のある必中弾のみプレイヤー直撃判定を行う
+      if (p->IsHitShot()) {
+        float dist = Length(Subtract(p->GetPosition(), camera_->GetTranslate()));
+        if (dist < 1.0f) {
+          if (p->IsExplosive() && !isInvincible && hitCount_ + 1 < kMaxHits) {
+            radialBlurStrength_ = 0.05f; // 被弾時
+            radialBlurTimer_ = kRadialBlurDuration;
+            PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
+            cameraShakeIntensity_ = 0.45f;
+            cameraShakeDuration_ = 0.45f;
+            cameraShakeTimer_ = 0.45f;
+          } else if (!isInvincible) {
+            cameraShakeIntensity_ = 0.20f;
+            cameraShakeDuration_ = 0.25f;
+            cameraShakeTimer_ = 0.25f;
+          }
+
+          // ジャミング弾被弾時：無敵でなければノイズ効果のみ適用し、ライフは減らさない
+          if (p->IsJamming()) {
+            if (!isInvincible) {
+              randomNoiseStrength_ = 0.7f;
+              randomNoiseTimer_ = 5.0f; // 5秒
+              PostProcessManager::SetRandomParams(randomNoiseStrength_);
+            }
+            p->Kill();
+            continue; // ライフ減少を行わずに次へ
+          }
+
+          p->Kill(); // 当たった弾は必ず消す
+
+          // 無敵状態でなければ被弾ダメージ処理を行う
           if (!isInvincible) {
-            randomNoiseStrength_ = 0.7f;
-            randomNoiseTimer_ = 5.0f; // 5秒
-            PostProcessManager::SetRandomParams(randomNoiseStrength_);
-          }
-          p->Kill();
-          continue; // ライフ減少を行わずに次へ
-        }
+            coverExplosionHits_ = 0; // 通常ヒットでカバー時ヒット進捗をリセット
+            hitCount_++;
+            damageEffectStrength_ = 1.0f;
+            MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
 
-        p->Kill(); // 当たった弾は必ず消す
-
-        // 無敵状態でなければ被弾ダメージ処理を行う
-        if (!isInvincible) {
-          coverExplosionHits_ = 0; // 通常ヒットでカバー時ヒット進捗をリセット
-          hitCount_++;
-          damageEffectStrength_ = 1.0f;
-          MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
-
-          // 3回ヒットしたらゲームオーバー演出開始
-          if (hitCount_ >= kMaxHits) {
-              if (p->GetType() == EnemyProjectile::Type::Blast) {
-                  StartGameOver(DeathReason::EngineerRocket);
-              } else {
-                  StartGameOver(DeathReason::NormalBullet);
-              }
-            return;
+            // 3回ヒットしたらゲームオーバー演出開始
+            if (hitCount_ >= kMaxHits) {
+                if (p->GetType() == EnemyProjectile::Type::Blast) {
+                    StartGameOver(DeathReason::EngineerRocket);
+                } else {
+                    StartGameOver(DeathReason::NormalBullet);
+                }
+              return;
+            }
           }
         }
+      }
+
+      // プレイヤー（カメラ）を通過して後方へ一定距離抜けた弾を消去
+      Vector3 toProj = Subtract(p->GetPosition(), targetPos);
+      if (Dot(toProj, p->GetVelocity()) >= 0.0f && Length(toProj) > 5.0f) {
+        p->Kill();
       }
     }
   }
@@ -2666,7 +2683,7 @@ void ShootingScene::Update() {
         Vector3 camPos = camera_->GetTranslate();
         if (swarmManager_) {
           float baseYaw = (levelData_ && !levelData_->players.empty()) ? levelData_->players[0].rotation.y : 0.0f;
-          Vector3 basePos = CalculateRailPosition(maxProgress_);
+          Vector3 basePos = GetCameraRailPosition(maxProgress_);
           bossDamageBarRatio_ = 1.0f;
           (void)camPos;
           swarmManager_->StartBossBattle(kSpawnSwarmCount, basePos, baseYaw);
@@ -3282,7 +3299,7 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
         swarmBattleTimer_ = 0.0f;
         bossDamageBarRatio_ = 1.0f;
         float baseYaw = (levelData_ && !levelData_->players.empty()) ? levelData_->players[0].rotation.y : 0.0f;
-        Vector3 basePos = CalculateRailPosition(maxProgress_);
+        Vector3 basePos = GetCameraRailPosition(maxProgress_);
         camera_->SetTranslate(basePos);
         if (swarmManager_) {
           swarmManager_->StartBossBattle(kSpawnSwarmCount, basePos, baseYaw);
@@ -3383,7 +3400,7 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
       cameraProgress_ = 0.0f;
       cameraShakeTimer_ = 0.0f;
       isMovementPaused_ = false;
-      Vector3 startCamPos = CalculateRailPosition(cameraProgress_);
+      Vector3 startCamPos = GetCameraRailPosition(cameraProgress_);
       camera_->SetTranslate(startCamPos);
       if (levelData_ && !levelData_->players.empty()) {
         const auto &spawn = levelData_->players[0];
@@ -3436,6 +3453,14 @@ void ShootingScene::UpdateImGui_GameCamera() {
     if (ImGui::DragFloat("FOV", &cameraFovY_, 0.1f, 10.0f, 120.0f)) {
       camera_->SetFovY(cameraFovY_ * (std::numbers::pi_v<float> / 180.0f));
     }
+    ImGui::Separator();
+    ImGui::Text("Player Height & Cover");
+    ImGui::DragFloat("Eye Height (m)", &playerEyeHeight_, 0.05f, 0.0f, 3.0f, "%.2f");
+    if (ImGui::DragFloat("Cover Depth (m)", &coverDepth_, 0.05f, -2.5f, -0.1f, "%.2f")) {
+      coverYTarget_ = coverDepth_ * 0.8f;
+    }
+    ImGui::DragFloat("Cover Easing Speed", &coverEasingSpeed_, 0.01f, 0.02f, 0.5f, "%.2f");
+    ImGui::Text("Cover Offset: %.2f (Invincible: %s)", coverYOffset_, IsInvincible() ? "YES" : "NO");
     ImGui::Separator();
     ImGui::Text("Camera Shake");
     ImGui::SliderFloat("Shake Intensity", &cameraShakeIntensity_, 0.0f, 1.0f, "%.2f");
@@ -4093,7 +4118,7 @@ void ShootingScene::Finalize() {
   PostProcessManager::SetMode(PostProcessManager::kModeCopy);
 }
 
-Vector3 ShootingScene::CalculateRailPosition(float progress) {
+Vector3 ShootingScene::CalculateRailPosition(float progress) const {
   if (railPoints_.empty()) {
     return {0.0f, 2.0f, -15.0f};
   }
@@ -4131,6 +4156,12 @@ Vector3 ShootingScene::CalculateRailPosition(float progress) {
   pos.x = uuu * p0.x + 3.0f * uu * t * p1.x + 3.0f * u * tt * p2.x + ttt * p3.x;
   pos.y = uuu * p0.y + 3.0f * uu * t * p1.y + 3.0f * u * tt * p2.y + ttt * p3.y;
   pos.z = uuu * p0.z + 3.0f * uu * t * p1.z + 3.0f * u * tt * p2.z + ttt * p3.z;
+  return pos;
+}
+
+Vector3 ShootingScene::GetCameraRailPosition(float progress) const {
+  Vector3 pos = CalculateRailPosition(progress);
+  pos.y += playerEyeHeight_;
   return pos;
 }
 
@@ -4254,7 +4285,7 @@ void ShootingScene::JumpToSection(int index) {
   }
 
   // カメラを初期位置に戻す
-  Vector3 startCamPos = CalculateRailPosition(cameraProgress_);
+  Vector3 startCamPos = GetCameraRailPosition(cameraProgress_);
   camera_->SetTranslate(startCamPos);
   if (levelData_ && !levelData_->players.empty()) {
     const auto &spawn = levelData_->players[0];
@@ -4411,7 +4442,7 @@ void ShootingScene::StartGameOver(DeathReason reason) {
 
     // 自機を強制カバー状態へ
     isCovering_ = true;
-    coverYOffset_ = coverYTarget_;
+    coverYOffset_ = coverDepth_;
 
     // ビネットを周辺減光モードで開始
     vignetteScale_ = 16.0f;

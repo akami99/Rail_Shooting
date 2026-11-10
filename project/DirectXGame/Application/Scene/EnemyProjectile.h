@@ -28,6 +28,9 @@ public:
     bool IsExplosive() const { return type_ == Type::Blast; }
     bool IsJamming() const { return type_ == Type::Jamming; }
 
+    bool IsHitShot() const { return isHitShot_; }
+    void SetHitShot(bool hit) { isHitShot_ = hit; }
+
     float GetRadius() const { return radius_; }
     int GetHp() const { return hp_; }
     int GetMaxHp() const { return maxHp_; }
@@ -61,6 +64,7 @@ private:
     std::unique_ptr<Sprite> hpFillSprite_;
     std::unique_ptr<Sprite> hpFrameSprite_;
     bool isDead_ = false;
+    bool isHitShot_ = true;
     std::unique_ptr<Model> customModel_;
     Type type_ = Type::Normal;
     float trailRotation_ = 0.0f; // ライフリング回転角

@@ -280,13 +280,17 @@ private:
     int ammo_ = 9;
     static constexpr int kMaxAmmo = 9;
     bool isCovering_ = false;
-    float coverYOffset_ = 0.0f;
-    float coverYTarget_ = -0.2f;
+    float playerEyeHeight_ = 1.4f;        // ルート（足元）からの立ち視点高さ
+    float coverDepth_ = -0.7f;            // カバー時のしゃがみ深さ
+    float coverEasingSpeed_ = 0.15f;      // カバー昇降イージング速度
+    float coverYOffset_ = 0.0f;           // 現在のカバーYオフセット
+    float coverYTarget_ = -0.55f;         // カバー無敵判定が有効になる閾値（coverDepth_ * 0.8程度）
     float reloadTimer_ = 0.0f;
     static constexpr float kReloadDuration = 0.5f;
 
     // レール座標計算用ヘルパー関数
-    Vector3 CalculateRailPosition(float progress);
+    Vector3 CalculateRailPosition(float progress) const;
+    Vector3 GetCameraRailPosition(float progress) const;
 
     // UI用スプライト
     // ライフUI
