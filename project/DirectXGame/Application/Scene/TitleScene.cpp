@@ -1,4 +1,5 @@
 #include "TitleScene.h"
+#include "ShootingScene.h"
 #include "ApplicationConfig.h" // kDeltaTimeなど
 #include "BlendMode.h"
 #include "DX12Context.h"
@@ -22,6 +23,23 @@ using namespace MathUtils;
 using namespace MathGenerators;
 using namespace BlendMode;
 
+namespace {
+Vector2 WorldToScreen(const Vector3& worldPos, Camera* camera) {
+  if (!camera) return { 640.0f, 360.0f };
+  const Matrix4x4& matViewProj = camera->GetViewProjectionMatrix();
+  float x = worldPos.x * matViewProj.m[0][0] + worldPos.y * matViewProj.m[1][0] + worldPos.z * matViewProj.m[2][0] + matViewProj.m[3][0];
+  float y = worldPos.x * matViewProj.m[0][1] + worldPos.y * matViewProj.m[1][1] + worldPos.z * matViewProj.m[2][1] + matViewProj.m[3][1];
+  float w = worldPos.x * matViewProj.m[0][3] + worldPos.y * matViewProj.m[1][3] + worldPos.z * matViewProj.m[2][3] + matViewProj.m[3][3];
+  if (std::abs(w) > 0.0001f) {
+    x /= w;
+    y /= w;
+  }
+  float screenX = (x + 1.0f) * 0.5f * static_cast<float>(Win32Window::kClientWidth);
+  float screenY = (1.0f - y) * 0.5f * static_cast<float>(Win32Window::kClientHeight);
+  return { screenX, screenY };
+}
+}
+
 void TitleScene::Initialize() {
 #ifdef USE_IMGUI
   ShowCursor(TRUE);
@@ -32,6 +50,14 @@ void TitleScene::Initialize() {
   phase_ = Phase::IntroBlink;
   introTimer_ = 0.0f;
   transitionTimer_ = 0.0f;
+  idleTimer_ = 0.0f;
+  isStartingDemo_ = false;
+  ShootingScene::SetDemoMode(false);
+  POINT pt;
+  GetCursorPos(&pt);
+  ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &pt);
+  lastRecordedMousePos_ = { static_cast<float>(pt.x), static_cast<float>(pt.y) };
+  demoCursorPos_ = lastRecordedMousePos_;
 
   // 入場演出開始時：画面全体を完全ブラックアウト（暗転）状態に設定
   PostProcessManager::SetMode(PostProcessManager::kModeVignette);
@@ -222,6 +248,62 @@ void TitleScene::Update() {
       UpdateIntroBlink();
       UpdateCrosshairAndRaycast();
   } else if (phase_ == Phase::Main) {
+      // ユーザー入力の監視（無入力タイマー）
+      POINT curMouse;
+      GetCursorPos(&curMouse);
+      ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &curMouse);
+      Vector2 currentMousePos = { static_cast<float>(curMouse.x), static_cast<float>(curMouse.y) };
+
+      bool hasUserInput = false;
+      if (Length(Vector3{ currentMousePos.x - lastRecordedMousePos_.x, currentMousePos.y - lastRecordedMousePos_.y, 0.0f }) > 2.0f) {
+          hasUserInput = true;
+      }
+      lastRecordedMousePos_ = currentMousePos;
+      if (Input::GetInstance()->IsMouseButtonTriggered(0) || Input::GetInstance()->IsMouseButtonTriggered(1)) {
+          hasUserInput = true;
+      }
+      for (int k = 0; k < 256; ++k) {
+          if (Input::GetInstance()->IsKeyDown(k)) {
+              hasUserInput = true;
+              break;
+          }
+      }
+
+      if (hasUserInput) {
+          idleTimer_ = 0.0f;
+          if (isStartingDemo_) {
+              isStartingDemo_ = false;
+              ShootingScene::SetDemoMode(false);
+          }
+      } else {
+          idleTimer_ += kDeltaTime;
+      }
+
+      // 10秒間無入力でデモシーケンス開始
+      if (idleTimer_ >= kDemoIdleTimeout && !isStartingDemo_) {
+          isStartingDemo_ = true;
+          demoCursorPos_ = currentMousePos;
+          ShootingScene::SetDemoMode(true);
+      }
+
+      // デモ開始時：スタート看板へ自動エイム＆自動射撃
+      if (isStartingDemo_) {
+          Vector3 boardWorldPos = startBoardObjectSettings_.position_;
+          boardWorldPos.y += 0.3f; // 看板中央付近
+          Vector2 boardScreenPos = WorldToScreen(boardWorldPos, camera_.get());
+
+          // 照準を看板へスムーズに移動
+          demoCursorPos_.x += (boardScreenPos.x - demoCursorPos_.x) * 0.10f;
+          demoCursorPos_.y += (boardScreenPos.y - demoCursorPos_.y) * 0.10f;
+
+          float distToBoard = Length(Vector3{ demoCursorPos_.x - boardScreenPos.x, demoCursorPos_.y - boardScreenPos.y, 0.0f });
+          if (distToBoard < 30.0f) {
+              if (startBoardObjectSettings_.state_ == TargetState::Standing) {
+                  startBoardObjectSettings_.state_ = TargetState::Falling;
+              }
+          }
+      }
+
       UpdateCrosshairAndRaycast();
 
       UpdateEnemyShooting();
@@ -396,16 +478,21 @@ void TitleScene::Finalize() {
 }
 
 void TitleScene::UpdateCrosshairAndRaycast() {
-  // 1. マウス位置取得とクロスヘアスプライトの追従
-  POINT mousePos;
-  GetCursorPos(&mousePos);
-  ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
-  crosshairSprite_->SetTranslate(
-      {static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
+  // 1. マウス位置取得（デモ開始時は自動エイム座標を使用）
+  Vector2 mPos;
+  if (isStartingDemo_) {
+    mPos = demoCursorPos_;
+  } else {
+    POINT mousePos;
+    GetCursorPos(&mousePos);
+    ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+    mPos = { static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) };
+  }
+  crosshairSprite_->SetTranslate(mPos);
   crosshairSprite_->Update();
   // 2. マウス座標から3D空間のレイ（光線）を算出
-  float x = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
-  float y = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+  float x = mPos.x / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+  float y = 1.0f - mPos.y / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
   Matrix4x4 invVP = Inverse(camera_->GetViewProjectionMatrix());
   Vector3 nearPos = TransformPoint({x, y, 0.0f}, invVP);
   Vector3 farPos = TransformPoint({x, y, 1.0f}, invVP);

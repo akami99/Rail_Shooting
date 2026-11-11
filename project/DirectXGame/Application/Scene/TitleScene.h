@@ -251,6 +251,13 @@ private:
   const float kTargetRiseSpeed = 2.0f; // 起き上がる角速度（0.8秒で起き上がる）
   const float kTargetWaitDuration = 2.0f; // 倒れてから復帰するまでの待ち時間（2秒）
 
+  // --- デモ遷移管理 ---
+  float idleTimer_ = 0.0f;
+  bool isStartingDemo_ = false;
+  Vector2 demoCursorPos_ = { 640.0f, 360.0f };
+  Vector2 lastRecordedMousePos_ = { 0.0f, 0.0f };
+  static constexpr float kDemoIdleTimeout = 10.0f; // 10秒無入力でデモへ
+
   // --- 退場演出用 ---
   const Vector3 kTransitionEdgeColor = { 0.0f, 1.0f, 0.8f };  // ディゾルブ境界の発光色
   const Vector4 kWireframeColor = { 0.0f, 0.9f, 1.0f, 1.0f }; // ワイヤーフレームの線色

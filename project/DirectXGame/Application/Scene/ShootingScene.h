@@ -27,6 +27,10 @@ public:
     void DrawForeground() override;
     void Finalize() override;
 
+    // デモモードの設定と取得
+    static void SetDemoMode(bool isDemo) { sIsDemoMode_ = isDemo; }
+    static bool IsDemoMode() { return sIsDemoMode_; }
+
     // ゲームオーバー/クリア/入場演出フェーズ
     enum class Phase {
         IntroConstruct,     // 入場演出（逆順展開：ワイヤーフレーム出現 ＋ ソリッド構築）
@@ -361,12 +365,23 @@ private:
     std::unique_ptr<Sprite> weaponSelectCursor_;
     std::unique_ptr<Sprite> weaponHandgunIcon_;
     std::unique_ptr<Sprite> weaponMachineGunIcon_;
+    std::unique_ptr<Sprite> weaponMachineGunAmmoGetIcon_; // 弾獲得時の被せ点滅アイコン
+    float ammoGetEffectTimer_ = 0.0f;                     // 弾獲得時の点滅演出タイマー（2秒）
     Vector2 weaponBgPos_ = { 640.0f, 665.0f };
     Vector2 weaponBgSize_ = { 220.0f, 90.0f };
     Vector2 weaponHandgunPos_ = { 585.0f, 665.0f };
     Vector2 weaponMachineGunPos_ = { 695.0f, 665.0f };
     Vector2 weaponIconSize_ = { 80.0f, 40.0f };
     Vector2 weaponCursorSize_ = { 76.0f, 76.0f };
+
+    // エリート兵撃破時の弾丸ドロップ頭上アイコン演出構造体
+    struct MachineGunAmmoDropEffect {
+        Vector3 baseWorldPos;
+        float timer = 0.0f;
+        std::unique_ptr<Sprite> sprite;
+        bool isVisible = false;
+    };
+    std::vector<MachineGunAmmoDropEffect> ammoDropEffects_;
 
     // プログレスバーUI
     std::unique_ptr<Sprite> progressBg_;
@@ -496,6 +511,18 @@ private:
 
     // プログレスバーUIのレイアウト・状態更新ヘルパー
     void UpdateProgressBarUI(const Vector2& basePos, const Vector2& baseSize);
+
+    // デモプレイ機能
+    static bool sIsDemoMode_;
+    std::unique_ptr<Sprite> demoPressSpaceSprite_;
+    float demoBlinkTimer_ = 0.0f;
+    Vector2 demoMousePos_ = { 640.0f, 360.0f };
+    bool isDemoCovering_ = false;
+    bool isDemoShootTriggered_ = false;
+    float demoShootCooldown_ = 0.0f;
+    float demoSwarmBattleTimer_ = 0.0f;
+    void UpdateDemoAI();
+    Vector2 GetActiveMousePos() const;
 
     // タイマーUIのレイアウト・表示更新ヘルパー
     void UpdateTimerUI(float timeValue, const Vector2& basePos, const Vector2& bgSize, const Vector2& digitSize, float spacing, const Vector2& dotSize, bool showDecimals = true);

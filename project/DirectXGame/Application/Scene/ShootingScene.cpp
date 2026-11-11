@@ -19,6 +19,35 @@
 using namespace MathUtils;
 using namespace BlendMode;
 
+bool ShootingScene::sIsDemoMode_ = false;
+
+namespace {
+Vector2 WorldToScreen(const Vector3& worldPos, Camera* camera) {
+  if (!camera) return { 640.0f, 360.0f };
+  const Matrix4x4& matViewProj = camera->GetViewProjectionMatrix();
+  float x = worldPos.x * matViewProj.m[0][0] + worldPos.y * matViewProj.m[1][0] + worldPos.z * matViewProj.m[2][0] + matViewProj.m[3][0];
+  float y = worldPos.x * matViewProj.m[0][1] + worldPos.y * matViewProj.m[1][1] + worldPos.z * matViewProj.m[2][1] + matViewProj.m[3][1];
+  float w = worldPos.x * matViewProj.m[0][3] + worldPos.y * matViewProj.m[1][3] + worldPos.z * matViewProj.m[2][3] + matViewProj.m[3][3];
+  if (std::abs(w) > 0.0001f) {
+    x /= w;
+    y /= w;
+  }
+  float screenX = (x + 1.0f) * 0.5f * static_cast<float>(Win32Window::kClientWidth);
+  float screenY = (1.0f - y) * 0.5f * static_cast<float>(Win32Window::kClientHeight);
+  return { screenX, screenY };
+}
+}
+
+Vector2 ShootingScene::GetActiveMousePos() const {
+  if (sIsDemoMode_) {
+    return demoMousePos_;
+  }
+  POINT mousePos;
+  GetCursorPos(&mousePos);
+  ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
+  return { static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) };
+}
+
 ShootingScene::ShootingScene() = default;
 ShootingScene::~ShootingScene() = default;
 
@@ -667,6 +696,8 @@ void ShootingScene::Initialize() {
   ammo_ = kMaxAmmo;
   machineGunAmmo_ = 0;
   shootCooldownTimer_ = 0.0f;
+  ammoGetEffectTimer_ = 0.0f;
+  ammoDropEffects_.clear();
   isCovering_ = false;
   reloadTimer_ = 0.0f;
 
@@ -742,6 +773,8 @@ void ShootingScene::Initialize() {
   TextureManager::GetInstance()->LoadTexture("ui/weaponSelectCursor.png");
   TextureManager::GetInstance()->LoadTexture("ui/hundgunIcon.png");
   TextureManager::GetInstance()->LoadTexture("ui/machinegunIcon.png");
+  TextureManager::GetInstance()->LoadTexture("ui/machinegunAmmoIcon.png");
+  TextureManager::GetInstance()->LoadTexture("ui/machinegunAmmoGetIcon.png");
 
   weaponBg_ = std::make_unique<Sprite>();
   weaponBg_->Initialize("ui/weaponBG.png");
@@ -771,9 +804,18 @@ void ShootingScene::Initialize() {
   weaponMachineGunIcon_->SetScale(weaponIconSize_);
   weaponMachineGunIcon_->SetColor({0.5f, 0.5f, 0.5f, 0.25f}); // 初期は残弾0のため薄く半透明
 
+  weaponMachineGunAmmoGetIcon_ = std::make_unique<Sprite>();
+  weaponMachineGunAmmoGetIcon_->Initialize("ui/machinegunAmmoGetIcon.png");
+  weaponMachineGunAmmoGetIcon_->SetAnchorPoint({0.5f, 0.5f});
+  weaponMachineGunAmmoGetIcon_->SetTranslate(weaponMachineGunPos_);
+  weaponMachineGunAmmoGetIcon_->SetScale(weaponIconSize_);
+  weaponMachineGunAmmoGetIcon_->SetColor({1.0f, 1.0f, 1.0f, 0.0f});
+
   currentWeapon_ = WeaponType::Handgun;
   machineGunAmmo_ = 0;
   shootCooldownTimer_ = 0.0f;
+  ammoGetEffectTimer_ = 0.0f;
+  ammoDropEffects_.clear();
 
   // 3. プログレスバーUI（ウェーブ目盛り・アイコン・現在地マーカー付き）
   TextureManager::GetInstance()->LoadTexture("ui/waveIconNormal.png");
@@ -918,6 +960,22 @@ void ShootingScene::Initialize() {
   controlSprite_->SetTranslate(controlPos_);
   controlSprite_->SetScale(controlScale_);
 
+  // デモ用 PRESS SPACE テキストスプライトの初期化
+  TextureManager::GetInstance()->LoadTexture("ui/pressSpaceText.png");
+  demoPressSpaceSprite_ = std::make_unique<Sprite>();
+  demoPressSpaceSprite_->Initialize("ui/pressSpaceText.png");
+  demoPressSpaceSprite_->SetAnchorPoint({ 0.5f, 0.5f });
+  demoPressSpaceSprite_->SetTranslate({ 640.0f, 580.0f });
+  demoPressSpaceSprite_->SetScale({ 256.0f, 64.0f });
+  demoPressSpaceSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+
+  demoBlinkTimer_ = 0.0f;
+  demoMousePos_ = { 640.0f, 360.0f };
+  isDemoCovering_ = false;
+  isDemoShootTriggered_ = false;
+  demoShootCooldown_ = 0.0f;
+  demoSwarmBattleTimer_ = 0.0f;
+
   // Ready / Go 演出スプライトの初期化
   TextureManager::GetInstance()->LoadTexture("ui/readyText.png");
   TextureManager::GetInstance()->LoadTexture("ui/goText.png");
@@ -1024,6 +1082,17 @@ void ShootingScene::Update() {
           phaseTimer_ = 0.0f;
           projectiles_.clear();
       }
+  }
+
+  // デモモード中の更新およびSPACEキーによるタイトル戻り
+  if (sIsDemoMode_) {
+    if (Input::GetInstance()->IsKeyTriggered(DIK_SPACE)) {
+      sIsDemoMode_ = false;
+      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      SceneManager::GetInstance()->ChangeScene("TITLE");
+      return;
+    }
+    UpdateDemoAI();
   }
 
   // Rキーでシューティングシーン遷移直後にリセット
@@ -1140,16 +1209,14 @@ void ShootingScene::Update() {
     }
 
     // 照準スプライトをマウス位置に追従させる
-    POINT mousePos;
-    GetCursorPos(&mousePos);
-    ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
-    crosshair_->SetTranslate({static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
+    Vector2 mPos = GetActiveMousePos();
+    crosshair_->SetTranslate(mPos);
     // 照準レイの算出とホバー判定
   bool isAiming = false;
   int currentWeaponAmmo = (currentWeapon_ == WeaponType::Handgun) ? ammo_ : machineGunAmmo_;
   if (!isCovering_ && (currentWeaponAmmo > 0 || isDebugInfiniteAmmo_)) {
-    float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
-    float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+    float rayX = mPos.x / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+    float rayY = 1.0f - mPos.y / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
     Matrix4x4 vp = camera_->GetViewProjectionMatrix();
     Matrix4x4 invVP = Inverse(vp);
     Vector3 nearPos = TransformPoint({rayX, rayY, 0.0f}, invVP);
@@ -1394,16 +1461,14 @@ void ShootingScene::Update() {
           swarmManager_->Update(kDeltaTime, swarmCenter, camera_.get(), nullptr);
 
           // 照準スプライトをマウス位置に追従させる
-          POINT mousePos;
-          GetCursorPos(&mousePos);
-          ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
-          crosshair_->SetTranslate({ static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) });
+          Vector2 mPos = GetActiveMousePos();
+          crosshair_->SetTranslate(mPos);
           // 照準レイの算出とホバー判定
   bool isAiming = false;
   int currentWeaponAmmo = (currentWeapon_ == WeaponType::Handgun) ? ammo_ : machineGunAmmo_;
   if (!isCovering_ && (currentWeaponAmmo > 0 || isDebugInfiniteAmmo_)) {
-    float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
-    float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+    float rayX = mPos.x / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+    float rayY = 1.0f - mPos.y / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
     Matrix4x4 vp = camera_->GetViewProjectionMatrix();
     Matrix4x4 invVP = Inverse(vp);
     Vector3 nearPos = TransformPoint({rayX, rayY, 0.0f}, invVP);
@@ -1669,17 +1734,14 @@ void ShootingScene::Update() {
       }
 
       // 3. マウス照準位置の更新
-      POINT mousePos;
-      GetCursorPos(&mousePos);
-      ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
-      Vector2 mPos = { static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) };
+      Vector2 mPos = GetActiveMousePos();
       crosshair_->SetTranslate(mPos);
       // 照準レイの算出とホバー判定
   bool isAiming = false;
   int currentWeaponAmmo = (currentWeapon_ == WeaponType::Handgun) ? ammo_ : machineGunAmmo_;
   if (!isCovering_ && (currentWeaponAmmo > 0 || isDebugInfiniteAmmo_)) {
-    float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
-    float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+    float rayX = mPos.x / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+    float rayY = 1.0f - mPos.y / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
     Matrix4x4 vp = camera_->GetViewProjectionMatrix();
     Matrix4x4 invVP = Inverse(vp);
     Vector3 nearPos = TransformPoint({rayX, rayY, 0.0f}, invVP);
@@ -1764,7 +1826,8 @@ void ShootingScene::Update() {
               }
 
               // クリックで射撃決定
-              if (Input::GetInstance()->IsMouseButtonTriggered(0)) {
+              bool isClick = sIsDemoMode_ ? isDemoShootTriggered_ : Input::GetInstance()->IsMouseButtonTriggered(0);
+              if (isClick) {
                   if (isHoverRetry) {
                       selectedOption_ = GameOverSelectOption::Retry;
                       gameOverTransitionTimer_ = 0.0f;
@@ -1990,7 +2053,11 @@ void ShootingScene::Update() {
   }
 
   // 隠れるアクションの更新
-  isCovering_ = Input::GetInstance()->IsKeyDown(DIK_SPACE);
+  if (sIsDemoMode_) {
+    isCovering_ = isDemoCovering_;
+  } else {
+    isCovering_ = Input::GetInstance()->IsKeyDown(DIK_SPACE);
+  }
   if (isCovering_) {
     if (ammo_ < kMaxAmmo) {
       reloadTimer_ += kDeltaTime;
@@ -2599,16 +2666,14 @@ void ShootingScene::Update() {
       projectiles_.end());
 
   // スプライト更新（照準をマウス位置に合わせる）
-  POINT mousePos;
-  GetCursorPos(&mousePos);
-  ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &mousePos);
-  crosshair_->SetTranslate({static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)});
+  Vector2 mPos = GetActiveMousePos();
+  crosshair_->SetTranslate(mPos);
   // 照準レイの算出とホバー判定
   bool isAiming = false;
   int currentWeaponAmmo = (currentWeapon_ == WeaponType::Handgun) ? ammo_ : machineGunAmmo_;
   if (!isCovering_ && (currentWeaponAmmo > 0 || isDebugInfiniteAmmo_)) {
-    float rayX = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
-    float rayY = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+    float rayX = mPos.x / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+    float rayY = 1.0f - mPos.y / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
     Matrix4x4 vp = camera_->GetViewProjectionMatrix();
     Matrix4x4 invVP = Inverse(vp);
     Vector3 nearPos = TransformPoint({rayX, rayY, 0.0f}, invVP);
@@ -2675,7 +2740,8 @@ void ShootingScene::Update() {
   bool wantToShoot = false;
   if (!isCovering_ && shootCooldownTimer_ <= 0.0f) {
     if (currentWeapon_ == WeaponType::Handgun) {
-      if (Input::GetInstance()->IsMouseButtonTriggered(0) && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
+      bool triggerShot = sIsDemoMode_ ? isDemoShootTriggered_ : Input::GetInstance()->IsMouseButtonTriggered(0);
+      if (triggerShot && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
         wantToShoot = true;
         shootCooldownTimer_ = kHandgunFireInterval;
         if (!isDebugInfiniteAmmo_) {
@@ -2683,7 +2749,8 @@ void ShootingScene::Update() {
         }
       }
     } else if (currentWeapon_ == WeaponType::MachineGun) {
-      if (Input::GetInstance()->IsMouseButtonDown(0) && (machineGunAmmo_ > 0 || isDebugInfiniteAmmo_)) {
+      bool downShot = sIsDemoMode_ ? isDemoShootTriggered_ : Input::GetInstance()->IsMouseButtonDown(0);
+      if (downShot && (machineGunAmmo_ > 0 || isDebugInfiniteAmmo_)) {
         wantToShoot = true;
         shootCooldownTimer_ = kMachineGunFireInterval;
         if (!isDebugInfiniteAmmo_) {
@@ -2725,8 +2792,8 @@ void ShootingScene::Update() {
     }
     ParticleManager::GetInstance()->Emit("AmmoSparkGroup", spawnPos, 1);
 
-    float x = static_cast<float>(mousePos.x) / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
-    float y = 1.0f - static_cast<float>(mousePos.y) / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
+    float x = mPos.x / static_cast<float>(Win32Window::kClientWidth) * 2.0f - 1.0f;
+    float y = 1.0f - mPos.y / static_cast<float>(Win32Window::kClientHeight) * 2.0f;
     Matrix4x4 vp = camera_->GetViewProjectionMatrix();
     Matrix4x4 invVP = Inverse(vp);
     Vector3 nearPos = TransformPoint({x, y, 0.0f}, invVP);
@@ -2836,6 +2903,21 @@ void ShootingScene::Update() {
         if (hitEnemy->type == EnemyType::Elite) {
           // エリート兵撃破時にマシンガンの弾を20発ゲット（最大60発）
           machineGunAmmo_ = (std::min)(kMaxMachineGunAmmo, machineGunAmmo_ + kEliteDropMachineGunAmmo);
+
+          // エリート兵撃破時：頭上に弾薬アイコンが少し山なりに飛び出る演出
+          MachineGunAmmoDropEffect drop;
+          drop.baseWorldPos = Add(hitEnemy->object->GetTranslate(), {0.0f, 1.8f, 0.0f});
+          drop.timer = 0.0f;
+          drop.sprite = std::make_unique<Sprite>();
+          drop.sprite->Initialize("ui/machinegunAmmoIcon.png");
+          drop.sprite->SetAnchorPoint({0.5f, 0.5f});
+          drop.sprite->SetScale({64.0f, 32.0f});
+          ammoDropEffects_.push_back(std::move(drop));
+
+          // 弾獲得時：マシンガンアイコンに被せて2秒ほど点滅させる（既に演出中の場合は行わない）
+          if (ammoGetEffectTimer_ <= 0.0f) {
+            ammoGetEffectTimer_ = 2.0f;
+          }
         }
         if (hitEnemy->isHitShotReserved) {
           hitEnemy->isHitShotReserved = false;
@@ -3162,6 +3244,23 @@ void ShootingScene::Update() {
       }
       weaponMachineGunIcon_->Update();
     }
+
+    // 弾獲得時（GET）アイコンの点滅演出更新（約2秒間点滅）
+    if (weaponMachineGunAmmoGetIcon_) {
+      if (ammoGetEffectTimer_ > 0.0f) {
+        ammoGetEffectTimer_ -= kDeltaTime;
+        if (ammoGetEffectTimer_ < 0.0f) {
+          ammoGetEffectTimer_ = 0.0f;
+        }
+        weaponMachineGunAmmoGetIcon_->SetTranslate(weaponMachineGunPos_);
+        weaponMachineGunAmmoGetIcon_->SetScale(weaponIconSize_);
+        // 約0.2秒周期（0.1秒点灯, 0.1秒消灯）で点滅
+        float blinkPhase = std::fmod(2.0f - ammoGetEffectTimer_, 0.20f);
+        float alpha = (blinkPhase < 0.10f) ? 1.0f : 0.0f;
+        weaponMachineGunAmmoGetIcon_->SetColor({1.0f, 1.0f, 1.0f, alpha});
+        weaponMachineGunAmmoGetIcon_->Update();
+      }
+    }
   }
 
   // 3. プログレスバー＆ウェーブ目盛り・アイコン・現在地マーカーの更新
@@ -3317,6 +3416,62 @@ void ShootingScene::Update() {
       }
 
       enemy.isHpGaugeVisible = true;
+    }
+
+    // エリート兵撃破時の弾薬ドロップ頭上アイコン演出の更新
+    Vector3 camRight = {
+      std::cos(camRot.y),
+      0.0f,
+      -std::sin(camRot.y)
+    };
+    for (auto it = ammoDropEffects_.begin(); it != ammoDropEffects_.end(); ) {
+      it->timer += kDeltaTime;
+      float t = it->timer;
+
+      // 全体持続時間: 1.4秒
+      // 0.0s ～ 0.55s: 上に山なりに飛び出て停止位置へ
+      // 0.55s ～ 0.85s: 停止位置で静止表示
+      // 0.85s ～ 1.40s: 徐々に消滅 (alpha: 1.0 -> 0.0)
+      if (t >= 1.4f) {
+        it = ammoDropEffects_.erase(it);
+        continue;
+      }
+
+      // 山なりの動き（上方向放物線＋カメラ横方向の弧）
+      float tMove = (std::min)(t, 0.55f);
+      // 初速 3.6m/s, 重力 -8.0m/s^2 (t=0.45sでピーク0.81m, t=0.55sで0.77mに落ち着いて静止)
+      float yOffset = 3.6f * tMove - 4.0f * tMove * tMove;
+      float xOffset = 0.35f * tMove;
+
+      Vector3 currentWorldPos = {
+        it->baseWorldPos.x + camRight.x * xOffset,
+        it->baseWorldPos.y + yOffset,
+        it->baseWorldPos.z + camRight.z * xOffset
+      };
+
+      // アルファ値の計算 (0.85s以降徐々に消滅)
+      float alpha = 1.0f;
+      if (t > 0.85f) {
+        alpha = 1.0f - (t - 0.85f) / (1.4f - 0.85f);
+        if (alpha < 0.0f) alpha = 0.0f;
+      }
+
+      it->isVisible = false;
+      Vector3 toPos = Subtract(currentWorldPos, camPos);
+      if (Dot(toPos, camForward) > 0.1f && it->sprite) {
+        Vector3 ndc = TransformPoint(currentWorldPos, vp);
+        if (ndc.z >= 0.0f && ndc.z <= 1.0f) {
+          float screenX = (ndc.x * 0.5f + 0.5f) * static_cast<float>(Win32Window::kClientWidth);
+          float screenY = (1.0f - (ndc.y * 0.5f + 0.5f)) * static_cast<float>(Win32Window::kClientHeight);
+
+          it->sprite->SetTranslate({screenX, screenY});
+          it->sprite->SetScale({64.0f, 32.0f});
+          it->sprite->SetColor({1.0f, 1.0f, 1.0f, alpha});
+          it->sprite->Update();
+          it->isVisible = true;
+        }
+      }
+      ++it;
     }
 
     // ボス（スウォーム群体）の突撃グループ頭上HPゲージ＆ボス全体HPゲージ更新
@@ -4322,6 +4477,10 @@ void ShootingScene::Draw() {
     if (weaponMachineGunIcon_) {
       weaponMachineGunIcon_->Draw();
     }
+    // 弾獲得演出時：マシンガンアイコンに被せて点滅描画
+    if (ammoGetEffectTimer_ > 0.0f && weaponMachineGunAmmoGetIcon_) {
+      weaponMachineGunAmmoGetIcon_->Draw();
+    }
 
     // プログレスバー＆ウェーブ目盛り・アイコン・現在地マーカー
     if (progressBar_) {
@@ -4352,6 +4511,13 @@ void ShootingScene::Draw() {
         if (enemy.hpDamageSprite) enemy.hpDamageSprite->Draw();
         if (enemy.hpFillSprite) enemy.hpFillSprite->Draw();
         if (enemy.hpFrameSprite) enemy.hpFrameSprite->Draw();
+      }
+    }
+
+    // エリート兵撃破時の弾薬ドロップ頭上アイコン描画
+    for (auto &drop : ammoDropEffects_) {
+      if (drop.isVisible && drop.sprite) {
+        drop.sprite->Draw();
       }
     }
 
@@ -4423,6 +4589,9 @@ void ShootingScene::Draw() {
 
   // 照準
   if (isShowSprite_ && showUI) {
+    if (sIsDemoMode_ && demoPressSpaceSprite_) {
+      demoPressSpaceSprite_->Draw();
+    }
     if (crosshair_)
       crosshair_->Draw();
   }
@@ -4486,6 +4655,10 @@ void ShootingScene::DrawForeground() {
         titleSprite_->Draw();
     }
 
+    if (sIsDemoMode_ && demoPressSpaceSprite_) {
+        demoPressSpaceSprite_->Draw();
+    }
+
     // マウス照準スプライトを最前面に描画
     if (crosshair_) {
         crosshair_->Draw();
@@ -4506,6 +4679,9 @@ void ShootingScene::Finalize() {
   hillObject_.reset();
   skybox_.reset();
   projectiles_.clear();
+  ammoDropEffects_.clear();
+  weaponMachineGunAmmoGetIcon_.reset();
+  ammoGetEffectTimer_ = 0.0f;
   ParticleManager::GetInstance()->ClearAllParticles();
   PostProcessManager::SetMode(PostProcessManager::kModeCopy);
 }
@@ -4669,6 +4845,8 @@ void ShootingScene::JumpToSection(int index) {
   ammo_ = kMaxAmmo;
   machineGunAmmo_ = 0;
   shootCooldownTimer_ = 0.0f;
+  ammoGetEffectTimer_ = 0.0f;
+  ammoDropEffects_.clear();
   isCovering_ = false;
   reloadTimer_ = 0.0f;
 
@@ -5079,5 +5257,137 @@ void ShootingScene::DrawObjectWithIntroTransition(Object3d *obj, float startTime
     obj->DrawWireframe(0.0f, kWireframeColor, 0);
     Object3dCommon::GetInstance()->SetCommonDrawSettings(
         static_cast<BlendState>(currentBlendMode_), false);
+  }
+}
+
+void ShootingScene::UpdateDemoAI() {
+  if (!sIsDemoMode_) return;
+
+  // pressSpaceText の点滅タイマー更新
+  demoBlinkTimer_ += kDeltaTime;
+  if (demoPressSpaceSprite_) {
+    float alpha = 0.35f + 0.65f * (0.5f + 0.5f * std::sin(demoBlinkTimer_ * 5.0f));
+    demoPressSpaceSprite_->SetColor({ 1.0f, 1.0f, 1.0f, alpha });
+    demoPressSpaceSprite_->Update();
+  }
+
+  demoShootCooldown_ -= kDeltaTime;
+  isDemoShootTriggered_ = false;
+
+  // 1. 通常戦闘フェーズ (Playing / RestartSmoothing)
+  if (phase_ == Phase::Playing || phase_ == Phase::RestartSmoothing) {
+    // 生存しているアクティブ敵を探索
+    int targetEnemyIdx = -1;
+    float minDistToCamera = 99999.0f;
+    for (size_t i = 0; i < enemies_.size(); ++i) {
+      if (enemies_[i].isActive && !enemies_[i].isDead && enemies_[i].object) {
+        float dist = std::abs(enemies_[i].distance - cameraProgress_);
+        if (dist < minDistToCamera) {
+          minDistToCamera = dist;
+          targetEnemyIdx = static_cast<int>(i);
+        }
+      }
+    }
+
+    // 武器切り替え：マシンガン弾がある場合はマシンガンを使用し、無ければハンドガンへ戻す
+    if (machineGunAmmo_ > 0) {
+      currentWeapon_ = WeaponType::MachineGun;
+    } else {
+      currentWeapon_ = WeaponType::Handgun;
+    }
+
+    // カバー判断：
+    // - ハンドガンの残弾が少なくなったらリロードのためカバー
+    // - 敵の必中射撃予兆（isNextHitShot）が出ている場合は被弾回避のためカバー
+    // - 残り時間がまだ多く（残り時間 > 22秒）、区間をじっくり進めたい場合は適度にカバーを挟む
+    bool needCover = false;
+    if (currentWeapon_ == WeaponType::Handgun && ammo_ <= 2) {
+      needCover = true;
+    }
+    for (const auto &enemy : enemies_) {
+      if (enemy.isActive && !enemy.isDead && enemy.isNextHitShot) {
+        needCover = true;
+        break;
+      }
+    }
+    if (gameTimer_ > 22.0f && targetEnemyIdx >= 0) {
+      float cycle = std::fmod(gameTimer_, 4.0f);
+      if (cycle < 1.0f && ammo_ < kMaxAmmo) {
+        needCover = true;
+      }
+    }
+
+    isDemoCovering_ = needCover;
+
+    // 照準移動と射撃
+    if (targetEnemyIdx >= 0 && enemies_[targetEnemyIdx].object) {
+      Vector3 enemyWorldPos = enemies_[targetEnemyIdx].object->GetTranslate();
+      enemyWorldPos.y += 0.7f; // 胸〜頭部を狙う
+      Vector2 targetScreenPos = WorldToScreen(enemyWorldPos, camera_.get());
+
+      float aimSpeed = (currentWeapon_ == WeaponType::MachineGun) ? 0.20f : 0.15f;
+      demoMousePos_.x += (targetScreenPos.x - demoMousePos_.x) * aimSpeed;
+      demoMousePos_.y += (targetScreenPos.y - demoMousePos_.y) * aimSpeed;
+
+      // わずかな自然な揺らぎ
+      demoMousePos_.x += std::sin(gameTimer_ * 5.0f) * 1.5f;
+      demoMousePos_.y += std::cos(gameTimer_ * 4.0f) * 1.5f;
+
+      float dist = Length(Vector3{ demoMousePos_.x - targetScreenPos.x, demoMousePos_.y - targetScreenPos.y, 0.0f });
+      if (!isCovering_ && dist < 45.0f) {
+        if (demoShootCooldown_ <= 0.0f) {
+          isDemoShootTriggered_ = true;
+          if (currentWeapon_ == WeaponType::MachineGun) {
+            demoShootCooldown_ = kMachineGunFireInterval;
+          } else {
+            demoShootCooldown_ = 0.35f;
+          }
+        }
+      }
+    } else {
+      // 敵がいない移動中：前方を索敵するように中央付近を見回す
+      isDemoCovering_ = false;
+      demoMousePos_.x += (640.0f + std::sin(gameTimer_ * 1.5f) * 60.0f - demoMousePos_.x) * 0.05f;
+      demoMousePos_.y += (360.0f + std::cos(gameTimer_ * 1.2f) * 30.0f - demoMousePos_.y) * 0.05f;
+    }
+  }
+  // 2. ボス戦フェーズ (SwarmBattle)
+  else if (phase_ == Phase::SwarmBattle) {
+    isDemoCovering_ = false;
+    demoSwarmBattleTimer_ += kDeltaTime;
+
+    // スウォーム群体へ照準を向けて攻撃
+    demoMousePos_.x += (640.0f + std::sin(demoSwarmBattleTimer_ * 3.0f) * 100.0f - demoMousePos_.x) * 0.15f;
+    demoMousePos_.y += (280.0f + std::cos(demoSwarmBattleTimer_ * 2.0f) * 50.0f - demoMousePos_.y) * 0.15f;
+
+    if (demoShootCooldown_ <= 0.0f) {
+      isDemoShootTriggered_ = true;
+      demoShootCooldown_ = (machineGunAmmo_ > 0) ? 0.1f : 0.25f;
+    }
+
+    // ボス戦を約5秒間見せたら、クリアとしてリトライ（ループ再生）
+    if (demoSwarmBattleTimer_ >= 5.0f) {
+      demoSwarmBattleTimer_ = 0.0f;
+      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      SceneManager::GetInstance()->ChangeScene("SHOOTING");
+      return;
+    }
+  }
+  // 3. ゲームオーバーフェーズ (GameOver: 万一のセーフティ)
+  else if (phase_ == Phase::GameOver) {
+    isDemoCovering_ = false;
+    demoMousePos_.x += (retryPos_.x - demoMousePos_.x) * 0.2f;
+    demoMousePos_.y += (retryPos_.y - demoMousePos_.y) * 0.2f;
+
+    float dist = Length(Vector3{ demoMousePos_.x - retryPos_.x, demoMousePos_.y - retryPos_.y, 0.0f });
+    if (dist < 40.0f && demoShootCooldown_ <= 0.0f) {
+      isDemoShootTriggered_ = true;
+      demoShootCooldown_ = 0.5f;
+    }
+  }
+  // 4. その他のフェーズ (Intro 等)
+  else {
+    isDemoCovering_ = false;
+    demoMousePos_ = { 640.0f, 360.0f };
   }
 }
