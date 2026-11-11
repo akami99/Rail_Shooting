@@ -79,16 +79,19 @@ void ShootingScene::Initialize() {
 
   if (levelData_ && !levelData_->players.empty()) {
     const auto &spawn = levelData_->players[0];
-    camera_->SetRotate(spawn.rotation);
-    cameraBasePitch_ = spawn.rotation.x;
-    cameraYaw_ = spawn.rotation.y;
+    baseCombatPitch_ = spawn.rotation.x;
+    baseCombatYaw_ = spawn.rotation.y;
     cameraBaseRoll_ = spawn.rotation.z;
   } else {
-    camera_->SetRotate({0.0f, 0.0f, 0.0f});
-    cameraBasePitch_ = 0.0f;
-    cameraYaw_ = 0.0f;
+    baseCombatPitch_ = 0.0f;
+    baseCombatYaw_ = 0.0f;
     cameraBaseRoll_ = 0.0f;
   }
+
+  // スタート時はスタート演出に合わせて正面を向いたままにする
+  cameraBasePitch_ = baseCombatPitch_;
+  cameraYaw_ = baseCombatYaw_;
+  camera_->SetRotate({cameraBasePitch_, cameraYaw_, cameraBaseRoll_});
 
   Object3dCommon::GetInstance()->SetDefaultCamera(camera_.get());
 
@@ -644,6 +647,14 @@ void ShootingScene::Initialize() {
   currentSectionIndex_ = 0;
   isDebugPaused_ = false;
 
+  // 区間ごとの進行方向追従設定を初期化
+  // 区間1/区間5 : true (進行方向追従)
+  sectionLookDirectionFlags_.assign(sectionProgresses_.size(), false);
+  if (sectionLookDirectionFlags_.size() > 1) {
+    sectionLookDirectionFlags_[1] = true; // 区間1有効
+    sectionLookDirectionFlags_[5] = true; // 区間5有効
+  }
+
   // --- スプライト生成 ---
   crosshair_ = std::make_unique<Sprite>();
   crosshair_->Initialize(crosshairPath_);
@@ -727,27 +738,38 @@ void ShootingScene::Initialize() {
   machineGunAmmoBar_->SetColor({1.0f, 0.65f, 0.15f, 1.0f}); // オレンジ系
 
   // 2.6 武器選択UI（画面中央下部）
-  weaponHandgunIcon_ = std::make_unique<Sprite>();
-  weaponHandgunIcon_->Initialize("white.png");
-  weaponHandgunIcon_->SetAnchorPoint({0.5f, 0.5f});
-  weaponHandgunIcon_->SetTranslate(weaponHandgunPos_);
-  weaponHandgunIcon_->SetScale(weaponIconSize_);
-  weaponHandgunIcon_->SetColor({0.8f, 0.9f, 1.0f, 1.0f});
+  TextureManager::GetInstance()->LoadTexture("ui/weaponBG.png");
+  TextureManager::GetInstance()->LoadTexture("ui/weaponSelectCursor.png");
+  TextureManager::GetInstance()->LoadTexture("ui/hundgunIcon.png");
+  TextureManager::GetInstance()->LoadTexture("ui/machinegunIcon.png");
 
-  weaponMachineGunIcon_ = std::make_unique<Sprite>();
-  weaponMachineGunIcon_->Initialize("white.png");
-  weaponMachineGunIcon_->SetAnchorPoint({0.5f, 0.5f});
-  weaponMachineGunIcon_->SetTranslate(weaponMachineGunPos_);
-  weaponMachineGunIcon_->SetScale(weaponIconSize_);
-  weaponMachineGunIcon_->SetColor({0.3f, 0.3f, 0.3f, 0.6f}); // 初期は残弾0のため暗く
+  weaponBg_ = std::make_unique<Sprite>();
+  weaponBg_->Initialize("ui/weaponBG.png");
+  weaponBg_->SetAnchorPoint({0.5f, 0.5f});
+  weaponBg_->SetTranslate(weaponBgPos_);
+  weaponBg_->SetScale(weaponBgSize_);
+  weaponBg_->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
 
-  TextureManager::GetInstance()->LoadTexture("ui/playerMarker.png");
   weaponSelectCursor_ = std::make_unique<Sprite>();
-  weaponSelectCursor_->Initialize("ui/playerMarker.png");
+  weaponSelectCursor_->Initialize("ui/weaponSelectCursor.png");
   weaponSelectCursor_->SetAnchorPoint({0.5f, 0.5f});
   weaponSelectCursor_->SetTranslate(weaponHandgunPos_);
   weaponSelectCursor_->SetScale(weaponCursorSize_);
-  weaponSelectCursor_->SetColor({1.0f, 0.85f, 0.2f, 0.9f}); // 黄色カーソル
+  weaponSelectCursor_->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
+
+  weaponHandgunIcon_ = std::make_unique<Sprite>();
+  weaponHandgunIcon_->Initialize("ui/hundgunIcon.png");
+  weaponHandgunIcon_->SetAnchorPoint({0.5f, 0.5f});
+  weaponHandgunIcon_->SetTranslate(weaponHandgunPos_);
+  weaponHandgunIcon_->SetScale(weaponIconSize_);
+  weaponHandgunIcon_->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
+
+  weaponMachineGunIcon_ = std::make_unique<Sprite>();
+  weaponMachineGunIcon_->Initialize("ui/machinegunIcon.png");
+  weaponMachineGunIcon_->SetAnchorPoint({0.5f, 0.5f});
+  weaponMachineGunIcon_->SetTranslate(weaponMachineGunPos_);
+  weaponMachineGunIcon_->SetScale(weaponIconSize_);
+  weaponMachineGunIcon_->SetColor({0.5f, 0.5f, 0.5f, 0.25f}); // 初期は残弾0のため薄く半透明
 
   currentWeapon_ = WeaponType::Handgun;
   machineGunAmmo_ = 0;
@@ -770,14 +792,14 @@ void ShootingScene::Initialize() {
   progressBar_->SetScale({0.0f, 16.0f});              // 最初は幅0
   progressBar_->SetColor({0.2f, 0.9f, 1.0f, 1.0f});   // シアン〜イエロー系プログレス
 
-  // 各戦闘区間の目盛り線とウェーブアイコンを生成（index 0のスタート地点0.0fは除く）
+  // 各戦闘区間の目盛り線とウェーブアイコンを生成（index 0のスタート地点0.0fは除く、最後の区間でゲージ右端に到達）
   waveTickSprites_.clear();
   waveIconSprites_.clear();
   for (size_t i = 1; i < sectionProgresses_.size(); ++i) {
     float ratio = sectionProgresses_[i] / maxProgress_;
     if (ratio < 0.0f) ratio = 0.0f;
     if (ratio > 1.0f) ratio = 1.0f;
-    float markerX = 480.0f + 300.0f * ratio;
+    float markerX = progressPos_.x + progressSize_.x * ratio;
 
     auto tick = std::make_unique<Sprite>();
     tick->Initialize("white.png");
@@ -795,21 +817,13 @@ void ShootingScene::Initialize() {
     waveIconSprites_.push_back(std::move(icon));
   }
 
-  // 終点（スウォーム戦）のボスアイコン＆目盛り
+  // ゲージ右隣のボスアイコン（スウォーム戦）
   {
-    auto endTick = std::make_unique<Sprite>();
-    endTick->Initialize("white.png");
-    endTick->SetAnchorPoint({0.5f, 0.5f});
-    endTick->SetTranslate({780.0f, 56.0f});
-    endTick->SetScale({3.0f, 22.0f});
-    endTick->SetColor({1.0f, 0.3f, 0.3f, 0.9f});
-    waveTickSprites_.push_back(std::move(endTick));
-
     bossWaveIconSprite_ = std::make_unique<Sprite>();
     bossWaveIconSprite_->Initialize("ui/waveIconBoss.png");
     bossWaveIconSprite_->SetAnchorPoint({0.5f, 0.5f});
-    bossWaveIconSprite_->SetTranslate({780.0f, 37.0f});
-    bossWaveIconSprite_->SetScale({26.0f, 26.0f});
+    bossWaveIconSprite_->SetTranslate({progressPos_.x + progressSize_.x + bossIconScale_ * 0.5f + bossIconSpacing_, progressPos_.y + progressSize_.y * 0.5f});
+    bossWaveIconSprite_->SetScale({bossIconScale_, bossIconScale_});
   }
 
   // プレイヤー現在地マーカー
@@ -895,6 +909,14 @@ void ShootingScene::Initialize() {
   rTextSprite_->Initialize("ui/rText.png");
   rTextSprite_->SetTranslate(rTextPos_);
   rTextSprite_->SetScale(rTextScale_);
+
+  // 操作説明スプライトの初期化（タイトル画面と同じ右下配置）
+  TextureManager::GetInstance()->LoadTexture("ui/control_gameScene.png");
+  controlSprite_ = std::make_unique<Sprite>();
+  controlSprite_->Initialize("ui/control_gameScene.png");
+  controlSprite_->SetAnchorPoint({0.5f, 0.5f});
+  controlSprite_->SetTranslate(controlPos_);
+  controlSprite_->SetScale(controlScale_);
 
   // Ready / Go 演出スプライトの初期化
   TextureManager::GetInstance()->LoadTexture("ui/readyText.png");
@@ -1335,11 +1357,9 @@ void ShootingScene::Update() {
               phaseTimer_ = 0.0f;
               cameraProgress_ = 0.0f;
               camera_->SetTranslate(GetCameraRailPosition(0.0f));
-              if (levelData_ && !levelData_->players.empty()) {
-                  camera_->SetRotate(levelData_->players[0].rotation);
-              } else {
-                  camera_->SetRotate({ 0.0f, 0.0f, 0.0f });
-              }
+              cameraBasePitch_ = baseCombatPitch_;
+              cameraYaw_ = baseCombatYaw_;
+              camera_->SetRotate({ cameraBasePitch_, cameraYaw_, cameraBaseRoll_ });
               if (swarmManager_) {
                   swarmManager_->ClearDrones();
                   swarmManager_->SetAttackDistance(20.0f);
@@ -2037,6 +2057,84 @@ void ShootingScene::Update() {
     cameraYaw_ += kHalfPI / 100.0f;
   }
 #endif // USE_IMGUI
+
+  // レール移動中および戦闘区画へのアプローチ時のカメラ向き制御（区間別追従設定）
+  if (phase_ == Phase::Playing || phase_ == Phase::RestartSmoothing) {
+    // 現在の移動区間インデックスを判定
+    int currentMovingSection = 0;
+    for (int i = static_cast<int>(sectionProgresses_.size()) - 1; i >= 0; --i) {
+      if (cameraProgress_ >= sectionProgresses_[i]) {
+        currentMovingSection = i;
+        break;
+      }
+    }
+
+    bool enableRailLookDirection = false;
+    if (currentMovingSection >= 0 && currentMovingSection < static_cast<int>(sectionLookDirectionFlags_.size())) {
+      enableRailLookDirection = sectionLookDirectionFlags_[currentMovingSection];
+    }
+
+    float targetYaw = baseCombatYaw_;
+    float targetPitch = baseCombatPitch_;
+
+    if (enableRailLookDirection) {
+      // 進行方向ベクトル（現在のレール位置から少し先へのベクトル）
+      float lookAhead = lookAheadDist_;
+      Vector3 pNow = CalculateRailPosition(cameraProgress_);
+      Vector3 pAhead = CalculateRailPosition(std::min(cameraProgress_ + lookAhead, maxProgress_));
+      Vector3 moveDir = Subtract(pAhead, pNow);
+      float moveLenSq = moveDir.x * moveDir.x + moveDir.z * moveDir.z;
+
+      float forwardYaw = baseCombatYaw_;
+      float forwardPitch = baseCombatPitch_;
+      if (moveLenSq > 0.0001f) {
+        forwardYaw = std::atan2(moveDir.x, moveDir.z);
+        float horizDist = std::sqrt(moveLenSq);
+        forwardPitch = std::clamp(std::atan2(-moveDir.y, horizDist) * 0.6f, -0.35f, 0.35f);
+      }
+
+      // 次の戦闘区画（停止地点）までの残り距離を計算
+      float nextBattleDist = maxProgress_;
+      for (const auto &enemy : enemies_) {
+        if (!enemy.isDead && enemy.distance > cameraProgress_) {
+          if (enemy.distance < nextBattleDist) {
+            nextBattleDist = enemy.distance;
+          }
+        }
+      }
+
+      // 戦闘区画に停止中か、到達間近かに応じたブレンド率 (0.0: 進行方向, 1.0: 正面)
+      float blendFactor = 0.0f;
+      if (isMovementPaused_) {
+        blendFactor = 1.0f; // 戦闘停止中は完全に正面
+      } else {
+        float distToBattle = nextBattleDist - cameraProgress_;
+        if (distToBattle <= battleTransitionDistance_) {
+          float t = 1.0f - (distToBattle / battleTransitionDistance_);
+          t = std::clamp(t, 0.0f, 1.0f);
+          blendFactor = t * t * (3.0f - 2.0f * t); // Smoothstep
+        } else {
+          blendFactor = 0.0f;
+        }
+      }
+
+      // 目標角度の算出（進行方向から正面へ最短ブレンド）
+      float diffYaw = forwardYaw - baseCombatYaw_;
+      while (diffYaw < -std::numbers::pi_v<float>) diffYaw += 2.0f * std::numbers::pi_v<float>;
+      while (diffYaw > std::numbers::pi_v<float>) diffYaw -= 2.0f * std::numbers::pi_v<float>;
+      targetYaw = baseCombatYaw_ + diffYaw * (1.0f - blendFactor);
+      targetPitch = baseCombatPitch_ + (forwardPitch - baseCombatPitch_) * (1.0f - blendFactor);
+    }
+
+    // 現在のカメラ角度を目標角度へスムーズに追従（最短経路）
+    float deltaYaw = targetYaw - cameraYaw_;
+    while (deltaYaw < -std::numbers::pi_v<float>) deltaYaw += 2.0f * std::numbers::pi_v<float>;
+    while (deltaYaw > std::numbers::pi_v<float>) deltaYaw -= 2.0f * std::numbers::pi_v<float>;
+    cameraYaw_ += deltaYaw * cameraRotateSpeed_;
+
+    float deltaPitch = targetPitch - cameraBasePitch_;
+    cameraBasePitch_ += deltaPitch * cameraRotateSpeed_;
+  }
 
   // ボス戦（SwarmBattle）中はドローンがいる3区間（左・正面・右）に合わせてカメラ角度を切り替え
   if (phase_ == Phase::SwarmBattle && swarmManager_ && swarmManager_->IsBossMode()) {
@@ -3025,34 +3123,44 @@ void ShootingScene::Update() {
 
   // 2.5 武器選択UIの更新（画面中央下部）
   {
-    // ハンドガンアイコン：残弾なし（ammo_ == 0）なら暗く
-    if (weaponHandgunIcon_) {
-      weaponHandgunIcon_->SetTranslate(weaponHandgunPos_);
-      if (ammo_ > 0) {
-        weaponHandgunIcon_->SetColor({0.8f, 0.9f, 1.0f, 1.0f});
-      } else {
-        weaponHandgunIcon_->SetColor({0.25f, 0.25f, 0.3f, 0.5f}); // 暗い
-      }
-      weaponHandgunIcon_->Update();
-    }
-
-    // マシンガンアイコン：残弾なし（machineGunAmmo_ == 0）なら暗く
-    if (weaponMachineGunIcon_) {
-      weaponMachineGunIcon_->SetTranslate(weaponMachineGunPos_);
-      if (machineGunAmmo_ > 0) {
-        weaponMachineGunIcon_->SetColor({1.0f, 0.75f, 0.3f, 1.0f});
-      } else {
-        weaponMachineGunIcon_->SetColor({0.3f, 0.25f, 0.2f, 0.5f}); // 暗い
-      }
-      weaponMachineGunIcon_->Update();
+    // 背景
+    if (weaponBg_) {
+      weaponBg_->SetTranslate(weaponBgPos_);
+      weaponBg_->SetScale(weaponBgSize_);
+      weaponBg_->Update();
     }
 
     // 選択カーソル：現在選択中の武器アイコン位置に配置
     if (weaponSelectCursor_) {
       Vector2 targetCursorPos = (currentWeapon_ == WeaponType::Handgun) ? weaponHandgunPos_ : weaponMachineGunPos_;
       weaponSelectCursor_->SetTranslate(targetCursorPos);
-      weaponSelectCursor_->SetColor({1.0f, 0.85f, 0.2f, 0.9f});
+      weaponSelectCursor_->SetScale(weaponCursorSize_);
+      weaponSelectCursor_->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
       weaponSelectCursor_->Update();
+    }
+
+    // ハンドガンアイコン：残弾なし（ammo_ == 0）なら薄く半透明
+    if (weaponHandgunIcon_) {
+      weaponHandgunIcon_->SetTranslate(weaponHandgunPos_);
+      weaponHandgunIcon_->SetScale(weaponIconSize_);
+      if (ammo_ > 0) {
+        weaponHandgunIcon_->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
+      } else {
+        weaponHandgunIcon_->SetColor({0.5f, 0.5f, 0.5f, 0.25f}); // 弾なし：薄く半透明
+      }
+      weaponHandgunIcon_->Update();
+    }
+
+    // マシンガンアイコン：残弾なし（machineGunAmmo_ == 0）なら薄く半透明
+    if (weaponMachineGunIcon_) {
+      weaponMachineGunIcon_->SetTranslate(weaponMachineGunPos_);
+      weaponMachineGunIcon_->SetScale(weaponIconSize_);
+      if (machineGunAmmo_ > 0) {
+        weaponMachineGunIcon_->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
+      } else {
+        weaponMachineGunIcon_->SetColor({0.5f, 0.5f, 0.5f, 0.25f}); // 弾なし：薄く半透明
+      }
+      weaponMachineGunIcon_->Update();
     }
   }
 
@@ -3309,6 +3417,9 @@ void ShootingScene::Update() {
     }
     if (rTextSprite_) {
       rTextSprite_->Update();
+    }
+    if (controlSprite_) {
+      controlSprite_->Update();
     }
   }
 
@@ -3581,16 +3692,17 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
       camera_->SetTranslate(startCamPos);
       if (levelData_ && !levelData_->players.empty()) {
         const auto &spawn = levelData_->players[0];
-        camera_->SetRotate(spawn.rotation);
-        cameraBasePitch_ = spawn.rotation.x;
-        cameraYaw_ = spawn.rotation.y;
+        baseCombatPitch_ = spawn.rotation.x;
+        baseCombatYaw_ = spawn.rotation.y;
         cameraBaseRoll_ = spawn.rotation.z;
       } else {
-        camera_->SetRotate({0.0f, 0.0f, 0.0f});
-        cameraBasePitch_ = 0.0f;
-        cameraYaw_ = 0.0f;
+        baseCombatPitch_ = 0.0f;
+        baseCombatYaw_ = 0.0f;
         cameraBaseRoll_ = 0.0f;
       }
+      cameraBasePitch_ = baseCombatPitch_;
+      cameraYaw_ = baseCombatYaw_;
+      camera_->SetRotate({cameraBasePitch_, cameraYaw_, cameraBaseRoll_});
 
       // 残留パーティクルを完全にクリア
       if (swarmManager_) {
@@ -3638,6 +3750,25 @@ void ShootingScene::UpdateImGui_GameCamera() {
     }
     ImGui::DragFloat("Cover Easing Speed", &coverEasingSpeed_, 0.01f, 0.02f, 0.5f, "%.2f");
     ImGui::Text("Cover Offset: %.2f (Invincible: %s)", coverYOffset_, IsInvincible() ? "YES" : "NO");
+    ImGui::Separator();
+    ImGui::Text("Rail Following & Combat Orientation");
+    ImGui::DragFloat("Base Combat Yaw", &baseCombatYaw_, 0.02f, -3.14f, 3.14f, "%.2f rad");
+    ImGui::DragFloat("Base Combat Pitch", &baseCombatPitch_, 0.02f, -1.5f, 1.5f, "%.2f rad");
+    ImGui::DragFloat("Look Ahead Dist", &lookAheadDist_, 0.1f, 0.2f, 5.0f, "%.1f m");
+    ImGui::DragFloat("Transition Dist", &battleTransitionDistance_, 0.2f, 1.0f, 15.0f, "%.1f m");
+    ImGui::DragFloat("Camera Rotate Speed", &cameraRotateSpeed_, 0.01f, 0.01f, 0.3f, "%.2f");
+    if (ImGui::TreeNode("Section Follow Direction Flags")) {
+      for (size_t i = 0; i < sectionLookDirectionFlags_.size(); ++i) {
+        bool flag = sectionLookDirectionFlags_[i];
+        std::string label = "Sec " + std::to_string(i) + " (" +
+                            std::to_string(static_cast<int>(sectionProgresses_[i])) + "m - " +
+                            ((i + 1 < sectionProgresses_.size()) ? std::to_string(static_cast<int>(sectionProgresses_[i + 1])) + "m" : "End") + ")";
+        if (ImGui::Checkbox(label.c_str(), &flag)) {
+          sectionLookDirectionFlags_[i] = flag;
+        }
+      }
+      ImGui::TreePop();
+    }
     ImGui::Separator();
     ImGui::Text("Camera Shake");
     ImGui::SliderFloat("Shake Intensity", &cameraShakeIntensity_, 0.0f, 1.0f, "%.2f");
@@ -3966,10 +4097,22 @@ void ShootingScene::UpdateImGui_GameStatus() {
     ImGui::TreePop();
   }
 
+  if (ImGui::TreeNode("Weapon UI Layout")) {
+    ImGui::DragFloat2("Bg Pos##Weapon", &weaponBgPos_.x, 1.0f);
+    ImGui::DragFloat2("Bg Size##Weapon", &weaponBgSize_.x, 1.0f);
+    ImGui::DragFloat2("Cursor Size##Weapon", &weaponCursorSize_.x, 1.0f);
+    ImGui::DragFloat2("Handgun Pos##Weapon", &weaponHandgunPos_.x, 1.0f);
+    ImGui::DragFloat2("MachineGun Pos##Weapon", &weaponMachineGunPos_.x, 1.0f);
+    ImGui::DragFloat2("Icon Size##Weapon", &weaponIconSize_.x, 1.0f);
+    ImGui::TreePop();
+  }
+
   if (ImGui::TreeNode("Progress Bar Layout")) {
     ImGui::Text("Normal (Playing):");
     ImGui::DragFloat2("Pos##ProgNorm", &progressPos_.x, 1.0f);
     ImGui::DragFloat2("Size##ProgNorm", &progressSize_.x, 1.0f);
+    ImGui::DragFloat("Boss Size##ProgNorm", &bossIconScale_, 1.0f, 12.0f, 48.0f, "%.1f px");
+    ImGui::DragFloat("Boss Spacing##ProgNorm", &bossIconSpacing_, 1.0f, -20.0f, 50.0f, "%.1f px");
     ImGui::Separator();
     ImGui::Text("GameOver:");
     ImGui::DragFloat2("Pos##ProgGO", &gameOverProgressPos_.x, 1.0f);
@@ -4030,6 +4173,21 @@ void ShootingScene::UpdateImGui_GameStatus() {
     if (changed && rTextSprite_) {
       rTextSprite_->SetTranslate(rTextPos_);
       rTextSprite_->SetScale(rTextScale_);
+    }
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNode("Control UI")) {
+    bool changed = false;
+    if (ImGui::DragFloat2("Position", &controlPos_.x, 1.0f)) {
+      changed = true;
+    }
+    if (ImGui::DragFloat2("Scale", &controlScale_.x, 1.0f)) {
+      changed = true;
+    }
+    if (changed && controlSprite_) {
+      controlSprite_->SetTranslate(controlPos_);
+      controlSprite_->SetScale(controlScale_);
     }
     ImGui::TreePop();
   }
@@ -4151,15 +4309,18 @@ void ShootingScene::Draw() {
 
     } // end if (showUI for life & ammo)
 
-    // 武器選択UI（画面中央下部）
+    // 武器選択UI（画面中央下部：背景 -> カーソル -> 武器アイコンの順で描画）
+    if (weaponBg_) {
+      weaponBg_->Draw();
+    }
+    if (weaponSelectCursor_) {
+      weaponSelectCursor_->Draw();
+    }
     if (weaponHandgunIcon_) {
       weaponHandgunIcon_->Draw();
     }
     if (weaponMachineGunIcon_) {
       weaponMachineGunIcon_->Draw();
-    }
-    if (weaponSelectCursor_) {
-      weaponSelectCursor_->Draw();
     }
 
     // プログレスバー＆ウェーブ目盛り・アイコン・現在地マーカー
@@ -4227,6 +4388,11 @@ void ShootingScene::Draw() {
     // Rキースプライト
     if (rTextSprite_) {
       rTextSprite_->Draw();
+    }
+
+    // 操作説明スプライト
+    if (controlSprite_) {
+      controlSprite_->Draw();
     }
 
     } // end if (showUI for scores & enemies)
@@ -4531,14 +4697,9 @@ void ShootingScene::JumpToSection(int index) {
   // カメラを初期位置に戻す
   Vector3 startCamPos = GetCameraRailPosition(cameraProgress_);
   camera_->SetTranslate(startCamPos);
-  if (levelData_ && !levelData_->players.empty()) {
-    const auto &spawn = levelData_->players[0];
-    camera_->SetRotate(spawn.rotation);
-    cameraYaw_ = spawn.rotation.y;
-  } else {
-    camera_->SetRotate({0.0f, 0.0f, 0.0f});
-    cameraYaw_ = 0.0f;
-  }
+  cameraBasePitch_ = baseCombatPitch_;
+  cameraYaw_ = baseCombatYaw_;
+  camera_->SetRotate({cameraBasePitch_, cameraYaw_, cameraBaseRoll_});
 
   // カメラの一時停止フラグ（スタート地点以外は敵出現ポイントなので停止状態から始める）
   isMovementPaused_ = (targetProgress > 0.0f);
@@ -4714,12 +4875,12 @@ void ShootingScene::UpdateProgressBarUI(const Vector2& basePos, const Vector2& b
   progressBg_->SetScale(baseSize);
   progressBg_->Update();
 
-  // 進行度バー
+  // 進行度バー（最後の区間 maxProgress_ でゲージ最大幅 baseSize.x に到達）
   progressBar_->SetTranslate(basePos);
   progressBar_->SetScale({ baseSize.x * progressRatio, baseSize.y });
   progressBar_->Update();
 
-  // 各ウェーブ区間の目盛り線・アイコン（basePos, baseSize からの相対配置）
+  // 各通常ウェーブ区間の目盛り線・アイコン（basePos, baseSize からの相対配置）
   for (size_t i = 0; i < waveIconSprites_.size(); ++i) {
     if (i + 1 >= sectionProgresses_.size()) break;
     float waveDist = sectionProgresses_[i + 1];
@@ -4748,7 +4909,7 @@ void ShootingScene::UpdateProgressBarUI(const Vector2& basePos, const Vector2& b
         }
       }
 
-      if (sectionCleared && cameraProgress_ >= waveDist) {
+      if (sectionCleared && (cameraProgress_ >= waveDist || phase_ == Phase::SwarmBattle)) {
         // 突破済み：半透明グレー
         icon->SetColor({ 0.45f, 0.5f, 0.55f, 0.65f });
         icon->SetScale({ 18.0f, 18.0f });
@@ -4766,32 +4927,26 @@ void ShootingScene::UpdateProgressBarUI(const Vector2& basePos, const Vector2& b
     }
   }
 
-  // 終点（ボス）の目盛り＆アイコン
-  if (!waveTickSprites_.empty()) {
-    size_t lastTickIdx = waveTickSprites_.size() - 1;
-    if (waveTickSprites_[lastTickIdx]) {
-      waveTickSprites_[lastTickIdx]->SetTranslate({ basePos.x + baseSize.x, basePos.y + baseSize.y * 0.5f });
-      waveTickSprites_[lastTickIdx]->SetScale({ 3.0f, baseSize.y + 6.0f });
-      waveTickSprites_[lastTickIdx]->Update();
-    }
-  }
+  // ゲージ右隣のボスアイコン（スウォーム戦）
+  float bossIconX = basePos.x + baseSize.x + bossIconScale_ * 0.5f + bossIconSpacing_;
+  float bossIconY = basePos.y + baseSize.y * 0.5f;
   if (bossWaveIconSprite_) {
-    bossWaveIconSprite_->SetTranslate({ basePos.x + baseSize.x, basePos.y - 11.0f });
+    bossWaveIconSprite_->SetTranslate({ bossIconX, bossIconY });
     if (phase_ == Phase::SwarmBattle) {
       float pulse = 1.0f + 0.15f * std::sin(lifeBlinkTimer_ * 12.0f);
       bossWaveIconSprite_->SetColor({ 1.0f, 0.2f, 0.2f, 1.0f });
-      bossWaveIconSprite_->SetScale({ 28.0f * pulse, 28.0f * pulse });
+      bossWaveIconSprite_->SetScale({ bossIconScale_ * 1.15f * pulse, bossIconScale_ * 1.15f * pulse });
     } else {
       bossWaveIconSprite_->SetColor({ 1.0f, 0.85f, 0.85f, 1.0f });
-      bossWaveIconSprite_->SetScale({ 26.0f, 26.0f });
+      bossWaveIconSprite_->SetScale({ bossIconScale_, bossIconScale_ });
     }
     bossWaveIconSprite_->Update();
   }
 
-  // プレイヤー現在地マーカー
+  // プレイヤー現在地マーカー（ボス戦時もゲージ右端＝最終区画位置で停止）
   if (playerMarkerSprite_) {
     float currentMarkerX = basePos.x + baseSize.x * progressRatio;
-    playerMarkerSprite_->SetTranslate({ currentMarkerX, basePos.y + baseSize.y * 0.5f });
+    playerMarkerSprite_->SetTranslate({ currentMarkerX, bossIconY });
     playerMarkerSprite_->Update();
   }
 }

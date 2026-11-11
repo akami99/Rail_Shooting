@@ -193,6 +193,14 @@ private:
     float cameraBaseRoll_ = 0.0f;  // カメラの基準Z軸回転
     float cameraFovY_ = 45.0f;     // カメラのFOV
 
+    // レール進行方向と戦闘正面のカメラ向き制御
+    float baseCombatPitch_ = 0.0f;           // 戦闘時の基準Pitch
+    float baseCombatYaw_ = 0.0f;             // 戦闘時の基準Yaw
+    float lookAheadDist_ = 1.0f;             // 進行方向算出の先読み距離 (m)
+    float battleTransitionDistance_ = 6.0f;  // 戦闘区画手前で正面を向き始める距離 (m)
+    float cameraRotateSpeed_ = 0.08f;        // 進行方向・正面への追従旋回速度
+    std::vector<bool> sectionLookDirectionFlags_; // 区間ごとの進行方向追従フラグ (true: 進行方向, false: 正面固定)
+
     // パーティクル設定など
     int currentBlendMode_ = 1; // NormalBlend
     bool isShowMaterial_ = true;
@@ -349,13 +357,16 @@ private:
     std::unique_ptr<Sprite> machineGunAmmoBar_; // マシンガン残弾ゲージ
 
     // 武器選択UI（画面中央下部）
+    std::unique_ptr<Sprite> weaponBg_;
+    std::unique_ptr<Sprite> weaponSelectCursor_;
     std::unique_ptr<Sprite> weaponHandgunIcon_;
     std::unique_ptr<Sprite> weaponMachineGunIcon_;
-    std::unique_ptr<Sprite> weaponSelectCursor_;
-    Vector2 weaponHandgunPos_ = { 590.0f, 665.0f };
-    Vector2 weaponMachineGunPos_ = { 690.0f, 665.0f };
-    Vector2 weaponIconSize_ = { 60.0f, 36.0f };
-    Vector2 weaponCursorSize_ = { 72.0f, 48.0f };
+    Vector2 weaponBgPos_ = { 640.0f, 665.0f };
+    Vector2 weaponBgSize_ = { 220.0f, 90.0f };
+    Vector2 weaponHandgunPos_ = { 585.0f, 665.0f };
+    Vector2 weaponMachineGunPos_ = { 695.0f, 665.0f };
+    Vector2 weaponIconSize_ = { 80.0f, 40.0f };
+    Vector2 weaponCursorSize_ = { 76.0f, 76.0f };
 
     // プログレスバーUI
     std::unique_ptr<Sprite> progressBg_;
@@ -368,6 +379,8 @@ private:
     // プログレスバー配置設定（通常時 / ゲームオーバー時）
     Vector2 progressPos_ = { 480.0f, 48.0f };
     Vector2 progressSize_ = { 300.0f, 16.0f };
+    float bossIconScale_ = 24.0f;   // ボスアイコンの基本サイズ (px)
+    float bossIconSpacing_ = 6.0f;  // ゲージ右端からボスアイコン左端までの隙間 (px)
     Vector2 gameOverProgressPos_ = { 440.0f, 620.0f };
     Vector2 gameOverProgressSize_ = { 400.0f, 18.0f };
 
@@ -402,6 +415,11 @@ private:
     std::unique_ptr<Sprite> rTextSprite_;
     Vector2 rTextPos_ = { 30.0f, 130.0f };
     Vector2 rTextScale_ = { 160.0f, 40.0f };
+
+    // 操作説明スプライト（タイトル画面と同じ右下配置）
+    std::unique_ptr<Sprite> controlSprite_;
+    Vector2 controlPos_ = { 1120.0f, 620.0f };
+    Vector2 controlScale_ = { 256.0f, 128.0f };
 
     // Ready / Go 帯リール演出用スプライトとパラメータ
     std::unique_ptr<Sprite> readyGoRibbon_;

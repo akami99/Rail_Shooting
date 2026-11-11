@@ -40,6 +40,10 @@ VSOutput main(VSInput input, uint instanceID : SV_InstanceID)
     float3 right = normalize(cross(upRef, fwd));
     float3 up = cross(fwd, right);
 
+    // モデルが反対向きのため、正面を180度回転（Y軸周りに反転）
+    right = -right;
+    fwd = -fwd;
+
     // モデル頂点をスケール＆回転させてワールド座標へ
     float3 localPos = input.position.xyz * scale;
     float3 worldPos = drone.position + (right * localPos.x + up * localPos.y + fwd * localPos.z);
