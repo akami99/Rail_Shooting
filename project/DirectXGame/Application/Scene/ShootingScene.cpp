@@ -475,11 +475,12 @@ void ShootingScene::Initialize() {
   // 初期化直後の余分なパーティクル描画を防ぐため全パーティクルをクリア
   ParticleManager::GetInstance()->ClearAllParticles();
 
-  // スカイボックスの初期化
+  // スカイボックスの初期化（タイリング用シェーダーで初期化）
   skybox_ = std::make_unique<Skybox>();
-  skybox_->Initialize("skybox.dds");
+  skybox_->InitializeTile(skyboxTilePath_, skyboxUvScale_);
   skybox_->SetCamera(camera_.get());
 
+  TextureManager::GetInstance()->LoadTexture("skybox.dds");
   Object3dCommon::GetInstance()->SetEnvironmentMap(
       TextureManager::GetInstance()->GetSrvIndex("skybox.dds"));
 
@@ -4181,10 +4182,45 @@ void ShootingScene::UpdateImGui_Object3d() {
 void ShootingScene::UpdateImGui_Skybox() {
   ImGui::Separator();
   if (ImGui::TreeNode("Skybox")) {
+    ImGui::Checkbox("Show Skybox", &isShowSkybox_);
     if (skybox_) {
       ImGui::DragFloat3("scale", &skybox_->GetScale().x, 0.1f);
       ImGui::DragFloat3("rotate", &skybox_->GetRotate().x, 0.01f);
       ImGui::DragFloat3("translate", &skybox_->GetTranslate().x, 0.1f);
+
+      // シェーダーモード切り替え (CubeMap / Tile)
+      const char* modes[] = { "CubeMap (skybox.dds)", "Tile (2D Tiling)" };
+      int currentMode = (skybox_->GetMode() == Skybox::SkyboxMode::Tile) ? 1 : 0;
+      if (ImGui::Combo("Shader Mode", &currentMode, modes, IM_ARRAYSIZE(modes))) {
+        if (currentMode == 0) {
+          skybox_->SetCubeMap("skybox.dds");
+        } else {
+          skybox_->SetTileTexture(skyboxTilePath_);
+        }
+      }
+
+      // タイル描画モード時のパラメータ調整
+      if (skybox_->GetMode() == Skybox::SkyboxMode::Tile) {
+        // タイル画像のタイリング調整 (UV Scale)
+        if (ImGui::DragFloat2("UV Scale", &skyboxUvScale_.x, 0.1f, 0.1f, 500.0f)) {
+          skybox_->SetUvScale(skyboxUvScale_);
+        }
+
+        // タイルテクスチャの選択
+        const char* tileTextures[] = {
+          "tile.png",
+          "checkerBoard.png",
+          "uvChecker.png",
+          "floor.png",
+          "grass.png",
+          "white.png"
+        };
+        static int currentTextureIdx = 0;
+        if (ImGui::Combo("Tile Texture", &currentTextureIdx, tileTextures, IM_ARRAYSIZE(tileTextures))) {
+          skyboxTilePath_ = tileTextures[currentTextureIdx];
+          skybox_->SetTileTexture(skyboxTilePath_);
+        }
+      }
     }
     ImGui::TreePop();
   }

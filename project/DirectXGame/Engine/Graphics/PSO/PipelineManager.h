@@ -40,8 +40,10 @@ private: // メンバ変数
     ComPtr<ID3D12RootSignature> rootSignatureParticle_; // ルートシグネチャ
 
     // --- Skybox描画用アセット ---
-    ComPtr<IDxcBlob> vsBlobSkybox_;                   // Vertex Shader
-    ComPtr<IDxcBlob> psBlobSkybox_;                   // Pixel Shader
+    ComPtr<IDxcBlob> vsBlobSkybox_;                   // Vertex Shader (CubeMap)
+    ComPtr<IDxcBlob> psBlobSkybox_;                   // Pixel Shader (CubeMap)
+    ComPtr<IDxcBlob> vsBlobSkyboxTile_;               // Vertex Shader (Tile 2D)
+    ComPtr<IDxcBlob> psBlobSkyboxTile_;               // Pixel Shader (Tile 2D)
     ComPtr<ID3D12RootSignature> rootSignatureSkybox_; // ルートシグネチャ
 
     // --- ポストエフェクト用アセット (CopyImage passthrough) ---
@@ -100,6 +102,8 @@ public: // メンバ関数
 
     // Skybox用のグラフィックスパイプラインを生成して返す関数
     ComPtr<ID3D12PipelineState> CreateSkyboxPSO();
+    // Skyboxタイリング用のグラフィックスパイプラインを生成して返す関数
+    ComPtr<ID3D12PipelineState> CreateSkyboxTilePSO();
 
     // 3D用のグラフィックスパイプラインを生成して返す関数
     ComPtr<ID3D12PipelineState> CreateObject3dPSO(

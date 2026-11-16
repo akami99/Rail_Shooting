@@ -29,13 +29,45 @@ void Skybox::Initialize(const std::string& cubeMapPath) {
 	CreateIndexResource();
 	CreateTransformResource();
 
-	// CubeMapの読み込み(テクスチャマネージャに任せる)
-	TextureManager::GetInstance()->LoadTexture(cubeMapPath);
-	// CubeMapのSRVインデックスを取得して保存
-	textureSrvIndex_ = TextureManager::GetInstance()->GetSrvIndex(cubeMapPath);
+	psoCubeMap_ = PipelineManager::GetInstance()->CreateSkyboxPSO();
+	psoTile_ = PipelineManager::GetInstance()->CreateSkyboxTilePSO();
 
-	// PSOとRSの作成はPipelineManagerに任せる
-	pso_ = PipelineManager::GetInstance()->CreateSkyboxPSO();
+	SetCubeMap(cubeMapPath);
+}
+
+void Skybox::InitializeTile(const std::string& texturePath, const Vector2& uvScale) {
+	CreateVertexResource();
+	CreateIndexResource();
+	CreateTransformResource();
+
+	psoCubeMap_ = PipelineManager::GetInstance()->CreateSkyboxPSO();
+	psoTile_ = PipelineManager::GetInstance()->CreateSkyboxTilePSO();
+
+	uvScale_ = uvScale;
+	SetTileTexture(texturePath);
+}
+
+void Skybox::SetTexture(const std::string& texturePath) {
+	// .dds拡張子の場合はCubeMapとして扱い、それ以外は2Dタイル画像として扱う
+	if (texturePath.size() >= 4 && texturePath.substr(texturePath.size() - 4) == ".dds") {
+		SetCubeMap(texturePath);
+	} else {
+		SetTileTexture(texturePath);
+	}
+}
+
+void Skybox::SetCubeMap(const std::string& cubeMapPath) {
+	mode_ = SkyboxMode::CubeMap;
+	texturePath_ = cubeMapPath;
+	TextureManager::GetInstance()->LoadTexture(texturePath_);
+	textureSrvIndex_ = TextureManager::GetInstance()->GetSrvIndex(texturePath_);
+}
+
+void Skybox::SetTileTexture(const std::string& texturePath) {
+	mode_ = SkyboxMode::Tile;
+	texturePath_ = texturePath;
+	TextureManager::GetInstance()->LoadTexture(texturePath_);
+	textureSrvIndex_ = TextureManager::GetInstance()->GetSrvIndex(texturePath_);
 }
 
 void Skybox::Update() {
@@ -60,6 +92,7 @@ void Skybox::Update(uint32_t viewIndex, Camera* camera) {
     
 	transformData_[viewIndex]->WVP = wvp;
 	transformData_[viewIndex]->World = worldMatrix;
+	transformData_[viewIndex]->uvScale = uvScale_;
 }
 
 void Skybox::Draw(uint32_t viewIndex) {
@@ -67,7 +100,8 @@ void Skybox::Draw(uint32_t viewIndex) {
 	auto* cmd = DX12Context::GetInstance()->GetCommandList();
 
 	// PSO / ルートシグネチャのセット
-	cmd->SetPipelineState(pso_.Get());
+	ID3D12PipelineState* pso = (mode_ == SkyboxMode::Tile) ? psoTile_.Get() : psoCubeMap_.Get();
+	cmd->SetPipelineState(pso);
 	cmd->SetGraphicsRootSignature(PipelineManager::GetInstance()->GetSkyboxRootSignature());
 	cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     
@@ -180,12 +214,13 @@ void Skybox::CreateTransformResource() {
 	// 変換行列リソースの作成
     for (uint32_t i = 0; i < kMaxViews; ++i) {
         transformResources_[i] =
-            DX12Context::GetInstance()->CreateBufferResource(sizeof(TransformationMatrix));
+            DX12Context::GetInstance()->CreateBufferResource(sizeof(SkyboxTransformData));
 		// 書き込むためのアドレスを取得
 		transformResources_[i]->Map(
             0, nullptr, reinterpret_cast<void**>(&transformData_[i]));
-	    // TransformationMatrixDataの設定
+	    // SkyboxTransformDataの設定
         transformData_[i]->WVP = MakeIdentity4x4();
         transformData_[i]->World = MakeIdentity4x4();
+        transformData_[i]->uvScale = uvScale_;
     }
 }

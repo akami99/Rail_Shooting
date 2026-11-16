@@ -78,6 +78,8 @@ private:
 
     // スカイボックス
     std::unique_ptr<Skybox> skybox_;
+    std::string skyboxTilePath_ = "tile.png";
+    Vector2 skyboxUvScale_ = { 20.0f, 20.0f };
 
     // 地形オブジェクト (フロア、エスカレーター、高台/坂道)
     std::unique_ptr<Object3d> floorObject_;

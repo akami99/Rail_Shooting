@@ -116,11 +116,11 @@ void GamePlayScene::Initialize() {
 
 	// Skyboxの設定
 	skybox_ = std::make_unique<Skybox>();
-	// DDSテクスチャの読み込み (SrvManagerのインデックス指定で読み込む必要があるため、TextureManagerではなく直接SrvManagerを呼び出す)
-	skybox_->Initialize("skybox.dds"); // DDSテクスチャを指定
+	skybox_->Initialize("skybox.dds");
 	skybox_->SetCamera(camera_.get());
 
 	// 環境マップとしてセット
+	TextureManager::GetInstance()->LoadTexture("skybox.dds");
 	Object3dCommon::GetInstance()->SetEnvironmentMap(TextureManager::GetInstance()->GetSrvIndex("skybox.dds"));
 
 	// --- 3Dオブジェクト生成 ---
@@ -921,6 +921,7 @@ void GamePlayScene::UpdateImGui_Skybox() {
 			ImGui::DragFloat3("scale", &skybox_->GetScale().x, 0.1f);
 			ImGui::DragFloat3("rotate", &skybox_->GetRotate().x, 0.01f);
 			ImGui::DragFloat3("translate", &skybox_->GetTranslate().x, 0.1f);
+			ImGui::DragFloat2("UV Scale", &skybox_->GetUvScale().x, 0.1f);
 		}
 		ImGui::TreePop();
 	}

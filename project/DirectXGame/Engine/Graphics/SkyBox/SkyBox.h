@@ -6,10 +6,24 @@
 
 class Camera;
 
+// スカイボックス用定数バッファデータ
+struct SkyboxTransformData {
+    Matrix4x4 WVP;
+    Matrix4x4 World;
+    Vector2 uvScale;
+    float padding[2];
+};
+
 class Skybox {
     template <class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 public:
     static const uint32_t kMaxViews = 3; // 0: Main, 1: Left, 2: Right
+
+    // スカイボックスの描画モード
+    enum class SkyboxMode {
+        CubeMap, // 通常のキューブマップ (skybox.dds等)
+        Tile     // 2Dタイル画像のリピート描画 (tile.png等)
+    };
 
 private:
     // 頂点・インデックスバッファ
@@ -17,13 +31,18 @@ private:
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView_{};
     ComPtr<ID3D12Resource> indexResource_;
     D3D12_INDEX_BUFFER_VIEW indexBufferView_{};
-    // 定数バッファ (WVP行列)
+    // 定数バッファ (WVP行列, UVスケール)
     ComPtr<ID3D12Resource> transformResources_[kMaxViews];
-    TransformationMatrix* transformData_[kMaxViews] = {nullptr};
-    // PSOとRS
-    ComPtr<ID3D12PipelineState> pso_;
-    // CubeMapのSRVインデックス
+    SkyboxTransformData* transformData_[kMaxViews] = {nullptr};
+    // PSO (CubeMap用 / Tile用)
+    ComPtr<ID3D12PipelineState> psoCubeMap_;
+    ComPtr<ID3D12PipelineState> psoTile_;
+    // 現在のモード
+    SkyboxMode mode_ = SkyboxMode::CubeMap;
+    // テクスチャのSRVインデックス
     uint32_t textureSrvIndex_ = 0;
+    std::string texturePath_ = "skybox.dds";
+    Vector2 uvScale_ = { 20.0f, 20.0f };
     // カメラ参照
     Camera* camera_ = nullptr;
     // トランスフォーム (Debug/ImGui用)
@@ -32,13 +51,32 @@ private:
     Vector3 translate_ = { 0.0f, 0.0f, 0.0f };
 public:
 	~Skybox();
-    void Initialize(const std::string& cubeMapPath);
+    // 通常のキューブマップ用初期化
+    void Initialize(const std::string& cubeMapPath = "skybox.dds");
+    // タイリング用初期化
+    void InitializeTile(const std::string& texturePath = "tile.png", const Vector2& uvScale = { 20.0f, 20.0f });
+
 	// 全ビュー更新
     void Update();
 	// 指定したビュー用の更新
     void Update(uint32_t viewIndex, Camera* camera);
     void Draw(uint32_t viewIndex = 0);
     void SetCamera(Camera* camera) { camera_ = camera; }
+
+    // モード設定・取得
+    void SetMode(SkyboxMode mode) { mode_ = mode; }
+    SkyboxMode GetMode() const { return mode_; }
+
+    // テクスチャ設定
+    void SetTexture(const std::string& texturePath);
+    void SetCubeMap(const std::string& cubeMapPath);
+    void SetTileTexture(const std::string& texturePath);
+    const std::string& GetTexturePath() const { return texturePath_; }
+
+    // UVスケール（タイリング調整）
+    Vector2& GetUvScale() { return uvScale_; }
+    void SetUvScale(const Vector2& uvScale) { uvScale_ = uvScale; }
+
     // ゲッター・セッター
     Vector3& GetScale() { return scale_; }
     void SetScale(const Vector3& scale) { scale_ = scale; }

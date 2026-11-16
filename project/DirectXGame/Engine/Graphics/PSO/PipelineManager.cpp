@@ -251,6 +251,54 @@ ComPtr<ID3D12PipelineState> PipelineManager::CreateSkyboxPSO() {
 	return pso;
 }
 
+ComPtr<ID3D12PipelineState> PipelineManager::CreateSkyboxTilePSO() {
+	// InputLayoutはPOSITIONのみ
+	D3D12_INPUT_ELEMENT_DESC inputElementDescs[1] = {
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+		 D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+	};
+
+	// ラスタライザステート
+	D3D12_RASTERIZER_DESC rasterizerDesc{};
+	rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
+	rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK; // 前面カリング(内側を描画)
+	rasterizerDesc.DepthClipEnable = TRUE;
+
+	// デプスステンシルステート
+	D3D12_DEPTH_STENCIL_DESC depthStencilDesc{};
+	depthStencilDesc.DepthEnable = TRUE;
+	depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+
+	// ブレンドステート
+	D3D12_BLEND_DESC blendDesc{};
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	blendDesc.RenderTarget[0].BlendEnable = FALSE;
+
+	// PSO設定
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
+	psoDesc.pRootSignature = rootSignatureSkybox_.Get();
+	psoDesc.VS = { vsBlobSkyboxTile_->GetBufferPointer(), vsBlobSkyboxTile_->GetBufferSize() };
+	psoDesc.PS = { psBlobSkyboxTile_->GetBufferPointer(), psBlobSkyboxTile_->GetBufferSize() };
+	psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
+	psoDesc.RasterizerState = rasterizerDesc;
+	psoDesc.DepthStencilState = depthStencilDesc;
+	psoDesc.BlendState = blendDesc;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.SampleDesc.Count = 1;
+	psoDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
+
+	ComPtr<ID3D12PipelineState> pso;
+	HRESULT hr = DX12Context::GetInstance()->GetDevice()->CreateGraphicsPipelineState(
+		&psoDesc, IID_PPV_ARGS(&pso));
+	assert(SUCCEEDED(hr));
+
+	return pso;
+}
+
 ComPtr<ID3D12PipelineState> PipelineManager::CreatePostProcessPSO() {
 	// 1. InputLayout (頂点レイアウト)
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
@@ -699,11 +747,17 @@ void PipelineManager::LoadShader() {
 	psBlobParticle_ = DX12Context::GetInstance()->CompileShader(L"Particle.PS.hlsl", L"ps_6_0");
 	assert(psBlobParticle_ != nullptr);
 
-	// スカイボックス用
+	// スカイボックス用 (CubeMap)
 	vsBlobSkybox_ = DX12Context::GetInstance()->CompileShader(L"Skybox.VS.hlsl", L"vs_6_0");
 	assert(vsBlobSkybox_ != nullptr);
 	psBlobSkybox_ = DX12Context::GetInstance()->CompileShader(L"Skybox.PS.hlsl", L"ps_6_0");
 	assert(psBlobSkybox_ != nullptr);
+
+	// スカイボックス用 (Tile 2D)
+	vsBlobSkyboxTile_ = DX12Context::GetInstance()->CompileShader(L"SkyboxTile.VS.hlsl", L"vs_6_0");
+	assert(vsBlobSkyboxTile_ != nullptr);
+	psBlobSkyboxTile_ = DX12Context::GetInstance()->CompileShader(L"SkyboxTile.PS.hlsl", L"ps_6_0");
+	assert(psBlobSkyboxTile_ != nullptr);
 
 	// CopyImage (passthrough) 用
 	vsBlobPostProcess_ = DX12Context::GetInstance()->CompileShader(L"Fullscreen.VS.hlsl", L"vs_6_0");
