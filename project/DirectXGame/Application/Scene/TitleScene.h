@@ -313,6 +313,7 @@ private:
   // --- ここまで ---
   // テクスチャファイルパスを保持
   const std::string tilePath_ = "tile.png";
+  const std::string startBoardTexPath_ = "title/titleStart.png";
   const std::string titleTextPath_ = "title/titleText.png";
   const std::string controlPath_ = "ui/control.png";
   const std::string crosshairPath_ = "ui/crosshair.png";

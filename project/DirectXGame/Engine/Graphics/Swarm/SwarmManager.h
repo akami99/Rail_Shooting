@@ -17,6 +17,11 @@ public:
         Matrix4x4 viewProjection;
         Vector3 cameraPosition;
         float droneScale = 1.5f;
+        float crashDissolveThreshold = 0.0f;
+        float dissolveEdgeRange = 0.08f;
+        Vector2 padding0 = { 0.0f, 0.0f };
+        Vector3 dissolveEdgeColor = { 0.0f, 1.0f, 0.8f };
+        float padding1 = 0.0f;
     };
 
     struct AttackCommand {
@@ -89,7 +94,9 @@ public:
         isActive_ = false;
         pendingSpawn_ = false;
         isBossMode_ = false;
+        crashDissolveThreshold_ = 0.0f;
         chargeGroups_.clear();
+        std::fill(crashSleeping_.begin(), crashSleeping_.end(), false);
     }
 
     // スウォームがアクティブ（スポーン済み）か
@@ -104,6 +111,15 @@ public:
 
     // 照準レイがドローンまたは突撃グループに当たっているか
     bool IsRayHitting(const Vector3& rayOrigin, const Vector3& rayDir) const;
+
+    // 自動照準用のターゲット座標を取得 (優先順位: 突撃グループ -> 個別突撃機 -> 巡航機)
+    bool GetAutoAimTarget(Vector3& outTargetPos) const;
+
+    // 墜落ドローン一斉ディゾルブ閾値設定 (0.0: 通常, 0.0〜1.0: 消滅進行)
+    void SetCrashDissolveThreshold(float threshold) { crashDissolveThreshold_ = threshold; }
+
+    // 墜落残骸ドローンの中心座標を取得
+    bool GetCrashCenter(Vector3& outCenter) const;
 
     // 直近フレームのイベント取得
     const FrameEvents& GetFrameEvents() const { return frameEvents_; }
@@ -129,6 +145,11 @@ public:
     float& GetDroneScale() { return droneScale_; }
     float GetDroneScale() const { return droneScale_; }
     void SetDroneScale(float scale) { droneScale_ = scale; }
+    float& GetCrashCollisionRadiusScale() { return crashCollisionRadiusScale_; }
+    float GetCrashCollisionRadiusScale() const { return crashCollisionRadiusScale_; }
+    float& GetCrashGroundFriction() { return crashGroundFriction_; }
+    float& GetCrashBounciness() { return crashBounciness_; }
+    float& GetCrashPushStrength() { return crashPushStrength_; }
     const std::vector<Swarm::DroneData>& GetDronesData() const { return dronesShadow_; }
     uint32_t GetAliveDroneCount() const;
 
@@ -139,6 +160,7 @@ private:
     void CreateChargeGroup(const std::vector<uint32_t>& indices, bool isFinalGroup, const Vector3& playerPos);
     void UpdateBossSimulation(float deltaTime, const Vector3& playerPos, const AttackCommand* attackCmd);
     void UpdateIntroSimulation(float deltaTime, const Vector3& targetCenter);
+    void UpdateCrashingDrones(float deltaTime);
 
 private:
     template <class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
@@ -172,6 +194,13 @@ private:
     // 描画モデル
     std::unique_ptr<Model> droneModel_;
     uint32_t textureSrvIndex_ = 0;
+    uint32_t dissolveMaskSrvIndex_ = 0;
+    float crashDissolveThreshold_ = 0.0f;
+    float bossGroundY_ = 0.0f;
+    float crashCollisionRadiusScale_ = 0.5f;
+    float crashGroundFriction_ = 0.82f;
+    float crashBounciness_ = 0.25f;
+    float crashPushStrength_ = 0.4f;
 
     // シミュレーション設定値
     Swarm::SwarmGlobalConstants settings_{};
@@ -187,6 +216,7 @@ private:
     bool needGpuSync_ = false;
     std::vector<Swarm::DroneData> pendingSpawnData_;
     std::vector<Swarm::DroneData> dronesShadow_;
+    std::vector<bool> crashSleeping_;
     float droneScale_ = 0.2f;
 
     // ボス戦専用パラメータ

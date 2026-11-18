@@ -7,6 +7,11 @@ cbuffer CameraTransform : register(b1)
     float4x4 gViewProjection;
     float3 gCameraPos;
     float gDroneScale;
+    float gCrashDissolveThreshold;
+    float gDissolveEdgeRange;
+    float2 gCamPadding0;
+    float3 gDissolveEdgeColor;
+    float gCamPadding1;
 };
 
 struct VSInput
@@ -31,8 +36,8 @@ VSOutput main(VSInput input, uint instanceID : SV_InstanceID)
     VSOutput output;
     DroneData drone = gDrones[instanceID];
 
-    // 非表示/死亡判定
-    float scale = (drone.hp <= 0.0f || drone.state == 2) ? 0.0f : gDroneScale;
+    // 非表示/死亡判定 (Dead == 2 のみ非表示、Crashing == 3 は残骸として描画)
+    float scale = (drone.state == 2 || (drone.hp <= 0.0f && drone.state != 3)) ? 0.0f : gDroneScale;
 
     // 進行方向（Z軸）から基底ベクトルを計算
     float3 fwd = length(drone.velocity) > 0.001f ? normalize(drone.velocity) : float3(0, 0, 1);
@@ -57,7 +62,7 @@ VSOutput main(VSInput input, uint instanceID : SV_InstanceID)
     // 状態に応じたベースカラー
     if (drone.state == 1)
     {
-        // 突撃(Kamikaze): 危険色（赤・オレンジ）
+        // 突撃(Charge): 危険色（赤・オレンジ）
         output.color = float4(1.0f, 0.2f, 0.1f, 1.0f);
     }
     else

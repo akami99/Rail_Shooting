@@ -53,7 +53,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
     float distToPlayer = length(toPlayer);
     float3 dirToPlayer = distToPlayer > 0.001f ? (toPlayer / distToPlayer) : float3(0, 0, 1);
 
-    // AI判定: 巡航状態かつプレイヤーに接近した場合、一定確率で突撃(Kamikaze)へ遷移
+    // AI判定: 巡航状態かつプレイヤーに接近した場合、一定確率で突撃(Charge)へ遷移
     if (self.state == 0)
     {
         if (distToPlayer < gAttackDistance && self.stateTimer > 1.5f)
@@ -62,14 +62,14 @@ void main(uint3 DTid : SV_DispatchThreadID)
             float pseudoRand = frac(sin(dot(self.position.xy, float2(12.9898, 78.233)) + self.stateTimer) * 43758.5453);
             if (pseudoRand < 0.25f)
             {
-                self.state = 1; // Kamikaze
+                self.state = 1; // Charge
                 self.stateTimer = 0.0f;
             }
         }
     }
 
     // 挙動分岐
-    if (self.state == 1) // Kamikaze (特攻自爆)
+    if (self.state == 1) // Charge (突撃)
     {
         // プレイヤーに極めて接近したら自爆判定
         if (distToPlayer < 2.5f)
@@ -81,7 +81,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
         }
 
         // プレイヤーへ直進
-        float3 targetVel = dirToPlayer * gKamikazeSpeed;
+        float3 targetVel = dirToPlayer * gChargeSpeed;
         self.velocity = lerp(self.velocity, targetVel, saturate(gDeltaTime * 4.0f));
     }
     else // Cruise (Boids群れ移動)

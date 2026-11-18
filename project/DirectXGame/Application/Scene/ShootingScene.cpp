@@ -706,6 +706,8 @@ void ShootingScene::Initialize() {
   phase_ = Phase::IntroConstruct;
   phaseTimer_ = 0.0f;
   hitCount_ = 0;
+  isAutoClearing_ = false;
+  autoClearAttackTimer_ = 0.0f;
 
   // 入場演出開始時：画面全体を完全ブラックアウト（暗転）状態に設定
   PostProcessManager::SetMode(PostProcessManager::kModeVignette);
@@ -1038,6 +1040,30 @@ void ShootingScene::Initialize() {
 
   // ボス全体HPゲージUIの初期化
   bossDamageBarRatio_ = 1.0f;
+
+#ifdef USE_IMGUI
+  // スウォームコリジョン確認用デバッグオブジェクト初期化 (Oキーで切り替え)
+  ModelManager::GetInstance()->LoadModel("Resources/Assets/Models/sphere", "sphere.obj");
+  debugDroneObj_ = std::make_unique<Object3d>();
+  debugDroneObj_->Initialize();
+  debugDroneObj_->SetModel(enemyModel_);
+  debugDroneObj_->SetCamera(camera_.get());
+
+  debugDroneObj2_ = std::make_unique<Object3d>();
+  debugDroneObj2_->Initialize();
+  debugDroneObj2_->SetModel(enemyModel_);
+  debugDroneObj2_->SetCamera(camera_.get());
+
+  debugCollisionSphereObj_ = std::make_unique<Object3d>();
+  debugCollisionSphereObj_->Initialize();
+  debugCollisionSphereObj_->SetModel("sphere.obj");
+  debugCollisionSphereObj_->SetCamera(camera_.get());
+
+  debugCollisionSphereObj2_ = std::make_unique<Object3d>();
+  debugCollisionSphereObj2_->Initialize();
+  debugCollisionSphereObj2_->SetModel("sphere.obj");
+  debugCollisionSphereObj2_->SetCamera(camera_.get());
+#endif // USE_IMGUI
   bossHpBgSprite_ = std::make_unique<Sprite>();
   bossHpBgSprite_->Initialize("white.png");
   bossHpBgSprite_->SetAnchorPoint({ 0.0f, 0.5f });
@@ -1104,8 +1130,24 @@ void ShootingScene::Update() {
   }
 
 #ifdef USE_IMGUI
+  // Oキーでスウォーム1機コリジョン確認モードを切り替え
+  if (Input::GetInstance()->IsKeyTriggered(DIK_O)) {
+    isSwarmCollisionDebug_ = !isSwarmCollisionDebug_;
+  }
+
   // UI処理 (ImGuiの定義)
   UpdateImGui();
+
+  if (isSwarmCollisionDebug_) {
+    UpdateImGui_SwarmCollisionDebug();
+    camera_->Update();
+    UpdateTerrainObjects();
+    if (skybox_) {
+      skybox_->Update(mainViewIndex_, camera_.get());
+    }
+    PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+    return;
+  }
 #endif // USE_IMGUI
 
   if (isPaused_ || isDebugPaused_) {
@@ -1962,45 +2004,126 @@ void ShootingScene::Update() {
   if (phase_ == Phase::SwarmBattle) {
     swarmBattleTimer_ += kDeltaTime;
 
-    // 制限時間経過（例: 25秒）で最終クリア暗転へ遷移
-    // ボスの最終突撃グループの体力ゲージを削り切ったらクリア暗転へ遷移
+    // ボスの最終突撃グループの体力ゲージを削り切ったら残骸注目・撃破演出フェーズへ遷移
     if (swarmManager_ && swarmManager_->IsBossDefeated()) {
-      phase_ = Phase::ClearVignette;
+      isAutoClearing_ = false;
+      phase_ = Phase::BossDefeatLookDown;
       phaseTimer_ = 0.0f;
-      vignetteScale_ = 16.0f;
-      vignetteExponent_ = 0.8f;
       damageEffectStrength_ = 0.0f;
-
-      MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
+      radialBlurTimer_ = 0.0f;
+      randomNoiseTimer_ = 0.0f;
+      MyGame::SetPostEffectMode(PostProcessManager::kModeCopy);
       MyGame::SetPostEffectStrength(1.0f);
-      PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
       projectiles_.clear();
+      ParticleManager::GetInstance()->SetIsUpdate(true);
+      ParticleManager::GetInstance()->SetUseBillboard(false);
+      ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
       return;
     }
   }
 
   // =====================================================
-  // フェーズ: クリア暗転（ビネットで覆っていきClearSceneへ遷移）
+  // フェーズ: ボス撃破後（残骸の散らばる地面へカメラを向け、一斉ディゾルブ）
+  // =====================================================
+  if (phase_ == Phase::BossDefeatLookDown) {
+    phaseTimer_ += kDeltaTime;
+
+    if (swarmManager_) {
+      Vector3 camPos = camera_->GetTranslate();
+      swarmManager_->Update(kDeltaTime, camPos, camera_.get(), nullptr);
+
+      // 墜落ドローンが地面に落ちきった頃から一斉ディゾルブ開始
+      if (phaseTimer_ >= 1.3f) {
+        float dt = std::clamp((phaseTimer_ - 1.3f) / 1.3f, 0.0f, 1.0f);
+        swarmManager_->SetCrashDissolveThreshold(dt);
+      }
+
+      // 残骸が散らばる地面の方へカメラを向ける
+      Vector3 crashCenter{};
+      swarmManager_->GetCrashCenter(crashCenter);
+      Vector3 toCrash = Subtract(crashCenter, camPos);
+      float distXZ = std::sqrt(toCrash.x * toCrash.x + toCrash.z * toCrash.z);
+      if (distXZ > 0.01f || std::abs(toCrash.y) > 0.01f) {
+        float targetYaw = std::atan2(toCrash.x, toCrash.z);
+        float targetPitch = std::clamp(-std::atan2(toCrash.y, (std::max)(distXZ, 0.1f)), -0.15f, 1.1f);
+
+        float dYaw = targetYaw - cameraYaw_;
+        while (dYaw < -std::numbers::pi_v<float>) dYaw += 2.0f * std::numbers::pi_v<float>;
+        while (dYaw > std::numbers::pi_v<float>) dYaw -= 2.0f * std::numbers::pi_v<float>;
+        cameraYaw_ += dYaw * 0.07f;
+        cameraBasePitch_ += (targetPitch - cameraBasePitch_) * 0.07f;
+        camera_->SetRotate({ cameraBasePitch_, cameraYaw_, cameraBaseRoll_ });
+      }
+    }
+
+    camera_->Update();
+    UpdateTerrainObjects();
+    if (skybox_) {
+      skybox_->Update(mainViewIndex_, camera_.get());
+    }
+    ParticleManager::GetInstance()->SetIsUpdate(true);
+    ParticleManager::GetInstance()->SetUseBillboard(false);
+    ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
+
+    if (phaseTimer_ >= kBossDefeatLookDownDuration) {
+      if (swarmManager_) {
+        swarmManager_->ClearDrones();
+      }
+      phase_ = Phase::ClearVignette;
+      phaseTimer_ = 0.0f;
+      vignetteScale_ = 16.0f;
+      vignetteExponent_ = 0.8f;
+      PostProcessManager::SetMode(PostProcessManager::kModeVignette);
+      PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
+    }
+    return;
+  }
+
+  // =====================================================
+  // フェーズ: クリア演出（地面ワイヤーフレーム+ディゾルブ ＆ 瞬き1回・目閉じ暗転）
   // =====================================================
   if (phase_ == Phase::ClearVignette) {
     phaseTimer_ += kDeltaTime;
-    float t = phaseTimer_ / kVignetteInDuration; // 0.0 → 1.0
-    if (t > 1.0f)
-      t = 1.0f;
 
-    // ビネットを徐々に強化: scale 16→0.5, exponent 0.8→6.0
-    vignetteScale_ = 16.0f + (0.5f - 16.0f) * t;
-    vignetteExponent_ = 0.8f + (6.0f - 0.8f) * t;
+    float openness = 1.0f;
+    if (phaseTimer_ < 0.9f) {
+      // 瞬き1回 (1.0 -> 0.08 -> 1.0)
+      float bt = phaseTimer_ / 0.9f;
+      if (bt < 0.45f) {
+        float p = bt / 0.45f;
+        openness = 1.0f - (1.0f - 0.08f) * (p * p);
+      } else {
+        float p = (bt - 0.45f) / 0.55f;
+        float eased = 1.0f - (1.0f - p) * (1.0f - p);
+        openness = 0.08f + (1.0f - 0.08f) * eased;
+      }
+    } else if (phaseTimer_ >= 1.4f) {
+      // 目を閉じる (1.0 -> 0.0)
+      float vt = std::clamp((phaseTimer_ - 1.4f) / (kClearTransitionDuration - 1.4f), 0.0f, 1.0f);
+      openness = 1.0f - (vt * vt);
+    }
+
+    vignetteScale_ = 16.0f * openness;
+    vignetteExponent_ = 0.8f + (5.0f - 0.8f) * (1.0f - openness);
     PostProcessManager::SetMode(PostProcessManager::kModeVignette);
     PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
 
-    if (phaseTimer_ >= kVignetteInDuration) {
-      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+    if (phaseTimer_ >= kClearTransitionDuration) {
+      // 暗転状態を維持したままClearSceneへ遷移する（1フレームの明るさ戻りを防止）
+      PostProcessManager::SetVignetteParams(0.0f, 5.0f);
       ClearScene::SetResultData(score_, gameTimer_);
       SceneManager::GetInstance()->ChangeScene("CLEAR");
       return;
     }
 
+    camera_->Update();
+    UpdateTerrainObjects();
+    if (skybox_) {
+      skybox_->Update(mainViewIndex_, camera_.get());
+    }
+    ParticleManager::GetInstance()->SetIsUpdate(true);
+    ParticleManager::GetInstance()->SetUseBillboard(false);
+    ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
     return;
   }
 
@@ -2994,6 +3117,35 @@ void ShootingScene::Update() {
     }
   }
 
+  // デバッグ自動クリア：ボス戦中は自動でターゲットを狙って攻撃する
+  if (isAutoClearing_ && phase_ == Phase::SwarmBattle && swarmManager_ && swarmManager_->IsBossMode()) {
+    Vector3 targetPos{};
+    if (swarmManager_->GetAutoAimTarget(targetPos)) {
+      Vector2 targetScreenPos = WorldToScreen(targetPos, camera_.get());
+      if (crosshair_) {
+        crosshair_->SetTranslate(targetScreenPos);
+        crosshair_->SetColor(crosshairSpriteSettings_.colorAim_);
+        crosshair_->Update();
+      }
+
+      autoClearAttackTimer_ += kDeltaTime;
+      float attackInterval = (swarmManager_->GetBossPhase() == 3) ? 0.03f : 0.0f;
+      if (autoClearAttackTimer_ >= attackInterval) {
+        autoClearAttackTimer_ = 0.0f;
+        Vector3 camPos = camera_->GetTranslate();
+        Vector3 toTarget = Subtract(targetPos, camPos);
+        if (Length(toTarget) > 0.0001f) {
+          Vector3 rayDir = Normalize(toTarget);
+          hasPendingSwarmAttack_ = true;
+          pendingSwarmAttack_.rayOrigin = { camPos.x, camPos.y, camPos.z };
+          pendingSwarmAttack_.rayDirection = { rayDir.x, rayDir.y, rayDir.z };
+          pendingSwarmAttack_.rayRadius = 2.5f;
+          pendingSwarmAttack_.damage = 10.0f;
+        }
+      }
+    }
+  }
+
   // スウォーム（空中群体制御）のシミュレーション更新 (Compute Shader)
   if (swarmManager_) {
     const float kDeltaTime = 1.0f / 60.0f;
@@ -3076,17 +3228,20 @@ void ShootingScene::Update() {
         }
       }
     }
-    // 最終15機グループの体力ゲージを削り切った場合はクリア演出へ遷移
+    // 最終15機グループの体力ゲージを削り切った場合は残骸注目・撃破演出フェーズへ遷移
     if (swarmEvents.bossDefeated) {
-      phase_ = Phase::ClearVignette;
+      isAutoClearing_ = false;
+      phase_ = Phase::BossDefeatLookDown;
       phaseTimer_ = 0.0f;
-      vignetteScale_ = 16.0f;
-      vignetteExponent_ = 0.8f;
       damageEffectStrength_ = 0.0f;
-      MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
+      radialBlurTimer_ = 0.0f;
+      randomNoiseTimer_ = 0.0f;
+      MyGame::SetPostEffectMode(PostProcessManager::kModeCopy);
       MyGame::SetPostEffectStrength(1.0f);
-      PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
       projectiles_.clear();
+      ParticleManager::GetInstance()->SetIsUpdate(true);
+      ParticleManager::GetInstance()->SetUseBillboard(false);
+      ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
       return;
     }
   }
@@ -3730,6 +3885,21 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
         JumpToSection(selIdx);
       }
       if (ImGui::Button("Jump to Swarm Boss Battle")) {
+        isAutoClearing_ = false;
+        autoClearAttackTimer_ = 0.0f;
+        isIntroPreviewMode_ = false;
+        isRibbonVisible_ = false;
+        isReadyVisible_ = false;
+        isGoVisible_ = false;
+        if (floorObject_) {
+          floorObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+        }
+        if (escalatorObject_) {
+          escalatorObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+        }
+        if (hillObject_) {
+          hillObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+        }
         for (auto &enemy : enemies_) {
           enemy.isDead = true;
           enemy.isActive = false;
@@ -3737,6 +3907,10 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
           enemy.deathTimer = 1.0f;
         }
         projectiles_.clear();
+        if (swarmManager_) {
+          swarmManager_->ClearDrones();
+          swarmManager_->SetAttackDistance(20.0f);
+        }
         cameraProgress_ = maxProgress_;
         isMovementPaused_ = false;
         phase_ = Phase::SwarmBattle;
@@ -3755,6 +3929,8 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
 
     // --- シーンを初期化（論理リセット） ---
     if (ImGui::Button("Reset Game")) {
+      isAutoClearing_ = false;
+      autoClearAttackTimer_ = 0.0f;
       hitCount_ = 0;
       orbitAngle_ = 0.0f;
       targetTimer_ = 0.0f;
@@ -3877,6 +4053,10 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
     if (ImGui::Button("Go to Clear Scene")) {
       ClearScene::SetResultData(score_, gameTimer_);
       SceneManager::GetInstance()->ChangeScene("CLEAR");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Clear Game")) {
+      StartAutoClear();
     }
     ImGui::TreePop();
   }
@@ -4079,7 +4259,7 @@ void ShootingScene::UpdateImGui_Object3d() {
 
     ImGui::SliderFloat("Drone Model Scale", &swarmManager_->GetDroneScale(), 0.2f, 5.0f, "%.2f");
     ImGui::SliderFloat("Max Speed", &settings.maxSpeed, 1.0f, 40.0f, "%.1f");
-    ImGui::SliderFloat("Charge Speed", &settings.kamikazeSpeed, 5.0f, 60.0f, "%.1f");
+    ImGui::SliderFloat("Charge Speed", &settings.ChargeSpeed, 5.0f, 60.0f, "%.1f");
     ImGui::SliderFloat("Attack Distance", &settings.attackDistance, 5.0f, 60.0f, "%.1f");
     ImGui::Separator();
     ImGui::SliderFloat("Neighbor Radius", &settings.neighborRadius, 2.0f, 30.0f, "%.1f");
@@ -4385,6 +4565,93 @@ void ShootingScene::UpdateImGui_GameStatus() {
 
   ImGui::End();
 }
+
+void ShootingScene::UpdateImGui_SwarmCollisionDebug() {
+  ImGui::SetNextWindowPos(ImVec2(240.0f, 10.0f), ImGuiCond_Once);
+  ImGui::SetNextWindowSize(ImVec2(380.0f, 360.0f), ImGuiCond_Once);
+  if (ImGui::Begin("Swarm Collision Debug (O: Exit)")) {
+    ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.5f, 1.0f), "Mode Active: Game Paused (Press 'O' to resume)");
+    ImGui::Separator();
+
+    ImGui::SliderFloat("Preview Distance", &debugCollisionDist_, 1.5f, 15.0f, "%.2f m");
+    ImGui::Checkbox("Auto Rotate", &debugAutoRotate_);
+    if (!debugAutoRotate_) {
+      ImGui::SliderFloat("Rotation Y", &debugDroneRotY_, -3.14159f, 3.14159f, "%.2f rad");
+    } else {
+      debugDroneRotY_ += kDeltaTime * 0.8f;
+      if (debugDroneRotY_ > 3.14159f) {
+        debugDroneRotY_ -= 6.28318f;
+      }
+    }
+    ImGui::Checkbox("Show 2nd Drone (Contact Check)", &debugShowSecondDrone_);
+    ImGui::Separator();
+
+    if (swarmManager_) {
+      float& droneScale = swarmManager_->GetDroneScale();
+      float& colRadiusScale = swarmManager_->GetCrashCollisionRadiusScale();
+      ImGui::SliderFloat("Drone Model Scale", &droneScale, 0.05f, 1.5f, "%.3f");
+      if (ImGui::Button("Set Boss Scale (0.32)")) {
+        droneScale = 0.32f;
+      }
+      ImGui::SliderFloat("Collision Radius Scale", &colRadiusScale, 0.5f, 5.0f, "%.2f");
+
+      float colRadius = droneScale * colRadiusScale;
+      ImGui::Text("Collision Radius: %.3f m (Diameter: %.3f m)", colRadius, colRadius * 2.0f);
+
+      ImGui::Separator();
+      ImGui::Text("Crashing Physics Params");
+      ImGui::SliderFloat("Ground Friction", &swarmManager_->GetCrashGroundFriction(), 0.50f, 0.98f, "%.2f");
+      ImGui::SliderFloat("Bounciness", &swarmManager_->GetCrashBounciness(), 0.0f, 0.8f, "%.2f");
+      ImGui::SliderFloat("Push Strength", &swarmManager_->GetCrashPushStrength(), 0.05f, 1.0f, "%.2f");
+
+      // カメラ前方にドローンとコリジョン球ワイヤーを配置して行列更新
+      Vector3 camPos = camera_->GetTranslate();
+      Vector3 camRot = camera_->GetRotate();
+      Vector3 forward = {
+        std::cos(camRot.x) * std::sin(camRot.y),
+        -std::sin(camRot.x),
+        std::cos(camRot.x) * std::cos(camRot.y)
+      };
+      Vector3 right = {
+        std::cos(camRot.y),
+        0.0f,
+        -std::sin(camRot.y)
+      };
+      Vector3 centerPos = Add(camPos, Multiply(debugCollisionDist_, forward));
+
+      Vector3 pos1 = debugShowSecondDrone_ ? Subtract(centerPos, Multiply(colRadius, right)) : centerPos;
+      Vector3 pos2 = Add(centerPos, Multiply(colRadius, right));
+
+      if (debugDroneObj_) {
+        debugDroneObj_->SetTranslate(pos1);
+        debugDroneObj_->SetRotation({ 0.0f, debugDroneRotY_, 0.0f });
+        debugDroneObj_->SetScale({ droneScale, droneScale, droneScale });
+        debugDroneObj_->Update(mainViewIndex_, camera_.get());
+      }
+      if (debugCollisionSphereObj_) {
+        debugCollisionSphereObj_->SetTranslate(pos1);
+        debugCollisionSphereObj_->SetRotation({ 0.0f, 0.0f, 0.0f });
+        debugCollisionSphereObj_->SetScale({ colRadius, colRadius, colRadius });
+        debugCollisionSphereObj_->Update(mainViewIndex_, camera_.get());
+      }
+      if (debugShowSecondDrone_) {
+        if (debugDroneObj2_) {
+          debugDroneObj2_->SetTranslate(pos2);
+          debugDroneObj2_->SetRotation({ 0.0f, -debugDroneRotY_, 0.0f });
+          debugDroneObj2_->SetScale({ droneScale, droneScale, droneScale });
+          debugDroneObj2_->Update(mainViewIndex_, camera_.get());
+        }
+        if (debugCollisionSphereObj2_) {
+          debugCollisionSphereObj2_->SetTranslate(pos2);
+          debugCollisionSphereObj2_->SetRotation({ 0.0f, 0.0f, 0.0f });
+          debugCollisionSphereObj2_->SetScale({ colRadius, colRadius, colRadius });
+          debugCollisionSphereObj2_->Update(mainViewIndex_, camera_.get());
+        }
+      }
+    }
+  }
+  ImGui::End();
+}
 #endif // USE_IMGUI
 
 void ShootingScene::Draw() {
@@ -4399,6 +4666,10 @@ void ShootingScene::Draw() {
       if (floorObject_) DrawObjectWithIntroTransition(floorObject_.get(), 0.0f, 1.4f);
       if (escalatorObject_) DrawObjectWithIntroTransition(escalatorObject_.get(), 0.0f, 1.4f);
       if (hillObject_) DrawObjectWithIntroTransition(hillObject_.get(), 0.0f, 1.4f);
+    } else if (phase_ == Phase::ClearVignette) {
+      if (floorObject_) DrawObjectWithClearTransition(floorObject_.get(), 0.4f, 1.8f);
+      if (escalatorObject_) DrawObjectWithClearTransition(escalatorObject_.get(), 0.4f, 1.8f);
+      if (hillObject_) DrawObjectWithClearTransition(hillObject_.get(), 0.4f, 1.8f);
     } else {
       if (floorObject_) floorObject_->Draw(0);
       if (escalatorObject_) escalatorObject_->Draw(0);
@@ -4430,6 +4701,28 @@ void ShootingScene::Draw() {
   if (swarmManager_) {
     swarmManager_->Draw(camera_.get());
   }
+
+#ifdef USE_IMGUI
+  // スウォーム1機コリジョン確認用プレビュー描画
+  if (isSwarmCollisionDebug_) {
+    // SwarmManager::Draw() が RootSignature/PSO を切り替えるため、Object3d 用に戻す
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_));
+    if (debugDroneObj_) debugDroneObj_->Draw(0);
+    if (debugShowSecondDrone_ && debugDroneObj2_) debugDroneObj2_->Draw(0);
+
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), true);
+    if (debugCollisionSphereObj_) {
+      debugCollisionSphereObj_->DrawWireframe(0.0f, { 0.0f, 1.0f, 0.2f, 1.0f }, 0);
+    }
+    if (debugShowSecondDrone_ && debugCollisionSphereObj2_) {
+      debugCollisionSphereObj2_->DrawWireframe(0.0f, { 1.0f, 0.8f, 0.0f, 1.0f }, 0);
+    }
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), false);
+  }
+#endif // USE_IMGUI
 
   // 4.
   // 背景スカイボックスの描画（描画状態切り替えによる競合を防ぐため、常に不透明3Dの後に描画する）
@@ -4717,9 +5010,17 @@ void ShootingScene::Finalize() {
   projectiles_.clear();
   ammoDropEffects_.clear();
   weaponMachineGunAmmoGetIcon_.reset();
+#ifdef USE_IMGUI
+  debugDroneObj_.reset();
+  debugDroneObj2_.reset();
+  debugCollisionSphereObj_.reset();
+  debugCollisionSphereObj2_.reset();
+#endif // USE_IMGUI
   ammoGetEffectTimer_ = 0.0f;
   ParticleManager::GetInstance()->ClearAllParticles();
-  PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+  if (phase_ != Phase::ClearVignette && phase_ != Phase::ReturnToTitleVignette) {
+    PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+  }
 }
 
 Vector3 ShootingScene::CalculateRailPosition(float progress) const {
@@ -4784,6 +5085,9 @@ void ShootingScene::UpdateTerrainObjects() {
 void ShootingScene::JumpToSection(int index) {
   if (index < 0 || index >= static_cast<int>(sectionProgresses_.size()))
     return;
+
+  isAutoClearing_ = false;
+  autoClearAttackTimer_ = 0.0f;
 
   float targetProgress = sectionProgresses_[index];
 
@@ -4926,6 +5230,86 @@ void ShootingScene::JumpToSection(int index) {
   phaseTimer_ = 0.0f;
 }
 
+void ShootingScene::StartAutoClear() {
+  // ポーズ解除
+  isPaused_ = false;
+  isDebugPaused_ = false;
+
+  // 被弾・カバー・エフェクト状態のリセット
+  hitCount_ = 0;
+  coverExplosionHits_ = 0;
+  isCovering_ = false;
+  coverYOffset_ = 0.0f;
+  damageEffectStrength_ = 0.0f;
+  radialBlurTimer_ = 0.0f;
+  radialBlurStrength_ = 0.0f;
+  randomNoiseTimer_ = 0.0f;
+  randomNoiseStrength_ = 0.0f;
+  cameraShakeTimer_ = 0.0f;
+  cameraShakeIntensity_ = 0.0f;
+  selectedOption_ = GameOverSelectOption::None;
+  if (gameTimer_ <= 1.0f) {
+    gameTimer_ = 60.0f;
+  }
+
+  // スタート演出状態の解除
+  isIntroPreviewMode_ = false;
+  isRibbonVisible_ = false;
+  isReadyVisible_ = false;
+  isGoVisible_ = false;
+  if (floorObject_) {
+    floorObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+  }
+  if (escalatorObject_) {
+    escalatorObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+  }
+  if (hillObject_) {
+    hillObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+  }
+  PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+  MyGame::SetPostEffectMode(PostProcessManager::kModeCopy);
+
+  // まだボス戦に入っていない場合は、スタート演出用スウォームを消去しボス戦開始位置へ進める
+  if (!(phase_ == Phase::SwarmBattle && swarmManager_ && swarmManager_->IsBossMode())) {
+    if (swarmManager_) {
+      swarmManager_->ClearDrones();
+      swarmManager_->SetAttackDistance(20.0f);
+    }
+
+    for (auto &enemy : enemies_) {
+      enemy.isDead = true;
+      enemy.isActive = false;
+      enemy.isHpGaugeVisible = false;
+      enemy.isHitShotReserved = false;
+      enemy.deathTimer = 1.0f;
+    }
+
+    projectiles_.clear();
+    ParticleManager::GetInstance()->ClearAllParticles();
+    const std::string clearWaitEffects[] = {
+      ringParticleGroupName_, "CylinderGroup", "SparkGroup", "ReloadCompleteGroup"
+    };
+    for (const auto &name : clearWaitEffects) {
+      if (auto *emitter = ParticleManager::GetInstance()->GetEmitter(name)) {
+        emitter->isPlaying = false;
+      }
+    }
+
+    cameraProgress_ = maxProgress_;
+    isMovementPaused_ = false;
+    camera_->SetTranslate(GetCameraRailPosition(maxProgress_));
+    cameraBasePitch_ = baseCombatPitch_;
+    cameraYaw_ = baseCombatYaw_;
+    camera_->SetRotate({ cameraBasePitch_, cameraYaw_, cameraBaseRoll_ });
+
+    phase_ = Phase::Playing;
+    phaseTimer_ = 0.0f;
+  }
+
+  isAutoClearing_ = true;
+  autoClearAttackTimer_ = 0.0f;
+}
+
 void ShootingScene::UpdateRailMovement() {
   // 進行一時停止中なら、画面内の全アクティブエネミーが全滅したかチェック
   if (isMovementPaused_) {
@@ -4977,6 +5361,10 @@ void ShootingScene::UpdateRailMovement() {
 }
 
 bool ShootingScene::IsInvincible() const {
+  // 0. 自動クリア確認中無敵
+  if (isAutoClearing_) {
+    return true;
+  }
   // 1. デバッグ常時無敵
   if (isDebugInvincible_) {
     return true;
@@ -5291,6 +5679,54 @@ void ShootingScene::DrawObjectWithIntroTransition(Object3d *obj, float startTime
     Object3dCommon::GetInstance()->SetCommonDrawSettings(
         static_cast<BlendState>(currentBlendMode_), true);
     obj->DrawWireframe(0.0f, kWireframeColor, 0);
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), false);
+  }
+}
+
+void ShootingScene::DrawObjectWithClearTransition(Object3d *obj, float startTime, float duration) {
+  if (!obj) return;
+
+  // 1. クリア退場フェーズ以外、またはまだこのオブジェクトの解体開始時間に達していない場合
+  if (phase_ != Phase::ClearVignette || phaseTimer_ <= startTime) {
+    obj->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
+    obj->Draw(0);
+    return;
+  }
+
+  // 2. すでに解体完了時間を過ぎている場合は何も描画しない（完全消滅）
+  if (phaseTimer_ >= startTime + duration) {
+    return;
+  }
+
+  // 3. 解体進行中: このオブジェクト単体の進行度 p (0.0f ～ 1.0f) を算出
+  float p = (phaseTimer_ - startTime) / duration;
+
+  if (p < 0.45f) {
+    // 【第1段階 (0.0 ～ 0.45)：外装の剥離（ソリッド＋ワイヤーフレーム重ね描き）】
+    float solidThreshold = p / 0.45f; // 0.0 -> 1.0
+    obj->SetDissolveParams(1, solidThreshold, 0.05f, kTransitionEdgeColor);
+    obj->Draw(0); // パス1: 削れていくソリッドを描画
+
+    // パス2: 削れた穴から見える無傷のワイヤーフレーム（閾値0.0f）を重ね描き
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), true);
+    obj->DrawWireframe(0.0f, kWireframeColor, 0);
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), false);
+  } else if (p < 0.60f) {
+    // 【第2段階 (0.45 ～ 0.60)：骨格の維持（ワイヤーフレーム単独）】
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), true);
+    obj->DrawWireframe(0.0f, kWireframeColor, 0);
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), false);
+  } else {
+    // 【第3段階 (0.60 ～ 1.00)：骨格の消滅（ワイヤーフレームのディゾルブ）】
+    float wireThreshold = (p - 0.60f) / 0.40f; // 0.0 -> 1.0
+    Object3dCommon::GetInstance()->SetCommonDrawSettings(
+        static_cast<BlendState>(currentBlendMode_), true);
+    obj->DrawWireframe(wireThreshold, kWireframeColor, 0);
     Object3dCommon::GetInstance()->SetCommonDrawSettings(
         static_cast<BlendState>(currentBlendMode_), false);
   }

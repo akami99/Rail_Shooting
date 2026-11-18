@@ -29,7 +29,7 @@ void SwarmManager::Initialize(uint32_t droneCount,
     settings_.cohesionWeight = 1.1f;
     settings_.targetWeight = 0.9f;
     settings_.attackDistance = 30.0f;
-    settings_.kamikazeSpeed = 18.0f;
+    settings_.ChargeSpeed = 18.0f;
     settings_.droneCount = droneCount_;
     settings_.rayRadius = 2.0f;
     settings_.attackDamage = 0.0f;
@@ -65,6 +65,7 @@ void SwarmManager::InitializeBuffers() {
     isActive_ = false;
 
     dronesShadow_ = initialData;
+    crashSleeping_.assign(droneCount_, false);
 
     // 3. アップロード用バッファを経由してBuffer 0 & 1の両方に転送
     intermediateUploadBuffer_ = dxContext->CreateBufferResource(bufferSize);
@@ -190,20 +191,31 @@ void SwarmManager::InitializePipeline() {
         texRange.BaseShaderRegister = 1;
         texRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-        D3D12_ROOT_PARAMETER rootParams[3]{};
+        D3D12_DESCRIPTOR_RANGE maskRange{};
+        maskRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        maskRange.NumDescriptors = 1;
+        maskRange.BaseShaderRegister = 2;
+        maskRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+        D3D12_ROOT_PARAMETER rootParams[4]{};
         rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
         rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
         rootParams[0].DescriptorTable.pDescriptorRanges = &droneRange;
 
         rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+        rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
         rootParams[1].Descriptor.ShaderRegister = 1;
 
         rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         rootParams[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
         rootParams[2].DescriptorTable.NumDescriptorRanges = 1;
         rootParams[2].DescriptorTable.pDescriptorRanges = &texRange;
+
+        rootParams[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        rootParams[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        rootParams[3].DescriptorTable.NumDescriptorRanges = 1;
+        rootParams[3].DescriptorTable.pDescriptorRanges = &maskRange;
 
         D3D12_STATIC_SAMPLER_DESC sampler{};
         sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -273,6 +285,9 @@ void SwarmManager::InitializeModel(const std::string& directory, const std::stri
     } else {
         textureSrvIndex_ = TextureManager::GetInstance()->GetSrvIndex("white1x1.png");
     }
+
+    TextureManager::GetInstance()->LoadTexture("masks/noise0.png");
+    dissolveMaskSrvIndex_ = TextureManager::GetInstance()->GetSrvIndex("masks/noise0.png");
 }
 
 void SwarmManager::Update(float deltaTime,
@@ -296,6 +311,9 @@ void SwarmManager::Update(float deltaTime,
         std::memcpy(&mappedCameraConstants_->viewProjection, &vp, sizeof(Matrix4x4));
         mappedCameraConstants_->cameraPosition = settings_.cameraPosition;
         mappedCameraConstants_->droneScale = droneScale_;
+        mappedCameraConstants_->crashDissolveThreshold = crashDissolveThreshold_;
+        mappedCameraConstants_->dissolveEdgeRange = 0.08f;
+        mappedCameraConstants_->dissolveEdgeColor = { 0.0f, 1.0f, 0.8f };
     }
 
     if (isBossMode_) {
@@ -339,8 +357,10 @@ void SwarmManager::StartBossBattle(uint32_t count, const Vector3& playerBasePos,
     isBossMode_ = true;
     isBossDefeated_ = false;
     isFinalPhaseTriggered_ = false;
+    crashDissolveThreshold_ = 0.0f;
     bossMaxHp_ = actualCount;
     bossPlayerBasePos_ = playerBasePos;
+    bossGroundY_ = playerBasePos.y - 1.4f;
     bossBaseYaw_ = baseYaw;
     bossMoveTimer_ = 0.0f;
     noShootTimer_ = 0.0f;
@@ -352,7 +372,7 @@ void SwarmManager::StartBossBattle(uint32_t count, const Vector3& playerBasePos,
 
     droneScale_ = 0.32f;
     settings_.maxSpeed = 14.0f;
-    settings_.kamikazeSpeed = 16.0f;
+    settings_.ChargeSpeed = 16.0f;
     settings_.neighborRadius = 5.5f;
     settings_.separationDist = 1.5f;
     settings_.droneCount = actualCount;
@@ -368,6 +388,7 @@ void SwarmManager::StartBossBattle(uint32_t count, const Vector3& playerBasePos,
     );
 
     dronesShadow_.resize(droneCount_);
+    crashSleeping_.assign(droneCount_, false);
     std::mt19937 mt(1337);
     std::uniform_real_distribution<float> xDist(-4.5f, 4.5f);
     std::uniform_real_distribution<float> yDist(-1.6f, 1.8f);
@@ -674,8 +695,18 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
                 group.isDead = true;
                 group.isHpGaugeVisible = false;
                 for (uint32_t dIdx : group.droneIndices) {
-                    dronesShadow_[dIdx].hp = 0.0f;
-                    dronesShadow_[dIdx].state = 2; // Dead
+                    auto& cd = dronesShadow_[dIdx];
+                    cd.hp = 0.0f;
+                    cd.state = 3; // Crashing
+                    cd.stateTimer = 0.0f;
+                    if (dIdx < crashSleeping_.size()) crashSleeping_[dIdx] = false;
+                    float spreadX = (static_cast<float>(dIdx % 5) - 2.0f) * 2.0f;
+                    float spreadZ = (static_cast<float>((dIdx / 5) % 5) - 2.0f) * 2.0f;
+                    cd.velocity = {
+                        spreadX,
+                        2.5f + static_cast<float>(dIdx % 4) * 1.1f,
+                        spreadZ
+                    };
                 }
                 frameEvents_.destroyedPositions.push_back(group.centerPos);
                 frameEvents_.dronesKilledByPlayer += static_cast<int>(group.droneIndices.size());
@@ -690,7 +721,16 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
             auto& d = dronesShadow_[hitDroneIdx];
             Vector3 hitPos = d.position;
             d.hp = 0.0f;
-            d.state = 2; // Dead
+            d.state = 3; // Crashing
+            d.stateTimer = 0.0f;
+            if (static_cast<size_t>(hitDroneIdx) < crashSleeping_.size()) crashSleeping_[hitDroneIdx] = false;
+            float spreadX = (static_cast<float>(hitDroneIdx % 3) - 1.0f) * 2.5f;
+            float spreadZ = (static_cast<float>((hitDroneIdx / 3) % 3) - 1.0f) * 2.5f;
+            d.velocity = {
+                d.velocity.x * 0.4f + spreadX,
+                2.0f,
+                d.velocity.z * 0.4f + spreadZ
+            };
             frameEvents_.destroyedPositions.push_back(hitPos);
             frameEvents_.dronesKilledByPlayer += 1;
         }
@@ -732,6 +772,9 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
             }
         }
     }
+
+    // 墜落中・残骸ドローンの物理・地面・ドローン間コリジョン更新
+    UpdateCrashingDrones(deltaTime);
 
     // ボス撃破済みならここで終了
     if (isBossDefeated_) {
@@ -923,7 +966,7 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
             }
 
             Vector3 dirToPlayer = MathUtils::Multiply(1.0f / distToPlayer, toPlayer);
-            Vector3 desiredVel = MathUtils::Multiply(settings_.kamikazeSpeed, dirToPlayer);
+            Vector3 desiredVel = MathUtils::Multiply(settings_.ChargeSpeed, dirToPlayer);
             self.velocity = MathUtils::Add(self.velocity, MathUtils::Multiply((std::min)(1.0f, deltaTime * 6.0f), MathUtils::Subtract(desiredVel, self.velocity)));
             self.position = MathUtils::Add(self.position, MathUtils::Multiply(deltaTime, self.velocity));
         } else {
@@ -1051,8 +1094,8 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
     // =========================================================
     // 5. カメラの3区間（左: -1, 正面: 0, 右: +1）切り替え判定
     // =========================================================
-    // 突撃中（通常突撃・グループ突撃）はカメラ区間を固定し、突撃機が画面外にならないようにする
-    if (!isChargingActive || isFinalPhaseTriggered_) {
+    // 突撃中（通常突撃・グループ突撃）および最終突撃発動後はカメラ区間を固定し、不要なカメラ切り替えを防ぐ
+    if (!isChargingActive && !isFinalPhaseTriggered_) {
         float refLocalX = anchorLateral;
         if (cruisingSampleCount > 0) {
             refLocalX = sumLocalX / static_cast<float>(cruisingSampleCount);
@@ -1130,6 +1173,65 @@ bool SwarmManager::IsRayHitting(const Vector3& rayOrigin, const Vector3& rayDir)
         }
     }
     return false;
+}
+
+bool SwarmManager::GetAutoAimTarget(Vector3& outTargetPos) const {
+    if (!isActive_) return false;
+
+    auto calcDistSq = [this](const Vector3& pos) {
+        Vector3 diff = MathUtils::Subtract(pos, bossPlayerBasePos_);
+        return MathUtils::Dot(diff, diff);
+    };
+
+    // 1. アクティブな突撃グループ（最もプレイヤーに近いもの）
+    bool foundGroup = false;
+    float minGroupDistSq = (std::numeric_limits<float>::max)();
+    for (const auto& group : chargeGroups_) {
+        if (group.isDead || group.hp <= 0) continue;
+        float dSq = calcDistSq(group.centerPos);
+        if (dSq < minGroupDistSq) {
+            minGroupDistSq = dSq;
+            outTargetPos = group.centerPos;
+            foundGroup = true;
+        }
+    }
+    if (foundGroup) {
+        return true;
+    }
+
+    // 2. 個別突撃中のドローン（最もプレイヤーに近いもの）
+    bool foundChargeDrone = false;
+    float minChargeDistSq = (std::numeric_limits<float>::max)();
+    for (uint32_t i = 0; i < droneCount_; ++i) {
+        const auto& d = dronesShadow_[i];
+        if (d.hp > 0.0f && d.state == 1) {
+            float dSq = calcDistSq(d.position);
+            if (dSq < minChargeDistSq) {
+                minChargeDistSq = dSq;
+                outTargetPos = d.position;
+                foundChargeDrone = true;
+            }
+        }
+    }
+    if (foundChargeDrone) {
+        return true;
+    }
+
+    // 3. 巡航中のドローン（最もプレイヤーに近いもの）
+    bool foundCruiseDrone = false;
+    float minCruiseDistSq = (std::numeric_limits<float>::max)();
+    for (uint32_t i = 0; i < droneCount_; ++i) {
+        const auto& d = dronesShadow_[i];
+        if (d.hp > 0.0f && d.state == 0) {
+            float dSq = calcDistSq(d.position);
+            if (dSq < minCruiseDistSq) {
+                minCruiseDistSq = dSq;
+                outTargetPos = d.position;
+                foundCruiseDrone = true;
+            }
+        }
+    }
+    return foundCruiseDrone;
 }
 
 int SwarmManager::GetBossPhase() const {
@@ -1277,6 +1379,9 @@ void SwarmManager::Draw(Camera* camera) {
     // t1: Texture
     srvManager->SetGraphicsRootDescriptorTable(2, textureSrvIndex_);
 
+    // t2: Dissolve Mask Texture
+    srvManager->SetGraphicsRootDescriptorTable(3, dissolveMaskSrvIndex_);
+
     commandList->DrawIndexedInstanced(droneModel_->GetIndexCount(), droneCount_, 0, 0, 0);
 }
 
@@ -1292,7 +1397,7 @@ void SwarmManager::SpawnDrones(uint32_t count, const Vector3 & centerPos, float 
     settings_.separationDist = 2.5f;
     settings_.attackDistance = radius * 0.9f;
     settings_.maxSpeed = 15.0f;
-    settings_.kamikazeSpeed = 22.0f;
+    settings_.ChargeSpeed = 22.0f;
     settings_.droneCount = actualCount;
 
     pendingSpawnData_.resize(droneCount_);
@@ -1348,4 +1453,163 @@ uint32_t SwarmManager::GetAliveDroneCount() const {
         }
     }
     return count;
+}
+
+void SwarmManager::UpdateCrashingDrones(float deltaTime) {
+    if (crashSleeping_.size() != droneCount_) {
+        crashSleeping_.assign(droneCount_, false);
+    }
+
+    const float droneRadius = droneScale_ * crashCollisionRadiusScale_;
+    const float groundY = bossGroundY_ + droneRadius;
+    const float kGravity = -18.0f;
+    const float airDrag = 0.99f;
+    const float groundFriction = crashGroundFriction_;
+    const float bounciness = crashBounciness_;
+    const float pushStrength = crashPushStrength_;
+    const float sleepThresholdSq = 0.05f * 0.05f;
+
+    std::vector<uint32_t> crashingIndices;
+    crashingIndices.reserve(droneCount_);
+
+    auto freezeDirection = [](Swarm::DroneData& d) {
+        // VS側で急に向きが変わらないよう、最後の水平向きを極小ベクトルとして保持
+        float hLen = std::sqrt(d.velocity.x * d.velocity.x + d.velocity.z * d.velocity.z);
+        if (hLen > 0.0001f) {
+            d.velocity = { (d.velocity.x / hLen) * 0.002f, 0.0f, (d.velocity.z / hLen) * 0.002f };
+        } else {
+            d.velocity = { 0.002f, 0.0f, 0.0f };
+        }
+    };
+
+    // 1. 重力・移動・地面との摩擦処理
+    for (uint32_t i = 0; i < droneCount_; ++i) {
+        auto& d = dronesShadow_[i];
+        if (d.state != 3) continue;
+
+        crashingIndices.push_back(i);
+        d.stateTimer += deltaTime;
+
+        if (crashSleeping_[i]) continue;
+
+        // 重力の適用
+        d.velocity.y += kGravity * deltaTime;
+
+        // 空気抵抗の適用
+        d.velocity.x *= airDrag;
+        d.velocity.z *= airDrag;
+
+        // 座標の更新
+        d.position = MathUtils::Add(d.position, MathUtils::Multiply(deltaTime, d.velocity));
+
+        // 地面との当たり判定
+        if (d.position.y <= groundY) {
+            d.position.y = groundY;
+
+            // 地面でのバウンド処理
+            if (d.velocity.y < 0.0f) {
+                if (std::abs(d.velocity.y) > 1.0f) {
+                    d.velocity.y = -d.velocity.y * bounciness;
+                } else {
+                    d.velocity.y = 0.0f; // 小さなバウンドは止める
+                }
+            }
+
+            // 地面との摩擦（水平速度を強く減衰）
+            d.velocity.x *= groundFriction;
+            d.velocity.z *= groundFriction;
+
+            // 速度が十分小さくなったら完全停止（スリープ）にする
+            float speedSq = d.velocity.x * d.velocity.x + d.velocity.y * d.velocity.y + d.velocity.z * d.velocity.z;
+            if (speedSq < sleepThresholdSq && d.velocity.y == 0.0f) {
+                freezeDirection(d);
+                crashSleeping_[i] = true;
+            }
+        }
+    }
+
+    // 2. ドローン同士の球判定（重なり防止の押し出し・プルプル振動抑制）
+    const float minDist = droneRadius * 2.0f;
+    const float minDistSq = minDist * minDist;
+
+    for (size_t a = 0; a < crashingIndices.size(); ++a) {
+        uint32_t idxA = crashingIndices[a];
+        auto& dA = dronesShadow_[idxA];
+
+        for (size_t b = a + 1; b < crashingIndices.size(); ++b) {
+            uint32_t idxB = crashingIndices[b];
+            auto& dB = dronesShadow_[idxB];
+
+            // 両方とも完全停止（スリープ）していれば判定不要
+            if (crashSleeping_[idxA] && crashSleeping_[idxB]) continue;
+
+            Vector3 diff = MathUtils::Subtract(dB.position, dA.position);
+            float distSq = MathUtils::Dot(diff, diff);
+
+            if (distSq < minDistSq) {
+                float dist = std::sqrt(distSq);
+                Vector3 normal = (dist > 0.0001f) ? MathUtils::Multiply(1.0f / dist, diff) : Vector3{ 1.0f, 0.0f, 0.0f };
+                float overlap = (minDist - dist) * 0.5f * pushStrength;
+
+                if (!crashSleeping_[idxA]) {
+                    float scaleA = crashSleeping_[idxB] ? 2.0f : 1.0f;
+                    dA.position.x -= normal.x * overlap * scaleA;
+                    dA.position.y = (std::max)(groundY, dA.position.y - normal.y * overlap * scaleA);
+                    dA.position.z -= normal.z * overlap * scaleA;
+
+                    // スリープ済み残骸の上に乗り上げて支えられている場合は落下停止・摩擦適用してスリープ
+                    if (crashSleeping_[idxB] && -normal.y > 0.45f) {
+                        if (dA.velocity.y < 0.0f) dA.velocity.y = 0.0f;
+                        dA.velocity.x *= groundFriction;
+                        dA.velocity.z *= groundFriction;
+                        float speedSq = dA.velocity.x * dA.velocity.x + dA.velocity.y * dA.velocity.y + dA.velocity.z * dA.velocity.z;
+                        if (speedSq < sleepThresholdSq) {
+                            freezeDirection(dA);
+                            crashSleeping_[idxA] = true;
+                        }
+                    }
+                }
+                if (!crashSleeping_[idxB]) {
+                    float scaleB = crashSleeping_[idxA] ? 2.0f : 1.0f;
+                    dB.position.x += normal.x * overlap * scaleB;
+                    dB.position.y = (std::max)(groundY, dB.position.y + normal.y * overlap * scaleB);
+                    dB.position.z += normal.z * overlap * scaleB;
+
+                    // スリープ済み残骸の上に乗り上げて支えられている場合は落下停止・摩擦適用してスリープ
+                    if (crashSleeping_[idxA] && normal.y > 0.45f) {
+                        if (dB.velocity.y < 0.0f) dB.velocity.y = 0.0f;
+                        dB.velocity.x *= groundFriction;
+                        dB.velocity.z *= groundFriction;
+                        float speedSq = dB.velocity.x * dB.velocity.x + dB.velocity.y * dB.velocity.y + dB.velocity.z * dB.velocity.z;
+                        if (speedSq < sleepThresholdSq) {
+                            freezeDirection(dB);
+                            crashSleeping_[idxB] = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+bool SwarmManager::GetCrashCenter(Vector3& outCenter) const {
+    Vector3 sum = { 0.0f, 0.0f, 0.0f };
+    int count = 0;
+    for (uint32_t i = 0; i < droneCount_; ++i) {
+        const auto& d = dronesShadow_[i];
+        if (d.state == 3) {
+            sum = MathUtils::Add(sum, d.position);
+            count++;
+        }
+    }
+    if (count > 0) {
+        outCenter = MathUtils::Multiply(1.0f / static_cast<float>(count), sum);
+        return true;
+    }
+
+    // 万一残骸がない場合はボス戦正面の地面座標を返す
+    Vector3 forward = { std::sin(bossBaseYaw_), 0.0f, std::cos(bossBaseYaw_) };
+    outCenter = MathUtils::Add(bossPlayerBasePos_, MathUtils::Multiply(14.0f, forward));
+    outCenter.y = bossGroundY_;
+    return false;
 }

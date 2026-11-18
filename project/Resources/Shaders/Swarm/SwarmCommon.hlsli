@@ -5,7 +5,7 @@ struct DroneData {
     float3 position;
     float hp;
     float3 velocity;
-    uint state; // 0: Cruise, 1: Kamikaze, 2: Dead
+    uint state; // 0: Cruise, 1: Charge, 2: Dead, 3: Crashing
     float3 target;
     float stateTimer;
 };
@@ -24,7 +24,7 @@ cbuffer SwarmGlobalConstants : register(b0) {
     float gCohesionWeight;
     float gTargetWeight;
     float gAttackDistance;
-    float gKamikazeSpeed;
+    float gChargeSpeed;
     float3 gCameraPosition;
     float gPadding0;
 

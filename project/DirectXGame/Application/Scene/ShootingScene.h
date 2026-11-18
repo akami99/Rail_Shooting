@@ -42,13 +42,17 @@ public:
         SwarmBattle,        // レール終点でのスウォーム演出/戦闘
         GameOver,           // ゲームオーバー
         RestartSmoothing,   // リセット後スムージングを徐々に消す
-        ClearVignette,      // クリア時ビネット暗転
+        BossDefeatLookDown, // ボス撃破後：残骸の散らばる地面へカメラを向け、一斉ディゾルブ
+        ClearVignette,      // クリア時演出：地面ワイヤーフレーム+ディゾルブ＆瞬き・目閉じ暗転
         ReturnToTitleVignette, // ESCで目を閉じる退場暗転
     };
 
 private:
     // 入場演出用の進行度算出描画ヘルパー (逆順：ワイヤーフレーム出現 -> 骨格維持 -> ソリッド構築)
     void DrawObjectWithIntroTransition(Object3d *obj, float startTime, float duration);
+
+    // クリア退場演出用の進行度算出描画ヘルパー (タイトル退場と同様：外装剥離 -> 骨格維持 -> 骨格ディゾルブ)
+    void DrawObjectWithClearTransition(Object3d *obj, float startTime, float duration);
 
     // 敵の出現位置を計算する関数
     Vector3 CalculateRingRotation(const Vector3 &direction);
@@ -70,6 +74,8 @@ private:
     void UpdateImGui_Particle();
     // ImGuiでゲームの状態を確認するための関数
     void UpdateImGui_GameStatus();
+    // スウォームドローン1機分のコリジョンサイズ確認ウィンドウ (Oキーで切り替え)
+    void UpdateImGui_SwarmCollisionDebug();
 #endif // USE_IMGUI
 
 private:
@@ -277,6 +283,8 @@ private:
     float vignetteScale_ = 16.0f;                      // 小さいほど暗くなる
     float vignetteExponent_ = 0.8f;                    // 大きいほど急激に暗くなる
     static constexpr float kVignetteInDuration = 1.5f; // 覆うのにかかる時間(秒)
+    static constexpr float kBossDefeatLookDownDuration = 2.8f; // ボス撃破後の残骸注目＆一斉ディゾルブ時間(秒)
+    static constexpr float kClearTransitionDuration = 2.6f;    // クリア時地面解体＆瞬き・目閉じ時間(秒)
     static constexpr float kGameOverWaitDuration = 3.0f; // 暗転維持時間(秒)
     static constexpr float kReturnToTitleDuration = 0.8f; // タイトル戻り時の目を閉じる時間(秒)
 
@@ -528,4 +536,22 @@ private:
 
     // タイマーUIのレイアウト・表示更新ヘルパー
     void UpdateTimerUI(float timeValue, const Vector2& basePos, const Vector2& bgSize, const Vector2& digitSize, float spacing, const Vector2& dotSize, bool showDecimals = true);
+
+    // デバッグ・確認用自動クリア機能
+    bool isAutoClearing_ = false;
+    float autoClearAttackTimer_ = 0.0f;
+    void StartAutoClear();
+
+#ifdef USE_IMGUI
+    // スウォームドローン1機コリジョン確認モード (Oキーで切り替え)
+    bool isSwarmCollisionDebug_ = false;
+    std::unique_ptr<Object3d> debugDroneObj_;
+    std::unique_ptr<Object3d> debugDroneObj2_;
+    std::unique_ptr<Object3d> debugCollisionSphereObj_;
+    std::unique_ptr<Object3d> debugCollisionSphereObj2_;
+    float debugCollisionDist_ = 3.5f;
+    float debugDroneRotY_ = 0.0f;
+    bool debugAutoRotate_ = true;
+    bool debugShowSecondDrone_ = false;
+#endif // USE_IMGUI
 };

@@ -84,6 +84,7 @@ void TitleScene::Initialize() {
 
   // テクスチャ読み込み
   TextureManager::GetInstance()->LoadTexture(tilePath_);
+  TextureManager::GetInstance()->LoadTexture(startBoardTexPath_);
   TextureManager::GetInstance()->LoadTexture(titleTextPath_);
   TextureManager::GetInstance()->LoadTexture(controlPath_);
   TextureManager::GetInstance()->LoadTexture(crosshairPath_);
@@ -158,6 +159,7 @@ void TitleScene::Initialize() {
   startBoardObject_ = std::make_unique<Object3d>();
   startBoardObject_->Initialize();
   startBoardObject_->SetModel(startBoardModelPath_);
+  startBoardObject_->SetOverrideTexturePath(startBoardTexPath_);
   startBoardObject_->SetDissolveMaskTexture("masks/noise0.png");
   startBoardObject_->SetTranslate(startBoardObjectSettings_.position_);
   startBoardObject_->SetRotation(startBoardObjectSettings_.rotation_);
