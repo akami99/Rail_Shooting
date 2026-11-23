@@ -1043,6 +1043,12 @@ void ShootingScene::Initialize() {
   // スタート演出用に突撃を無効化
   swarmManager_->SetAttackDistance(0.0f);
 
+  // ボス登場演出・高高度漂い用1000機スウォームの初期化
+  ambientSwarmManager_ = std::make_unique<SwarmManager>();
+  ambientSwarmManager_->Initialize(kAmbientSwarmCount, enemyModelDirectory_, enemyModel_);
+  ambientSwarmManager_->SetAttackDistance(0.0f);
+  ambientSwarmManager_->SetDroneScale(0.24f);
+
   // ボス全体HPゲージUIの初期化
   bossDamageBarRatio_ = 1.0f;
 
@@ -2004,6 +2010,112 @@ void ShootingScene::Update() {
   }
 
   // =====================================================
+  // フェーズ: ボス登場時の演出
+  // =====================================================
+  if (phase_ == Phase::BossIntro) {
+    if (!isPaused_) {
+      phaseTimer_ += kDeltaTime;
+
+      // SPACE / ENTER で演出スキップ
+      if (Input::GetInstance()->IsKeyTriggered(DIK_SPACE) ||
+          Input::GetInstance()->IsKeyTriggered(DIK_RETURN)) {
+        phaseTimer_ = kBossIntroTotalDuration;
+      }
+
+      Vector3 basePos = GetCameraRailPosition(maxProgress_);
+      float baseYaw = (levelData_ && !levelData_->players.empty()) ? levelData_->players[0].rotation.y : 0.0f;
+      Vector3 forward = { std::sin(baseYaw), 0.0f, std::cos(baseYaw) };
+      Vector3 up = { 0.0f, 1.0f, 0.0f };
+
+      cameraProgress_ = maxProgress_;
+      camera_->SetTranslate(basePos);
+
+      // カメラ演出: 後ろ上向きに素早く振り返る -> 前方を向かせてボス戦画角まで上げる
+      if (phaseTimer_ < 0.45f) {
+        float p = phaseTimer_ / 0.45f;
+        float ease = 1.0f - (1.0f - p) * (1.0f - p);
+        cameraYaw_ = bossIntroStartYaw_ + ease * std::numbers::pi_v<float>;
+        cameraBasePitch_ = bossIntroStartPitch_ + ease * (-0.22f - bossIntroStartPitch_);
+      } else if (phaseTimer_ < 1.80f) {
+        cameraYaw_ = bossIntroStartYaw_ + std::numbers::pi_v<float>;
+        cameraBasePitch_ = -0.22f;
+      } else if (phaseTimer_ < 3.00f) {
+        float p = (phaseTimer_ - 1.80f) / 1.20f;
+        float ease = p * p * (3.0f - 2.0f * p);
+        float startYaw = bossIntroStartYaw_ + std::numbers::pi_v<float>;
+        float targetYaw = baseYaw + 2.0f * std::numbers::pi_v<float>;
+        cameraYaw_ = startYaw + ease * (targetYaw - startYaw);
+        cameraBasePitch_ = -0.22f + ease * (-0.18f - (-0.22f));
+      } else {
+        cameraYaw_ = baseYaw;
+        cameraBasePitch_ = -0.18f;
+      }
+
+      camera_->SetRotate({ cameraBasePitch_, cameraYaw_, cameraBaseRoll_ });
+      camera_->Update();
+      UpdateTerrainObjects();
+      if (skybox_) {
+        skybox_->Update(mainViewIndex_, camera_.get());
+      }
+
+      // 1000機の装飾スウォームをボス戦地点少し前方からプレイヤー上部・高高度へ移動させる
+      if (ambientSwarmManager_) {
+        Vector3 ambientAnchor{};
+        if (phaseTimer_ < 1.80f) {
+          ambientSwarmManager_->GetSettings().maxSpeed = 42.0f;
+          ambientAnchor = {
+              basePos.x + forward.x * 16.0f,
+              basePos.y + 17.5f,
+              basePos.z + forward.z * 16.0f
+          };
+        } else {
+          ambientSwarmManager_->GetSettings().maxSpeed = 16.0f;
+          ambientAnchor = {
+              basePos.x + forward.x * 26.0f,
+              basePos.y + 16.5f,
+              basePos.z + forward.z * 26.0f
+          };
+        }
+        ambientSwarmManager_->Update(kDeltaTime, ambientAnchor, camera_.get(), nullptr);
+      }
+
+      // 3.0秒以降: 100機のボス侵入軌道
+      if (phaseTimer_ >= 3.00f && !hasSpawnedBossEntrance_ && phaseTimer_ < kBossIntroTotalDuration) {
+        hasSpawnedBossEntrance_ = true;
+        if (swarmManager_) {
+          Vector3 spawnPos = CalculateBossEntranceAnchor(0.0f, basePos, baseYaw);
+          swarmManager_->StartBossEntrance(kSpawnSwarmCount, basePos, baseYaw, spawnPos);
+        }
+      }
+      if (hasSpawnedBossEntrance_ && phaseTimer_ < kBossIntroTotalDuration && swarmManager_) {
+        float entranceT = (phaseTimer_ - 3.00f) / (kBossIntroTotalDuration - 3.00f);
+        Vector3 anchorPos = CalculateBossEntranceAnchor(entranceT, basePos, baseYaw);
+        swarmManager_->UpdateBossEntrance(kDeltaTime, anchorPos, camera_.get());
+      }
+
+      // 演出終了 -> ボス戦開始
+      if (phaseTimer_ >= kBossIntroTotalDuration) {
+        cameraYaw_ = baseYaw;
+        cameraBasePitch_ = -0.18f;
+        phase_ = Phase::SwarmBattle;
+        swarmBattleTimer_ = 0.0f;
+        bossDamageBarRatio_ = 1.0f;
+        if (swarmManager_) {
+          swarmManager_->StartBossBattle(kSpawnSwarmCount, basePos, baseYaw, hasSpawnedBossEntrance_);
+        }
+        if (ambientSwarmManager_) {
+          ambientSwarmManager_->GetSettings().maxSpeed = 16.0f;
+        }
+      }
+    }
+
+    ParticleManager::GetInstance()->SetIsUpdate(true);
+    ParticleManager::GetInstance()->SetUseBillboard(false);
+    ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
+    return;
+  }
+
+  // =====================================================
   // フェーズ: スウォーム戦闘（約100機がプレイヤー周辺20m以内を旋回・突撃）
   // =====================================================
   if (phase_ == Phase::SwarmBattle) {
@@ -2061,6 +2173,23 @@ void ShootingScene::Update() {
       }
     }
 
+    if (ambientSwarmManager_ && ambientSwarmManager_->IsActive()) {
+      Vector3 basePos = GetCameraRailPosition(maxProgress_);
+      float baseYaw = (levelData_ && !levelData_->players.empty()) ? levelData_->players[0].rotation.y : 0.0f;
+      Vector3 forward = { std::sin(baseYaw), 0.0f, std::cos(baseYaw) };
+      Vector3 rearAnchor = {
+          basePos.x - forward.x * 90.0f,
+          basePos.y + 18.0f,
+          basePos.z - forward.z * 90.0f
+      };
+      ambientSwarmManager_->GetSettings().maxSpeed = 48.0f;
+      ambientSwarmManager_->Update(kDeltaTime, rearAnchor, camera_.get(), nullptr);
+      if (phaseTimer_ >= 1.3f) {
+        float dt = std::clamp((phaseTimer_ - 1.3f) / 1.3f, 0.0f, 1.0f);
+        ambientSwarmManager_->SetCrashDissolveThreshold(dt);
+      }
+    }
+
     camera_->Update();
     UpdateTerrainObjects();
     if (skybox_) {
@@ -2073,6 +2202,9 @@ void ShootingScene::Update() {
     if (phaseTimer_ >= kBossDefeatLookDownDuration) {
       if (swarmManager_) {
         swarmManager_->ClearDrones();
+      }
+      if (ambientSwarmManager_) {
+        ambientSwarmManager_->ClearDrones();
       }
       phase_ = Phase::ClearVignette;
       phaseTimer_ = 0.0f;
@@ -3099,17 +3231,9 @@ void ShootingScene::Update() {
 
     if (allEnemiesDead && isEffectFinished) {
       if (phase_ == Phase::Playing) {
-        // レール終点でクリア条件達成時: 約100機のスウォームをプレイヤー周辺20m以内にスポーン！
-        phase_ = Phase::SwarmBattle;
-        swarmBattleTimer_ = 0.0f;
-        Vector3 camPos = camera_->GetTranslate();
-        if (swarmManager_) {
-          float baseYaw = (levelData_ && !levelData_->players.empty()) ? levelData_->players[0].rotation.y : 0.0f;
-          Vector3 basePos = GetCameraRailPosition(maxProgress_);
-          bossDamageBarRatio_ = 1.0f;
-          (void)camPos;
-          swarmManager_->StartBossBattle(kSpawnSwarmCount, basePos, baseYaw);
-        }
+        // レール終点でクリア条件達成時: ボス登場時の演出フェーズへ遷移
+        StartBossIntro();
+        return;
       }
     }
   }
@@ -3141,6 +3265,19 @@ void ShootingScene::Update() {
         }
       }
     }
+  }
+
+  // 装飾用1000機スウォームの更新（ボス戦中も画角上部に偶に映る高度で漂わせる）
+  if (ambientSwarmManager_ && ambientSwarmManager_->IsActive()) {
+    Vector3 basePos = GetCameraRailPosition(maxProgress_);
+    float baseYaw = (levelData_ && !levelData_->players.empty()) ? levelData_->players[0].rotation.y : 0.0f;
+    Vector3 forward = { std::sin(baseYaw), 0.0f, std::cos(baseYaw) };
+    Vector3 ambientAnchor = {
+        basePos.x + forward.x * 26.0f,
+        basePos.y + 16.5f,
+        basePos.z + forward.z * 26.0f
+    };
+    ambientSwarmManager_->Update(kDeltaTime, ambientAnchor, camera_.get(), nullptr);
   }
 
   // スウォーム（空中群体制御）のシミュレーション更新 (Compute Shader)
@@ -3906,6 +4043,9 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
           swarmManager_->ClearDrones();
           swarmManager_->SetAttackDistance(20.0f);
         }
+        if (ambientSwarmManager_) {
+          ambientSwarmManager_->ClearDrones();
+        }
         cameraProgress_ = maxProgress_;
         isMovementPaused_ = false;
         phase_ = Phase::SwarmBattle;
@@ -4275,6 +4415,8 @@ void ShootingScene::UpdateImGui_Object3d() {
         const char* stateStr = "Cruise";
         if (d.state == 1) stateStr = "Charge";
         else if (d.state == 2) stateStr = "Dead";
+        else if (d.state == 3) stateStr = "Crashing";
+        else if (d.state == 4) stateStr = "Returning";
 
         ImGui::Text("[%02zu] State: %-8s | HP: %4.1f | Pos: (%.1f, %.1f, %.1f) | Vel: (%.1f, %.1f, %.1f)",
                     i, stateStr, d.hp, d.position.x, d.position.y, d.position.z,
@@ -4689,6 +4831,9 @@ void ShootingScene::Draw() {
     p->Draw(0);
 
   // 3.5 スウォーム群体（空中ドローン群）のGPU Instancing描画
+  if (ambientSwarmManager_) {
+    ambientSwarmManager_->Draw(camera_.get());
+  }
   if (swarmManager_) {
     swarmManager_->Draw(camera_.get());
   }
@@ -5099,6 +5244,9 @@ void ShootingScene::JumpToSection(int index) {
   if (swarmManager_) {
     swarmManager_->ClearDrones();
   }
+  if (ambientSwarmManager_) {
+    ambientSwarmManager_->ClearDrones();
+  }
   playerHp_ = kMaxPlayerHp;
   orbitAngle_ = 0.0f;
   targetTimer_ = 0.0f;
@@ -5265,6 +5413,9 @@ void ShootingScene::StartAutoClear() {
     if (swarmManager_) {
       swarmManager_->ClearDrones();
       swarmManager_->SetAttackDistance(20.0f);
+    }
+    if (ambientSwarmManager_) {
+      ambientSwarmManager_->ClearDrones();
     }
 
     for (auto &enemy : enemies_) {
@@ -5853,4 +6004,76 @@ void ShootingScene::UpdateDemoAI() {
     isDemoCovering_ = false;
     demoMousePos_ = { 640.0f, 360.0f };
   }
+}
+
+void ShootingScene::StartBossIntro() {
+  phase_ = Phase::BossIntro;
+  phaseTimer_ = 0.0f;
+  hasSpawnedBossEntrance_ = false;
+  isCovering_ = false;
+  coverYOffset_ = 0.0f;
+  bossIntroStartYaw_ = cameraYaw_;
+  bossIntroStartPitch_ = cameraBasePitch_;
+  projectiles_.clear();
+  damageEffectStrength_ = 0.0f;
+  radialBlurTimer_ = 0.0f;
+  randomNoiseTimer_ = 0.0f;
+  MyGame::SetPostEffectMode(PostProcessManager::kModeCopy);
+  MyGame::SetPostEffectStrength(1.0f);
+
+  if (swarmManager_) {
+    swarmManager_->ClearDrones();
+  }
+
+  if (ambientSwarmManager_) {
+    Vector3 basePos = GetCameraRailPosition(maxProgress_);
+    float baseYaw = (levelData_ && !levelData_->players.empty()) ? levelData_->players[0].rotation.y : 0.0f;
+    Vector3 forward = { std::sin(baseYaw), 0.0f, std::cos(baseYaw) };
+    // 画面奥（初期地点側＝後方）から1000機ほどをスポーンしてボス戦地点の上空へ向かわせる
+    Vector3 rearSpawnPos = {
+        basePos.x - forward.x * 75.0f,
+        basePos.y + 16.0f,
+        basePos.z - forward.z * 75.0f
+    };
+    ambientSwarmManager_->SetDroneScale(0.24f);
+    ambientSwarmManager_->SetAttackDistance(0.0f);
+    ambientSwarmManager_->GetSettings().maxSpeed = 42.0f;
+    ambientSwarmManager_->SpawnDrones(kAmbientSwarmCount, rearSpawnPos, 28.0f);
+  }
+}
+
+Vector3 ShootingScene::CalculateBossEntranceAnchor(float t, const Vector3& basePos, float baseYaw) const {
+  float clampedT = (std::max)(0.0f, (std::min)(1.0f, t));
+
+  // 左上画面外 -> 画面上部左寄り〜中央 -> 手前下部 -> プレイヤー前方 -> 画面上部 -> ボス初期位置
+  static constexpr Vector3 kWaypoints[] = {
+      { -34.0f, 24.0f, 26.0f }, // 0: 左上画面外
+      {   0.0f,  7.0f, 20.0f }, // 1: 中央
+      {   0.0f,  0.8f,  9.0f }, // 2: 手前下部
+      {   0.0f,  2.5f, 14.0f }, // 3: プレイヤー前方
+      {   0.0f,  9.5f, 20.0f }, // 4: 画面上部
+      {   0.0f,  4.5f, 22.0f }  // 5: ボス初期位置
+  };
+  constexpr int kSegmentCount = 5;
+
+  float scaled = clampedT * static_cast<float>(kSegmentCount);
+  int seg = (std::min)(kSegmentCount - 1, static_cast<int>(scaled));
+  float localT = scaled - static_cast<float>(seg);
+  float smoothT = localT * localT * (3.0f - 2.0f * localT);
+
+  Vector3 p0 = kWaypoints[seg];
+  Vector3 p1 = kWaypoints[seg + 1];
+  Vector3 local = {
+      p0.x + (p1.x - p0.x) * smoothT,
+      p0.y + (p1.y - p0.y) * smoothT,
+      p0.z + (p1.z - p0.z) * smoothT
+  };
+
+  Vector3 forward = { std::sin(baseYaw), 0.0f, std::cos(baseYaw) };
+  Vector3 right = { std::cos(baseYaw), 0.0f, -std::sin(baseYaw) };
+  return {
+      basePos.x + right.x * local.x + forward.x * local.z,
+      basePos.y + local.y,
+      basePos.z + right.z * local.x + forward.z * local.z
+  };
 }

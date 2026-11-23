@@ -85,7 +85,11 @@ public:
     void SpawnDrones(uint32_t count, const Vector3 & centerPos, float radius = 20.0f);
 
     // ボス戦の開始（正面少し上に集め、3区間移動・攻撃ロジックを有効化）
-    void StartBossBattle(uint32_t count, const Vector3& playerBasePos, float baseYaw);
+    void StartBossBattle(uint32_t count, const Vector3& playerBasePos, float baseYaw, bool keepExistingPositions = false);
+
+    // ボス登場侵入演出の開始と更新
+    void StartBossEntrance(uint32_t count, const Vector3& playerBasePos, float baseYaw, const Vector3& spawnPos);
+    void UpdateBossEntrance(float deltaTime, const Vector3& anchorPos, Camera* camera);
 
     // 指定機数の突撃を発動
     void TriggerCharge(uint32_t count, const Vector3& playerPos);

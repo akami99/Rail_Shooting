@@ -5,10 +5,11 @@
 namespace Swarm {
 
 enum class DroneState : uint32_t {
-    Cruise = 0,   // 巡航 (Boids群れ移動)
-    Charge = 1,   // 突撃 (プレイヤーへ直線突撃)
-    Dead = 2,     // 死亡/非表示
-    Crashing = 3  // 撃破後の墜落・残骸
+    Cruise = 0,    // 巡航 (Boids群れ移動)
+    Charge = 1,    // 突撃 (プレイヤーへ直線突撃)
+    Dead = 2,      // 死亡/非表示
+    Crashing = 3,  // 撃破後の墜落・残骸
+    Returning = 4  // 帰還 (カバーされて本隊アンカーへ帰還中)
 };
 
 // GPU/CPU 共通構造体 (48 bytes, 16バイト境界アライメント)

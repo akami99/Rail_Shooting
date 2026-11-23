@@ -352,7 +352,7 @@ void SwarmManager::UpdateIntroSimulation(float deltaTime, const Vector3& targetC
     }
 }
 
-void SwarmManager::StartBossBattle(uint32_t count, const Vector3& playerBasePos, float baseYaw) {
+void SwarmManager::StartBossBattle(uint32_t count, const Vector3& playerBasePos, float baseYaw, bool keepExistingPositions) {
     uint32_t actualCount = (count <= droneCount_) ? count : droneCount_;
 
     isBossMode_ = true;
@@ -378,47 +378,116 @@ void SwarmManager::StartBossBattle(uint32_t count, const Vector3& playerBasePos,
     settings_.separationDist = 1.5f;
     settings_.droneCount = actualCount;
 
-    Vector3 forward = { std::sin(bossBaseYaw_), 0.0f, std::cos(bossBaseYaw_) };
-    Vector3 right = { std::cos(bossBaseYaw_), 0.0f, -std::sin(bossBaseYaw_) };
-    Vector3 up = { 0.0f, 1.0f, 0.0f };
+    if (!keepExistingPositions || dronesShadow_.size() != droneCount_) {
+        Vector3 forward = { std::sin(bossBaseYaw_), 0.0f, std::cos(bossBaseYaw_) };
+        Vector3 right = { std::cos(bossBaseYaw_), 0.0f, -std::sin(bossBaseYaw_) };
+        Vector3 up = { 0.0f, 1.0f, 0.0f };
 
-    // 正面少し上（前方22m, 高さ+4.5m）を中心に配置
-    Vector3 anchorCenter = MathUtils::Add(
-        bossPlayerBasePos_,
-        MathUtils::Add(MathUtils::Multiply(22.0f, forward), MathUtils::Multiply(4.5f, up))
-    );
+        // 正面少し上（前方22m, 高さ+4.5m）を中心に配置
+        Vector3 anchorCenter = MathUtils::Add(
+            bossPlayerBasePos_,
+            MathUtils::Add(MathUtils::Multiply(22.0f, forward), MathUtils::Multiply(4.5f, up))
+        );
+
+        dronesShadow_.resize(droneCount_);
+        crashSleeping_.assign(droneCount_, false);
+        std::mt19937 mt(1337);
+        std::uniform_real_distribution<float> xDist(-4.5f, 4.5f);
+        std::uniform_real_distribution<float> yDist(-1.6f, 1.8f);
+        std::uniform_real_distribution<float> zDist(-2.0f, 2.0f);
+        std::uniform_real_distribution<float> vDist(-3.0f, 3.0f);
+
+        for (uint32_t i = 0; i < droneCount_; ++i) {
+            if (i < actualCount) {
+                float ox = xDist(mt);
+                float oy = yDist(mt);
+                float oz = zDist(mt);
+                Vector3 offset = MathUtils::Add(
+                    MathUtils::Multiply(ox, right),
+                    MathUtils::Add(MathUtils::Multiply(oy, up), MathUtils::Multiply(oz, forward))
+                );
+                dronesShadow_[i].position = MathUtils::Add(anchorCenter, offset);
+                dronesShadow_[i].velocity = MathUtils::Add(
+                    MathUtils::Multiply(6.0f, right),
+                    { vDist(mt), vDist(mt) * 0.4f, vDist(mt) }
+                );
+                dronesShadow_[i].hp = 10.0f;
+                dronesShadow_[i].state = 0; // Cruise
+                dronesShadow_[i].target = anchorCenter;
+                dronesShadow_[i].stateTimer = 0.0f;
+            } else {
+                dronesShadow_[i].position = { 0.0f, -999.0f, 0.0f };
+                dronesShadow_[i].velocity = { 0.0f, 0.0f, 0.0f };
+                dronesShadow_[i].hp = 0.0f;
+                dronesShadow_[i].state = 2; // Dead
+                dronesShadow_[i].target = { 0.0f, 0.0f, 0.0f };
+                dronesShadow_[i].stateTimer = 0.0f;
+            }
+        }
+
+        pendingSpawnData_ = dronesShadow_;
+        pendingSpawn_ = true;
+    } else {
+        crashSleeping_.assign(droneCount_, false);
+        for (uint32_t i = 0; i < droneCount_; ++i) {
+            if (i < actualCount) {
+                dronesShadow_[i].hp = 10.0f;
+                dronesShadow_[i].state = 0; // Cruise
+                dronesShadow_[i].stateTimer = 0.0f;
+            } else {
+                dronesShadow_[i].position = { 0.0f, -999.0f, 0.0f };
+                dronesShadow_[i].velocity = { 0.0f, 0.0f, 0.0f };
+                dronesShadow_[i].hp = 0.0f;
+                dronesShadow_[i].state = 2; // Dead
+            }
+        }
+    }
+
+    needGpuSync_ = true;
+    isActive_ = true;
+}
+
+void SwarmManager::StartBossEntrance(uint32_t count, const Vector3& playerBasePos, float baseYaw, const Vector3& spawnPos) {
+    uint32_t actualCount = (count <= droneCount_) ? count : droneCount_;
+
+    isBossMode_ = false;
+    isBossDefeated_ = false;
+    isFinalPhaseTriggered_ = false;
+    crashDissolveThreshold_ = 0.0f;
+    bossMaxHp_ = actualCount;
+    bossPlayerBasePos_ = playerBasePos;
+    bossGroundY_ = playerBasePos.y - 1.4f;
+    bossBaseYaw_ = baseYaw;
+    bossMoveTimer_ = 0.0f;
+    chargeGroups_.clear();
+    frameEvents_ = {};
+
+    droneScale_ = 0.32f;
+    settings_.maxSpeed = 28.0f;
+    settings_.droneCount = actualCount;
 
     dronesShadow_.resize(droneCount_);
     crashSleeping_.assign(droneCount_, false);
-    std::mt19937 mt(1337);
-    std::uniform_real_distribution<float> xDist(-4.5f, 4.5f);
-    std::uniform_real_distribution<float> yDist(-1.6f, 1.8f);
-    std::uniform_real_distribution<float> zDist(-2.0f, 2.0f);
-    std::uniform_real_distribution<float> vDist(-3.0f, 3.0f);
+    std::mt19937 mt(2026);
+    std::uniform_real_distribution<float> spreadDist(-3.0f, 3.0f);
 
     for (uint32_t i = 0; i < droneCount_; ++i) {
         if (i < actualCount) {
-            float ox = xDist(mt);
-            float oy = yDist(mt);
-            float oz = zDist(mt);
-            Vector3 offset = MathUtils::Add(
-                MathUtils::Multiply(ox, right),
-                MathUtils::Add(MathUtils::Multiply(oy, up), MathUtils::Multiply(oz, forward))
-            );
-            dronesShadow_[i].position = MathUtils::Add(anchorCenter, offset);
-            dronesShadow_[i].velocity = MathUtils::Add(
-                MathUtils::Multiply(6.0f, right),
-                { vDist(mt), vDist(mt) * 0.4f, vDist(mt) }
-            );
+            dronesShadow_[i].position = {
+                spawnPos.x + spreadDist(mt),
+                spawnPos.y + spreadDist(mt) * 0.6f,
+                spawnPos.z + spreadDist(mt)
+            };
+            dronesShadow_[i].velocity = { 0.0f, 0.0f, 0.0f };
             dronesShadow_[i].hp = 10.0f;
-            dronesShadow_[i].state = 0; // Cruise
-            dronesShadow_[i].target = anchorCenter;
-            dronesShadow_[i].stateTimer = 0.0f;
+            dronesShadow_[i].state = 0;
+            dronesShadow_[i].target = spawnPos;
+            dronesShadow_[i].stateTimer = static_cast<float>(i) * 0.37f;
         } else {
             dronesShadow_[i].position = { 0.0f, -999.0f, 0.0f };
             dronesShadow_[i].velocity = { 0.0f, 0.0f, 0.0f };
             dronesShadow_[i].hp = 0.0f;
-            dronesShadow_[i].state = 2; // Dead
+            dronesShadow_[i].state = 2;
             dronesShadow_[i].target = { 0.0f, 0.0f, 0.0f };
             dronesShadow_[i].stateTimer = 0.0f;
         }
@@ -428,6 +497,51 @@ void SwarmManager::StartBossBattle(uint32_t count, const Vector3& playerBasePos,
     pendingSpawn_ = true;
     needGpuSync_ = true;
     isActive_ = true;
+}
+
+void SwarmManager::UpdateBossEntrance(float deltaTime, const Vector3& anchorPos, Camera* camera) {
+    frameEvents_ = {};
+    if (!isActive_) return;
+
+    bossMoveTimer_ += deltaTime;
+
+    if (camera) {
+        Vector3 camT = camera->GetTranslate();
+        settings_.cameraPosition = { camT.x, camT.y, camT.z };
+        Matrix4x4 vp = camera->GetViewProjectionMatrix();
+        std::memcpy(&mappedCameraConstants_->viewProjection, &vp, sizeof(Matrix4x4));
+        mappedCameraConstants_->cameraPosition = settings_.cameraPosition;
+        mappedCameraConstants_->droneScale = droneScale_;
+        mappedCameraConstants_->crashDissolveThreshold = crashDissolveThreshold_;
+        mappedCameraConstants_->dissolveEdgeRange = 0.08f;
+        mappedCameraConstants_->dissolveEdgeColor = { 0.0f, 1.0f, 0.8f };
+    }
+
+    const float kFollowSpeed = 30.0f;
+    for (uint32_t i = 0; i < droneCount_; ++i) {
+        auto& self = dronesShadow_[i];
+        if (self.hp <= 0.0f || self.state == 2) continue;
+
+        // 群れのばらつきを保ちつつアンカーへ追従
+        float phase = bossMoveTimer_ * 3.5f + self.stateTimer;
+        Vector3 swarmOffset = {
+            std::sin(phase) * 2.2f,
+            std::cos(phase * 1.3f) * 1.1f,
+            std::sin(phase * 0.7f + 1.0f) * 1.8f
+        };
+        Vector3 targetPos = MathUtils::Add(anchorPos, swarmOffset);
+        Vector3 toTarget = MathUtils::Subtract(targetPos, self.position);
+        float dist = MathUtils::Length(toTarget);
+        Vector3 desiredVel = (dist > 0.001f)
+            ? MathUtils::Multiply((std::min)(kFollowSpeed, dist * 6.5f), MathUtils::Multiply(1.0f / dist, toTarget))
+            : Vector3{ 0.0f, 0.0f, 0.0f };
+
+        self.velocity = MathUtils::Add(self.velocity, MathUtils::Multiply((std::min)(1.0f, deltaTime * 8.0f), MathUtils::Subtract(desiredVel, self.velocity)));
+        self.position = MathUtils::Add(self.position, MathUtils::Multiply(deltaTime, self.velocity));
+    }
+
+    needGpuSync_ = true;
+    *mappedConstants_ = settings_;
 }
 
 void SwarmManager::CreateChargeGroup(const std::vector<uint32_t>& indices, bool isFinalGroup, const Vector3& playerPos) {
@@ -814,6 +928,23 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
             periodicAttackTimer_ -= 10.0f;
             TriggerCharge(10, playerPos);
         }
+    } else if (chargeGroups_.empty()) {
+        // 最終突撃がカバーされて帰還中の場合、全生存機が帰還完了したら再度最終突撃を開始
+        bool anyReturning = false;
+        std::vector<uint32_t> remainingIndices;
+        for (uint32_t i = 0; i < droneCount_; ++i) {
+            const auto& d = dronesShadow_[i];
+            if (d.hp > 0.0f && d.state != 2) {
+                if (d.state == 4) {
+                    anyReturning = true;
+                    break;
+                }
+                remainingIndices.push_back(i);
+            }
+        }
+        if (!anyReturning && !remainingIndices.empty()) {
+            CreateChargeGroup(remainingIndices, true, playerPos);
+        }
     }
 
     // =========================================================
@@ -839,11 +970,11 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
             frameEvents_.selfDestructPositions.push_back(group.centerPos);
 
             if (isPlayerCovering) {
-                // カバー時：爆発・自傷あり、プレイヤー爆風ダメージ3、ボスの体力と数を1減らし、残りを巡航に戻す
+                // カバー時：爆発・自傷あり、プレイヤー爆風ダメージ3、ボスの体力と数を1減らし、残りを帰還状態にする
                 frameEvents_.playerGroupBlastHits += 1;
 
                 bool sacrificedOne = false;
-                size_t sacrificedIdx = 0;
+                uint32_t remainingAliveInGroup = 0;
                 for (size_t i = 0; i < group.droneIndices.size(); ++i) {
                     uint32_t dIdx = group.droneIndices[i];
                     auto& d = dronesShadow_[dIdx];
@@ -852,59 +983,40 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
                             d.hp = 0.0f;
                             d.state = 2; // Dead (1機分だけ撃破・ボス体力1減)
                             sacrificedOne = true;
-                            sacrificedIdx = i;
-                        } else if (!group.isFinalGroup) {
-                            d.state = 0; // Cruise (巡航に戻す)
+                        } else {
+                            d.state = 4; // Returning (帰還状態)
                             d.stateTimer = 0.0f;
+                            d.velocity = MathUtils::Add(MathUtils::Multiply(8.0f, forward), { 0.0f, 9.0f, 0.0f });
+                            remainingAliveInGroup++;
                         }
                     }
                 }
 
-                if (group.isFinalGroup) {
-                    if (sacrificedOne) {
-                        group.droneIndices.erase(group.droneIndices.begin() + sacrificedIdx);
-                        if (sacrificedIdx < group.localOffsets.size()) {
-                            group.localOffsets.erase(group.localOffsets.begin() + sacrificedIdx);
-                        }
-                        group.hp = (std::max)(0, group.hp - 1);
-                    }
-                    if (group.hp <= 0 || group.droneIndices.empty()) {
-                        group.isDead = true;
-                        group.isHpGaugeVisible = false;
-                        isBossDefeated_ = true;
-                        frameEvents_.bossDefeated = true;
-                        continue;
-                    }
-                    // 最終グループで生存機が残っていれば正面奥へ再集結して再突撃
-                    group.centerPos = MathUtils::Add(
-                        bossPlayerBasePos_,
-                        MathUtils::Add(MathUtils::Multiply(22.0f, forward), MathUtils::Multiply(4.5f, up))
-                    );
-                    for (size_t i = 0; i < group.droneIndices.size(); ++i) {
-                        uint32_t dIdx = group.droneIndices[i];
-                        dronesShadow_[dIdx].position = MathUtils::Add(group.centerPos, group.localOffsets[i]);
-                    }
-                } else {
-                    // 通常グループはグループ化を解除して残りは巡航に戻る
-                    group.isDead = true;
-                    group.isHpGaugeVisible = false;
-                    continue;
+                // グループ化を解除して残りは本隊へ帰還（最終グループで全機消滅した場合は撃破）
+                group.isDead = true;
+                group.isHpGaugeVisible = false;
+                if (group.isFinalGroup && remainingAliveInGroup == 0) {
+                    isBossDefeated_ = true;
+                    frameEvents_.bossDefeated = true;
                 }
+                continue;
             } else {
                 // 通常時（非カバー）：プレイヤーに直撃ダメージ10
                 frameEvents_.playerDirectHits += 1;
 
                 if (group.isFinalGroup) {
-                    // 最終15機グループは「体力ゲージを削り切ったらクリア」のため、
-                    // プレイヤーが生存していれば正面奥へ再集結して再突撃する
-                    group.centerPos = MathUtils::Add(
-                        bossPlayerBasePos_,
-                        MathUtils::Add(MathUtils::Multiply(22.0f, forward), MathUtils::Multiply(4.5f, up))
-                    );
-                    for (size_t i = 0; i < group.droneIndices.size(); ++i) {
-                        uint32_t dIdx = group.droneIndices[i];
-                        dronesShadow_[dIdx].position = MathUtils::Add(group.centerPos, group.localOffsets[i]);
+                    // 最終15機グループは通常被弾時も正面奥へワープさせず、帰還状態にして本隊アンカーへ戻す
+                    for (uint32_t dIdx : group.droneIndices) {
+                        auto& d = dronesShadow_[dIdx];
+                        if (d.hp > 0.0f && d.state != 2) {
+                            d.state = 4; // Returning
+                            d.stateTimer = 0.0f;
+                            d.velocity = MathUtils::Add(MathUtils::Multiply(8.0f, forward), { 0.0f, 9.0f, 0.0f });
+                        }
                     }
+                    group.isDead = true;
+                    group.isHpGaugeVisible = false;
+                    continue;
                 } else {
                     // 第二形態の通常突撃グループは自爆消滅し、機体分ボス全体HPが減る
                     group.isDead = true;
@@ -979,8 +1091,8 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
         bossMoveTimer_ += deltaTime;
     }
 
-    // 正面少し上（高さ+4.5m, 前方22m）を中心に、左・正面・右の3区間を左右に往復
-    float anchorLateral = std::sin(bossMoveTimer_ * 0.55f) * 14.5f;
+    // 正面少し上（高さ+4.5m, 前方22m）を中心に、左・正面・右の3区間を左右に往復（最終フェーズ時は正面固定）
+    float anchorLateral = isFinalPhaseTriggered_ ? 0.0f : (std::sin(bossMoveTimer_ * 0.55f) * 14.5f);
     float anchorHeight = 4.5f + std::sin(bossMoveTimer_ * 1.2f) * 0.6f;
     float anchorDepth = 22.0f;
     Vector3 anchorWorld = MathUtils::Add(
@@ -1015,9 +1127,10 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
             float distToPlayer = MathUtils::Length(toPlayer);
             if (distToPlayer < 2.2f) {
                 if (isPlayerCovering) {
-                    // カバー時（通常フェーズ）：爆発・自傷無し、プレイヤーダメージ無し、巡航に戻す
-                    self.state = 0; // Cruise
+                    // カバー時（通常フェーズ）：爆発・自傷無し、プレイヤーダメージ無し、帰還状態にする
+                    self.state = 4; // Returning
                     self.stateTimer = 0.0f;
+                    self.velocity = MathUtils::Add(MathUtils::Multiply(8.0f, forward), { 0.0f, 9.0f, 0.0f });
                 } else {
                     // 通常時（通常フェーズ）：直撃ダメージ10＆自傷（衝突機体撃破）
                     frameEvents_.selfDestructPositions.push_back(self.position);
@@ -1032,6 +1145,23 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
             Vector3 desiredVel = MathUtils::Multiply(settings_.ChargeSpeed, dirToPlayer);
             self.velocity = MathUtils::Add(self.velocity, MathUtils::Multiply((std::min)(1.0f, deltaTime * 6.0f), MathUtils::Subtract(desiredVel, self.velocity)));
             self.position = MathUtils::Add(self.position, MathUtils::Multiply(deltaTime, self.velocity));
+        } else if (self.state == 4) {
+            // 帰還ドローン (state == 4: カバーされて本隊アンカーへ帰還中、突撃対象外)
+            Vector3 toMainAnchor = MathUtils::Subtract(anchorWorld, self.position);
+            float distToMain = MathUtils::Length(toMainAnchor);
+            if (distToMain > 0.001f) {
+                Vector3 returnVel = MathUtils::Multiply(settings_.maxSpeed * 1.35f, MathUtils::Multiply(1.0f / distToMain, toMainAnchor));
+                self.velocity = MathUtils::Add(self.velocity, MathUtils::Multiply((std::min)(1.0f, deltaTime * 4.5f), MathUtils::Subtract(returnVel, self.velocity)));
+            }
+            self.position = MathUtils::Add(self.position, MathUtils::Multiply(deltaTime, self.velocity));
+
+            Vector3 rel = MathUtils::Subtract(self.position, bossPlayerBasePos_);
+            float localZ = MathUtils::Dot(rel, forward);
+            const float minAllowedZ = (std::max)(17.5f, anchorDepth - 2.5f);
+            if (distToMain < 5.0f && localZ >= minAllowedZ) {
+                self.state = 0; // Cruise (巡航へ合流)
+                self.stateTimer = 0.0f;
+            }
         } else {
             // 巡航ドローン (state == 0: Boids + 左右往復アンカー追従)
             self.stateTimer += deltaTime;
@@ -1188,6 +1318,21 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
 
 float SwarmManager::GetTargetCameraYaw() const {
     if (!isBossMode_) return bossBaseYaw_;
+    if (isFinalPhaseTriggered_) {
+        if (!chargeGroups_.empty()) {
+            Vector3 diff = MathUtils::Subtract(chargeGroups_[0].centerPos, bossPlayerBasePos_);
+            float distXZ = std::sqrt(diff.x * diff.x + diff.z * diff.z);
+            if (distXZ > 2.5f) {
+                Vector3 forward = { std::sin(bossBaseYaw_), 0.0f, std::cos(bossBaseYaw_) };
+                Vector3 right = { std::cos(bossBaseYaw_), 0.0f, -std::sin(bossBaseYaw_) };
+                float localX = MathUtils::Dot(diff, right);
+                float localZ = MathUtils::Dot(diff, forward);
+                float relYaw = std::atan2(localX, (std::max)(0.1f, localZ));
+                return bossBaseYaw_ + std::clamp(relYaw, -0.65f, 0.65f);
+            }
+        }
+        return bossBaseYaw_;
+    }
     // 左(-1)・正面(0)・右(+1)の3区間に応じてカメラYaw角を切り替え (約±28度)
     const float kSectionYawStep = 0.48f;
     return bossBaseYaw_ + static_cast<float>(currentSection_) * kSectionYawStep;
@@ -1285,7 +1430,7 @@ bool SwarmManager::GetAutoAimTarget(Vector3& outTargetPos) const {
     float minCruiseDistSq = (std::numeric_limits<float>::max)();
     for (uint32_t i = 0; i < droneCount_; ++i) {
         const auto& d = dronesShadow_[i];
-        if (d.hp > 0.0f && d.state == 0) {
+        if (d.hp > 0.0f && (d.state == 0 || d.state == 4)) {
             float dSq = calcDistSq(d.position);
             if (dSq < minCruiseDistSq) {
                 minCruiseDistSq = dSq;

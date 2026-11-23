@@ -39,6 +39,7 @@ public:
         IntroRewind,        // スタート演出:引き戻し
         IntroReadyGo,       // スタート演出:Ready Go帯リール演出
         Playing,            // 通常プレイ
+        BossIntro,          // ボス登場時の演出
         SwarmBattle,        // レール終点でのスウォーム演出/戦闘
         GameOver,           // ゲームオーバー
         RestartSmoothing,   // リセット後スムージングを徐々に消す
@@ -156,11 +157,16 @@ private:
 
     // スウォーム（空中群体制御）システム
     std::unique_ptr<SwarmManager> swarmManager_;
+    std::unique_ptr<SwarmManager> ambientSwarmManager_; // ボス登場演出・上空漂い用1000機スウォーム
     SwarmManager::AttackCommand pendingSwarmAttack_;
     bool hasPendingSwarmAttack_ = false;
     float swarmBattleTimer_ = 0.0f;
     const uint32_t kMaxSwarmCount = 128;
     const uint32_t kSpawnSwarmCount = 100;
+    const uint32_t kAmbientSwarmCount = 1000;
+    bool hasSpawnedBossEntrance_ = false;
+    float bossIntroStartYaw_ = 0.0f;
+    float bossIntroStartPitch_ = 0.0f;
 
     // ボス全体HPゲージUI
     std::unique_ptr<Sprite> bossHpBgSprite_;
@@ -259,6 +265,11 @@ private:
     static constexpr float kFastForwardDuration = 2.0f; // 前進にかける時間(秒)
     static constexpr float kSwarmShowcaseDuration = 2.5f; // 終点で見せる時間(秒)
     static constexpr float kRewindDuration = 1.5f; // 引き戻しにかける時間(秒)
+
+    // ボス登場演出パラメータ
+    static constexpr float kBossIntroTotalDuration = 6.3f;
+    void StartBossIntro();
+    Vector3 CalculateBossEntranceAnchor(float t, const Vector3& basePos, float baseYaw) const;
 
     // スタート演出・終点スウォーム調整用パラメータ (ImGui)
     Vector3 introSwarmOffset_ = { 0.0f, 7.5f, 20.0f }; // レール終点からのスウォーム中心オフセット
