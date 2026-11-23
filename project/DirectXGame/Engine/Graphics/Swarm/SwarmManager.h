@@ -57,7 +57,8 @@ public:
         std::vector<Vector3> destroyedPositions;
         std::vector<Vector3> selfDestructPositions;
         int dronesKilledByPlayer = 0;
-        int playerExplosionHits = 0;
+        int playerDirectHits = 0;     // 直撃ヒット数（通常時：10ダメージ）
+        int playerGroupBlastHits = 0; // グループ自爆ヒット数（カバー時：3ダメージ）
         bool bossDefeated = false;
     };
 
@@ -71,7 +72,7 @@ public:
                     const std::string& modelFilename = "enemy.obj");
 
     // シミュレーション更新
-    void Update(float deltaTime, const Vector3 & playerPos, Camera* camera, const AttackCommand* attackCmd = nullptr);
+    void Update(float deltaTime, const Vector3 & playerPos, Camera* camera, const AttackCommand* attackCmd = nullptr, bool isPlayerCovering = false);
 
     // 描画 (GPU Instancing)
     void Draw(Camera* camera);
@@ -158,7 +159,7 @@ private:
     void InitializePipeline();
     void InitializeModel(const std::string& directory, const std::string& filename);
     void CreateChargeGroup(const std::vector<uint32_t>& indices, bool isFinalGroup, const Vector3& playerPos);
-    void UpdateBossSimulation(float deltaTime, const Vector3& playerPos, const AttackCommand* attackCmd);
+    void UpdateBossSimulation(float deltaTime, const Vector3& playerPos, const AttackCommand* attackCmd, bool isPlayerCovering);
     void UpdateIntroSimulation(float deltaTime, const Vector3& targetCenter);
     void UpdateCrashingDrones(float deltaTime);
 

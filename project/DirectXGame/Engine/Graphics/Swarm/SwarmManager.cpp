@@ -293,7 +293,8 @@ void SwarmManager::InitializeModel(const std::string& directory, const std::stri
 void SwarmManager::Update(float deltaTime,
                           const Vector3 & playerPos,
                           Camera* camera,
-                          const AttackCommand* attackCmd) {
+                          const AttackCommand* attackCmd,
+                          bool isPlayerCovering) {
     frameEvents_ = {};
     if (!isActive_) {
         return;
@@ -317,7 +318,7 @@ void SwarmManager::Update(float deltaTime,
     }
 
     if (isBossMode_) {
-        UpdateBossSimulation(deltaTime, playerPos, attackCmd);
+        UpdateBossSimulation(deltaTime, playerPos, attackCmd, isPlayerCovering);
         needGpuSync_ = true;
     } else {
         UpdateIntroSimulation(deltaTime, playerPos);
@@ -571,7 +572,7 @@ void SwarmManager::TriggerCharge(uint32_t count, const Vector3& playerPos) {
     }
 }
 
-void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPos, const AttackCommand* attackCmd) {
+void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPos, const AttackCommand* attackCmd, bool isPlayerCovering) {
     Vector3 forward = { std::sin(bossBaseYaw_), 0.0f, std::cos(bossBaseYaw_) };
     Vector3 right = { std::cos(bossBaseYaw_), 0.0f, -std::sin(bossBaseYaw_) };
     Vector3 up = { 0.0f, 1.0f, 0.0f };
@@ -833,31 +834,87 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
         group.velocity = MathUtils::Multiply(group.speed, dirToPlayer);
         group.centerPos = MathUtils::Add(group.centerPos, MathUtils::Multiply(deltaTime, group.velocity));
 
-        // プレイヤーに到達したら自爆ダメージ判定
+        // プレイヤーに到達したらダメージ判定
         if (distToPlayer < 2.3f) {
             frameEvents_.selfDestructPositions.push_back(group.centerPos);
-            frameEvents_.playerExplosionHits += 1;
 
-            if (group.isFinalGroup) {
-                // 最終15機グループは「体力ゲージを削り切ったらクリア」のため、
-                // 自爆でクリアにはせず、プレイヤーが生存していれば正面奥へ再集結して再突撃する
-                group.centerPos = MathUtils::Add(
-                    bossPlayerBasePos_,
-                    MathUtils::Add(MathUtils::Multiply(22.0f, forward), MathUtils::Multiply(4.5f, up))
-                );
+            if (isPlayerCovering) {
+                // カバー時：爆発・自傷あり、プレイヤー爆風ダメージ3、ボスの体力と数を1減らし、残りを巡航に戻す
+                frameEvents_.playerGroupBlastHits += 1;
+
+                bool sacrificedOne = false;
+                size_t sacrificedIdx = 0;
                 for (size_t i = 0; i < group.droneIndices.size(); ++i) {
                     uint32_t dIdx = group.droneIndices[i];
-                    dronesShadow_[dIdx].position = MathUtils::Add(group.centerPos, group.localOffsets[i]);
+                    auto& d = dronesShadow_[dIdx];
+                    if (d.hp > 0.0f && d.state != 2) {
+                        if (!sacrificedOne) {
+                            d.hp = 0.0f;
+                            d.state = 2; // Dead (1機分だけ撃破・ボス体力1減)
+                            sacrificedOne = true;
+                            sacrificedIdx = i;
+                        } else if (!group.isFinalGroup) {
+                            d.state = 0; // Cruise (巡航に戻す)
+                            d.stateTimer = 0.0f;
+                        }
+                    }
+                }
+
+                if (group.isFinalGroup) {
+                    if (sacrificedOne) {
+                        group.droneIndices.erase(group.droneIndices.begin() + sacrificedIdx);
+                        if (sacrificedIdx < group.localOffsets.size()) {
+                            group.localOffsets.erase(group.localOffsets.begin() + sacrificedIdx);
+                        }
+                        group.hp = (std::max)(0, group.hp - 1);
+                    }
+                    if (group.hp <= 0 || group.droneIndices.empty()) {
+                        group.isDead = true;
+                        group.isHpGaugeVisible = false;
+                        isBossDefeated_ = true;
+                        frameEvents_.bossDefeated = true;
+                        continue;
+                    }
+                    // 最終グループで生存機が残っていれば正面奥へ再集結して再突撃
+                    group.centerPos = MathUtils::Add(
+                        bossPlayerBasePos_,
+                        MathUtils::Add(MathUtils::Multiply(22.0f, forward), MathUtils::Multiply(4.5f, up))
+                    );
+                    for (size_t i = 0; i < group.droneIndices.size(); ++i) {
+                        uint32_t dIdx = group.droneIndices[i];
+                        dronesShadow_[dIdx].position = MathUtils::Add(group.centerPos, group.localOffsets[i]);
+                    }
+                } else {
+                    // 通常グループはグループ化を解除して残りは巡航に戻る
+                    group.isDead = true;
+                    group.isHpGaugeVisible = false;
+                    continue;
                 }
             } else {
-                // 第二形態の通常突撃グループは自爆消滅し、機体数（全体HP）が減る
-                group.isDead = true;
-                group.isHpGaugeVisible = false;
-                for (uint32_t dIdx : group.droneIndices) {
-                    dronesShadow_[dIdx].hp = 0.0f;
-                    dronesShadow_[dIdx].state = 2; // Dead
+                // 通常時（非カバー）：プレイヤーに直撃ダメージ10
+                frameEvents_.playerDirectHits += 1;
+
+                if (group.isFinalGroup) {
+                    // 最終15機グループは「体力ゲージを削り切ったらクリア」のため、
+                    // プレイヤーが生存していれば正面奥へ再集結して再突撃する
+                    group.centerPos = MathUtils::Add(
+                        bossPlayerBasePos_,
+                        MathUtils::Add(MathUtils::Multiply(22.0f, forward), MathUtils::Multiply(4.5f, up))
+                    );
+                    for (size_t i = 0; i < group.droneIndices.size(); ++i) {
+                        uint32_t dIdx = group.droneIndices[i];
+                        dronesShadow_[dIdx].position = MathUtils::Add(group.centerPos, group.localOffsets[i]);
+                    }
+                } else {
+                    // 第二形態の通常突撃グループは自爆消滅し、機体分ボス全体HPが減る
+                    group.isDead = true;
+                    group.isHpGaugeVisible = false;
+                    for (uint32_t dIdx : group.droneIndices) {
+                        dronesShadow_[dIdx].hp = 0.0f;
+                        dronesShadow_[dIdx].state = 2; // Dead
+                    }
+                    continue;
                 }
-                continue;
             }
         }
 
@@ -957,11 +1014,17 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
             Vector3 toPlayer = MathUtils::Subtract(playerTarget, self.position);
             float distToPlayer = MathUtils::Length(toPlayer);
             if (distToPlayer < 2.2f) {
-                // プレイヤーに到達して自爆
-                frameEvents_.selfDestructPositions.push_back(self.position);
-                frameEvents_.playerExplosionHits += 1;
-                self.hp = 0.0f;
-                self.state = 2; // Dead
+                if (isPlayerCovering) {
+                    // カバー時（通常フェーズ）：爆発・自傷無し、プレイヤーダメージ無し、巡航に戻す
+                    self.state = 0; // Cruise
+                    self.stateTimer = 0.0f;
+                } else {
+                    // 通常時（通常フェーズ）：直撃ダメージ10＆自傷（衝突機体撃破）
+                    frameEvents_.selfDestructPositions.push_back(self.position);
+                    frameEvents_.playerDirectHits += 1;
+                    self.hp = 0.0f;
+                    self.state = 2; // Dead
+                }
                 continue;
             }
 

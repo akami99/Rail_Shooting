@@ -224,8 +224,7 @@ private:
     float speed_ = 1.2f;                            // 通常弾の速度 (少し速め)
     float engineerProjectileSpeed_ = 0.18f;          // 工兵爆発弾（ランチャー）の速度 (ロケット弾イメージで遅め)
     float jammingProjectileSpeed_ = 1.8f;           // ジャミング弾の速度 (弾の中で最速)
-    int coverExplosionHits_ = 0;                    // カバー時の爆発弾ヒット蓄積数 (2回で1ライフ減少)
-    float lifeBlinkTimer_ = 0.0f;                   // カバー被弾時点滅タイマー
+    float lifeBlinkTimer_ = 0.0f;                   // ライフ点滅タイマー
     float projectileSpawnTimer_ = 0.0f;
     const float kProjectileSpawnInterval = 120.0f;   // 通常敵の発射間隔 (約2秒)
     const float kEngineerSpawnInterval = 200.0f;     // 工兵の発射間隔 (約3.3秒、ロケット弾イメージで遅め)
@@ -240,8 +239,12 @@ private:
     float cameraShakeIntensity_ = 0.0f;
 
     // ヒットポイントとゲームオーバー管理
-    int hitCount_ = 0;
-    static constexpr int kMaxHits = 3;
+    static constexpr int kMaxPlayerHp = 30;
+    static constexpr int kDirectDamage = 10;
+    static constexpr int kEngineerBlastDamage = 2;
+    static constexpr int kBossGroupBlastDamage = 3;
+    static constexpr int kLifeSegments = 3;
+    int playerHp_ = kMaxPlayerHp;
 
     Phase phase_ = Phase::IntroConstruct;
     float phaseTimer_ = 0.0f;
@@ -358,9 +361,8 @@ private:
     // UI用スプライト
     // ライフUI
     std::unique_ptr<Sprite> lifeBg_;
-    std::vector<std::unique_ptr<Sprite>> lifeUnits_;
-    std::vector<float> lifeCurrentX_;
-    std::vector<float> lifeTargetX_;
+    std::vector<std::unique_ptr<Sprite>> lifeUnits_;    // 3区画分のゲージ本体
+    std::vector<std::unique_ptr<Sprite>> lifeDividers_; // ゲージ内メモリ線(2本)
 
     // 弾薬UI
     std::unique_ptr<Sprite> ammoBg_;

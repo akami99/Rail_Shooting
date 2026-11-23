@@ -705,7 +705,7 @@ void ShootingScene::Initialize() {
   // 初期フェーズの設定（入場・逆順展開演出から開始）
   phase_ = Phase::IntroConstruct;
   phaseTimer_ = 0.0f;
-  hitCount_ = 0;
+  playerHp_ = kMaxPlayerHp;
   isAutoClearing_ = false;
   autoClearAttackTimer_ = 0.0f;
 
@@ -726,18 +726,23 @@ void ShootingScene::Initialize() {
   lifeBg_->SetColor({0.2f, 0.2f, 0.2f, 0.8f}); // 半透明グレー
 
   lifeUnits_.clear();
-  lifeCurrentX_.clear();
-  lifeTargetX_.clear();
-  for (int i = 0; i < kMaxHits; ++i) {
+  for (int i = 0; i < kLifeSegments; ++i) {
     auto unit = std::make_unique<Sprite>();
     unit->Initialize("white.png");
-    unit->SetScale({16.0f, 36.0f});
+    unit->SetTranslate({1150.0f + i * 30.0f, 37.0f});
+    unit->SetScale({30.0f, 36.0f});
     unit->SetColor({1.0f, 0.0f, 0.0f, 1.0f}); // 赤色
-
-    float initX = 1214.0f - (kMaxHits - 1 - i) * 24.0f;
     lifeUnits_.push_back(std::move(unit));
-    lifeCurrentX_.push_back(initX);
-    lifeTargetX_.push_back(initX);
+  }
+
+  lifeDividers_.clear();
+  for (int i = 0; i < kLifeSegments - 1; ++i) {
+    auto divider = std::make_unique<Sprite>();
+    divider->Initialize("white.png");
+    divider->SetTranslate({1150.0f + (i + 1) * 30.0f - 1.0f, 37.0f});
+    divider->SetScale({2.0f, 36.0f});
+    divider->SetColor({0.15f, 0.15f, 0.15f, 0.95f}); // ゲージ内メモリ線
+    lifeDividers_.push_back(std::move(divider));
   }
 
   // 2. 弾薬UI
@@ -2570,6 +2575,7 @@ void ShootingScene::Update() {
 
   // カメラとの当たり判定（プレイヤー被弾処理）
   bool isInvincible = IsInvincible();
+  bool isForceInvincible = isAutoClearing_ || isDebugInvincible_ || (sectionJumpInvincibleTimer_ > 0.0f);
 
   if (isCovering_) {
     // 遮蔽中の場合、被弾予定位置（遮蔽前の本来のプレイヤー位置）を通過した弾を消去する
@@ -2579,8 +2585,8 @@ void ShootingScene::Update() {
         continue;
       Vector3 toProjectile = Subtract(p->GetPosition(), targetPos);
       if (Dot(toProjectile, p->GetVelocity()) >= 0.0f) {
-        if (p->IsExplosive() && p->IsHitShot()) {
-          // ランチャー弾（爆発弾）はカバー時でも演出発生＆2回被弾で1ダメージ（※予兆のある必中弾のみ）
+        if (p->IsExplosive() && p->IsHitShot() && !isForceInvincible) {
+          // ランチャー弾（爆発弾）はカバー時でも演出発生＆爆風貫通ダメージ(2)（※予兆のある必中弾のみ）
           radialBlurStrength_ = 0.04f;
           radialBlurTimer_ = kRadialBlurDuration;
           PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
@@ -2588,18 +2594,13 @@ void ShootingScene::Update() {
           cameraShakeDuration_ = 0.35f;
           cameraShakeTimer_ = 0.35f;
 
-          coverExplosionHits_++;
-          if (coverExplosionHits_ >= 2) {
-            // 2回ヒットで1ライフ減少
-            coverExplosionHits_ = 0;
-            hitCount_++;
-            damageEffectStrength_ = 1.0f;
-            MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
+          playerHp_ = (std::max)(0, playerHp_ - kEngineerBlastDamage);
+          damageEffectStrength_ = 1.0f;
+          MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
 
-            if (hitCount_ >= kMaxHits) {
-              StartGameOver(DeathReason::CoverBlast);
-              return;
-            }
+          if (playerHp_ <= 0) {
+            StartGameOver(DeathReason::CoverBlast);
+            return;
           }
         }
         p->Kill();
@@ -2615,7 +2616,7 @@ void ShootingScene::Update() {
         float dist =
             Length(Subtract(p->GetPosition(), camera_->GetTranslate()));
         if (dist < 1.0f) {
-          if (p->IsExplosive() && hitCount_ + 1 < kMaxHits) {
+          if (p->IsExplosive() && playerHp_ > kDirectDamage) {
             radialBlurStrength_ = 0.05f;
             radialBlurTimer_ = kRadialBlurDuration;
             PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
@@ -2639,14 +2640,12 @@ void ShootingScene::Update() {
 
           p->Kill(); // 当たった弾は必ず消す
 
-          // 通常弾・爆発弾の直撃：1ライフ減少＆カバー時蓄積をリセット
-          coverExplosionHits_ = 0;
-          hitCount_++;
+          // 通常弾・爆発弾の直撃：直撃ダメージ(10)
+          playerHp_ = (std::max)(0, playerHp_ - kDirectDamage);
           damageEffectStrength_ = 1.0f;
           MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
 
-          // 3回ヒットしたらゲームオーバー演出開始
-          if (hitCount_ >= kMaxHits) {
+          if (playerHp_ <= 0) {
             if (p->GetType() == EnemyProjectile::Type::Blast) {
                 StartGameOver(DeathReason::EngineerRocket);
             } else {
@@ -2668,7 +2667,7 @@ void ShootingScene::Update() {
       if (p->IsHitShot()) {
         float dist = Length(Subtract(p->GetPosition(), camera_->GetTranslate()));
         if (dist < 1.0f) {
-          if (p->IsExplosive() && !isInvincible && hitCount_ + 1 < kMaxHits) {
+          if (p->IsExplosive() && !isInvincible && playerHp_ > kDirectDamage) {
             radialBlurStrength_ = 0.05f; // 被弾時
             radialBlurTimer_ = kRadialBlurDuration;
             PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
@@ -2696,13 +2695,11 @@ void ShootingScene::Update() {
 
           // 無敵状態でなければ被弾ダメージ処理を行う
           if (!isInvincible) {
-            coverExplosionHits_ = 0; // 通常ヒットでカバー時ヒット進捗をリセット
-            hitCount_++;
+            playerHp_ = (std::max)(0, playerHp_ - kDirectDamage);
             damageEffectStrength_ = 1.0f;
             MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
 
-            // 3回ヒットしたらゲームオーバー演出開始
-            if (hitCount_ >= kMaxHits) {
+            if (playerHp_ <= 0) {
                 if (p->GetType() == EnemyProjectile::Type::Blast) {
                     StartGameOver(DeathReason::EngineerRocket);
                 } else {
@@ -3152,10 +3149,10 @@ void ShootingScene::Update() {
     Vector3 camPos = camera_->GetTranslate();
     Vector3 playerPos = { camPos.x, camPos.y, camPos.z };
     if (hasPendingSwarmAttack_) {
-      swarmManager_->Update(kDeltaTime, playerPos, camera_.get(), &pendingSwarmAttack_);
+      swarmManager_->Update(kDeltaTime, playerPos, camera_.get(), &pendingSwarmAttack_, isCovering_);
       hasPendingSwarmAttack_ = false;
     } else {
-      swarmManager_->Update(kDeltaTime, playerPos, camera_.get(), nullptr);
+      swarmManager_->Update(kDeltaTime, playerPos, camera_.get(), nullptr, isCovering_);
     }
 
     // ボス戦中のイベント処理（エフェクト発生・スコア・突撃被弾・クリア判定）
@@ -3185,47 +3182,38 @@ void ShootingScene::Update() {
       }
       ParticleManager::GetInstance()->Emit("SparkGroup", pos, 30);
     }
-    // 突撃自爆によるプレイヤー被弾処理（爆発弾と同じカバー/直撃ダメージ仕様）
-    if (swarmEvents.playerExplosionHits > 0) {
-      if (isCovering_) {
-        radialBlurStrength_ = 0.04f;
-        radialBlurTimer_ = kRadialBlurDuration;
-        PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
-        cameraShakeIntensity_ = 0.30f;
-        cameraShakeDuration_ = 0.35f;
-        cameraShakeTimer_ = 0.35f;
+    // グループ自爆によるカバー時プレイヤー被弾処理（貫通ダメージ3）
+    if (swarmEvents.playerGroupBlastHits > 0 && !isForceInvincible) {
+      radialBlurStrength_ = 0.04f;
+      radialBlurTimer_ = kRadialBlurDuration;
+      PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
+      cameraShakeIntensity_ = 0.30f;
+      cameraShakeDuration_ = 0.35f;
+      cameraShakeTimer_ = 0.35f;
 
-        for (int hitIdx = 0; hitIdx < swarmEvents.playerExplosionHits; ++hitIdx) {
-          coverExplosionHits_++;
-          if (coverExplosionHits_ >= 2) {
-            coverExplosionHits_ = 0;
-            hitCount_++;
-            damageEffectStrength_ = 1.0f;
-            MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
-            if (hitCount_ >= kMaxHits) {
-              StartGameOver(DeathReason::DroneExplosion);
-              return;
-            }
-          }
-        }
-      } else {
-        if (!isInvincible) {
-          radialBlurStrength_ = 0.05f;
-          radialBlurTimer_ = kRadialBlurDuration;
-          PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
-          cameraShakeIntensity_ = 0.45f;
-          cameraShakeDuration_ = 0.45f;
-          cameraShakeTimer_ = 0.45f;
+      playerHp_ = (std::max)(0, playerHp_ - kBossGroupBlastDamage * swarmEvents.playerGroupBlastHits);
+      damageEffectStrength_ = 1.0f;
+      MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
+      if (playerHp_ <= 0) {
+        StartGameOver(DeathReason::DroneExplosion);
+        return;
+      }
+    }
+    // 通常時（非カバー）の突撃直撃によるプレイヤー被弾処理（直撃ダメージ10）
+    if (swarmEvents.playerDirectHits > 0 && !isForceInvincible) {
+      radialBlurStrength_ = 0.05f;
+      radialBlurTimer_ = kRadialBlurDuration;
+      PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
+      cameraShakeIntensity_ = 0.45f;
+      cameraShakeDuration_ = 0.45f;
+      cameraShakeTimer_ = 0.45f;
 
-          coverExplosionHits_ = 0;
-          hitCount_++;
-          damageEffectStrength_ = 1.0f;
-          MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
-          if (hitCount_ >= kMaxHits) {
-            StartGameOver(DeathReason::DroneExplosion);
-            return;
-          }
-        }
+      playerHp_ = (std::max)(0, playerHp_ - kDirectDamage * swarmEvents.playerDirectHits);
+      damageEffectStrength_ = 1.0f;
+      MyGame::SetPostEffectMode(PostProcessManager::kModeGrayscale);
+      if (playerHp_ <= 0) {
+        StartGameOver(DeathReason::DroneExplosion);
+        return;
       }
     }
     // 最終15機グループの体力ゲージを削り切った場合は残骸注目・撃破演出フェーズへ遷移
@@ -3251,26 +3239,33 @@ void ShootingScene::Update() {
   // -----------------------------------------------------------------
   // 1. ライフUIの更新
   {
-    int currentLife = kMaxHits - hitCount_;
-    if (currentLife < 0)
-      currentLife = 0;
+    int clampedHp = (std::max)(0, (std::min)(playerHp_, kMaxPlayerHp));
+    int ones = clampedHp % 10;
+    bool shouldBlink = (clampedHp > 0 && ones >= 1 && ones <= 5);
+    int tipSegIndex = (clampedHp > 0) ? (clampedHp - 1) / 10 : -1;
 
     lifeBlinkTimer_ += kDeltaTime;
     float blinkAlpha = 0.35f + 0.65f * (0.5f + 0.5f * std::sin(lifeBlinkTimer_ * 16.0f));
 
-    for (int i = 0; i < currentLife; ++i) {
-      lifeTargetX_[i] = 1214.0f - (currentLife - 1 - i) * 24.0f;
-      lifeCurrentX_[i] += (lifeTargetX_[i] - lifeCurrentX_[i]) * 0.15f;
-      lifeUnits_[i]->SetTranslate({lifeCurrentX_[i], 37.0f});
+    for (int i = 0; i < kLifeSegments; ++i) {
+      int segHp = (std::max)(0, (std::min)(clampedHp - i * 10, 10));
+      float segWidth = static_cast<float>(segHp) * 3.0f;
+      lifeUnits_[i]->SetTranslate({1150.0f + i * 30.0f, 37.0f});
+      lifeUnits_[i]->SetScale({segWidth, 36.0f});
 
-      // カバー時のランチャー被弾が1回蓄積している場合、次に減少する予定のメモリ（i == 0、右端）を点滅
-      if (coverExplosionHits_ > 0 && i == 0) {
+      // 一の位が1〜5のとき、先端1区画分のメモリが点滅
+      if (shouldBlink && i == tipSegIndex) {
         lifeUnits_[i]->SetColor({1.0f, 0.4f, 0.0f, blinkAlpha}); // 警告オレンジ色で点滅
       } else {
         lifeUnits_[i]->SetColor({1.0f, 0.0f, 0.0f, 1.0f}); // 通常赤色
       }
 
       lifeUnits_[i]->Update();
+    }
+    for (auto &divider : lifeDividers_) {
+      if (divider) {
+        divider->Update();
+      }
     }
     lifeBg_->Update();
   }
@@ -3836,11 +3831,11 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
     }
     ImGui::Separator();
     // ヒットポイントのパラメータを確認
-    ImGui::Text("Hit Count: %d / %d", hitCount_, kMaxHits);
-    if (ImGui::Button("Reset Hit Count")) {
-      hitCount_ = 0;
+    ImGui::Text("Player HP: %d / %d", playerHp_, kMaxPlayerHp);
+    if (ImGui::Button("Reset Player HP")) {
+      playerHp_ = kMaxPlayerHp;
     }
-    if (hitCount_ < kMaxHits) {
+    if (playerHp_ > 0) {
       ImGui::Text("Player is Alive");
     } else {
       ImGui::Text("Player is Dead");
@@ -3931,7 +3926,7 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
     if (ImGui::Button("Reset Game")) {
       isAutoClearing_ = false;
       autoClearAttackTimer_ = 0.0f;
-      hitCount_ = 0;
+      playerHp_ = kMaxPlayerHp;
       orbitAngle_ = 0.0f;
       targetTimer_ = 0.0f;
       cameraYaw_ = 0.0f;
@@ -3948,7 +3943,6 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
       radialBlurTimer_ = 0.0f;
       randomNoiseStrength_ = 0.0f;
       randomNoiseTimer_ = 0.0f;
-      coverExplosionHits_ = 0;
       lifeBlinkTimer_ = 0.0f;
 
       // 敵の論理リセット（モデルのリロードは行わない）
@@ -3994,16 +3988,14 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
       isCovering_ = false;
       reloadTimer_ = 0.0f;
 
-      // UIのイージング座標を強制初期化（ちらつき防止）
-      int currentLife = kMaxHits - hitCount_;
-      for (int i = 0; i < kMaxHits; ++i) {
-        float initX = 1214.0f - (kMaxHits - 1 - i) * 24.0f;
-        lifeCurrentX_[i] = initX;
-        lifeTargetX_[i] = initX;
-        if (i < currentLife) {
-          lifeUnits_[i]->SetTranslate({initX, 37.0f});
-          lifeUnits_[i]->Update();
-        }
+      // UIのゲージ状態を強制初期化
+      int clampedHp = (std::max)(0, (std::min)(playerHp_, kMaxPlayerHp));
+      for (int i = 0; i < kLifeSegments; ++i) {
+        int segHp = (std::max)(0, (std::min)(clampedHp - i * 10, 10));
+        lifeUnits_[i]->SetTranslate({1150.0f + i * 30.0f, 37.0f});
+        lifeUnits_[i]->SetScale({static_cast<float>(segHp) * 3.0f, 36.0f});
+        lifeUnits_[i]->SetColor({1.0f, 0.0f, 0.0f, 1.0f});
+        lifeUnits_[i]->Update();
       }
 
       for (int i = 0; i < kMaxAmmo; ++i) {
@@ -4299,7 +4291,6 @@ void ShootingScene::UpdateImGui_Object3d() {
     ImGui::DragFloat("Normal Bullet Speed", &speed_, 0.02f, 0.1f, 3.0f);
     ImGui::DragFloat("Engineer Bullet Speed", &engineerProjectileSpeed_, 0.02f, 0.05f, 2.0f);
     ImGui::DragFloat("Jamming Bullet Speed", &jammingProjectileSpeed_, 0.02f, 0.5f, 5.0f);
-    ImGui::Text("Cover Explosion Hits (2 to damage): %d / 2", coverExplosionHits_);
     ImGui::Separator();
     ImGui::Text("Active Projectiles: %zu", projectiles_.size());
     for (size_t i = 0; i < projectiles_.size(); ++i) {
@@ -4413,7 +4404,7 @@ void ShootingScene::UpdateImGui_GameStatus() {
   ImGui::Begin("Game Status", nullptr,
                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
   if (phase_ == Phase::GameOver) {
-    if (hitCount_ >= kMaxHits) {
+    if (playerHp_ <= 0) {
       ImGui::Text("GAME OVER");
     } else {
       ImGui::Text("CLEAR!");
@@ -4435,7 +4426,7 @@ void ShootingScene::UpdateImGui_GameStatus() {
   ImGui::Text("Player Status");
   ImGui::Separator();
   ImGui::Text("Weapon: %s", (currentWeapon_ == WeaponType::Handgun) ? "Handgun" : "MachineGun");
-  ImGui::Text("Hit Count: %d / %d", hitCount_, kMaxHits);
+  ImGui::Text("Player HP: %d / %d", playerHp_, kMaxPlayerHp);
   ImGui::Text("Handgun Ammo: %d / %d", ammo_, kMaxAmmo);
   ImGui::Text("MachineGun Ammo: %d / %d", machineGunAmmo_, kMaxMachineGunAmmo);
   ImGui::Text("Covering (SPACE): %s", isCovering_ ? "YES (Invincible)" : "NO");
@@ -4766,12 +4757,16 @@ void ShootingScene::Draw() {
     if (showUI) {
     // ライフメモリ
     {
-      int currentLife = kMaxHits - hitCount_;
-      if (currentLife < 0)
-        currentLife = 0;
-      for (int i = 0; i < currentLife; ++i) {
-        if (lifeUnits_[i]) {
+      int clampedHp = (std::max)(0, (std::min)(playerHp_, kMaxPlayerHp));
+      for (int i = 0; i < kLifeSegments; ++i) {
+        int segHp = (std::max)(0, (std::min)(clampedHp - i * 10, 10));
+        if (segHp > 0 && lifeUnits_[i]) {
           lifeUnits_[i]->Draw();
+        }
+      }
+      for (const auto &divider : lifeDividers_) {
+        if (divider) {
+          divider->Draw();
         }
       }
     }
@@ -5104,7 +5099,7 @@ void ShootingScene::JumpToSection(int index) {
   if (swarmManager_) {
     swarmManager_->ClearDrones();
   }
-  hitCount_ = 0;
+  playerHp_ = kMaxPlayerHp;
   orbitAngle_ = 0.0f;
   targetTimer_ = 0.0f;
   cameraBasePitch_ = 0.0f;
@@ -5125,7 +5120,6 @@ void ShootingScene::JumpToSection(int index) {
   radialBlurTimer_ = 0.0f;
   randomNoiseStrength_ = 0.0f;
   randomNoiseTimer_ = 0.0f;
-  coverExplosionHits_ = 0;
   lifeBlinkTimer_ = 0.0f;
 
   // 敵の状態復元（移動先より手前の敵は撃破済み、以降の敵は復活・未出現）
@@ -5190,16 +5184,14 @@ void ShootingScene::JumpToSection(int index) {
   isCovering_ = false;
   reloadTimer_ = 0.0f;
 
-  // UIのイージング座標を強制初期化（ちらつき防止）
-  int currentLife = kMaxHits - hitCount_;
-  for (int i = 0; i < kMaxHits; ++i) {
-    float initX = 1214.0f - (kMaxHits - 1 - i) * 24.0f;
-    lifeCurrentX_[i] = initX;
-    lifeTargetX_[i] = initX;
-    if (i < currentLife) {
-      lifeUnits_[i]->SetTranslate({initX, 37.0f});
-      lifeUnits_[i]->Update();
-    }
+  // UIのゲージ状態を強制初期化
+  int clampedHp = (std::max)(0, (std::min)(playerHp_, kMaxPlayerHp));
+  for (int i = 0; i < kLifeSegments; ++i) {
+    int segHp = (std::max)(0, (std::min)(clampedHp - i * 10, 10));
+    lifeUnits_[i]->SetTranslate({1150.0f + i * 30.0f, 37.0f});
+    lifeUnits_[i]->SetScale({static_cast<float>(segHp) * 3.0f, 36.0f});
+    lifeUnits_[i]->SetColor({1.0f, 0.0f, 0.0f, 1.0f});
+    lifeUnits_[i]->Update();
   }
 
   for (int i = 0; i < kMaxAmmo; ++i) {
@@ -5236,8 +5228,7 @@ void ShootingScene::StartAutoClear() {
   isDebugPaused_ = false;
 
   // 被弾・カバー・エフェクト状態のリセット
-  hitCount_ = 0;
-  coverExplosionHits_ = 0;
+  playerHp_ = kMaxPlayerHp;
   isCovering_ = false;
   coverYOffset_ = 0.0f;
   damageEffectStrength_ = 0.0f;
