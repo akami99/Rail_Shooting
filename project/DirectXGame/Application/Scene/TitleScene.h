@@ -256,7 +256,7 @@ private:
   bool isStartingDemo_ = false;
   Vector2 demoCursorPos_ = { 640.0f, 360.0f };
   Vector2 lastRecordedMousePos_ = { 0.0f, 0.0f };
-  static constexpr float kDemoIdleTimeout = 10.0f; // 10秒無入力でデモへ
+  static constexpr float kDemoIdleTimeout = 1.0f; // 1秒無入力でデモへ
 
   // --- 退場演出用 ---
   const Vector3 kTransitionEdgeColor = { 0.0f, 1.0f, 0.8f };  // ディゾルブ境界の発光色

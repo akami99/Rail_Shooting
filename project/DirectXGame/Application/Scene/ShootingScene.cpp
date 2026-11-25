@@ -990,6 +990,12 @@ void ShootingScene::Initialize() {
   isDemoShootTriggered_ = false;
   demoShootCooldown_ = 0.0f;
   demoSwarmBattleTimer_ = 0.0f;
+  demoMinCoverTimer_ = 0.0f;
+  demoGroundShootTimer_ = 0.0f;
+  demoGroundShootCooldown_ = 3.0f;
+  demoMachineGunTimer_ = 0.0f;
+  demoHandgunTimer_ = 5.0f;
+  demoNeedHandgunReload_ = false;
 
   // Ready / Go 演出スプライトの初期化
   TextureManager::GetInstance()->LoadTexture("ui/readyText.png");
@@ -5929,7 +5935,42 @@ void ShootingScene::UpdateDemoAI() {
   }
 
   demoShootCooldown_ -= kDeltaTime;
+  if (demoMinCoverTimer_ > 0.0f) {
+    demoMinCoverTimer_ -= kDeltaTime;
+  }
   isDemoShootTriggered_ = false;
+
+  // 武器ローテーション共通ヘルパー（ハンドガン5秒 -> マシンガン5秒 -> リロード -> ハンドガン）
+  auto updateDemoWeaponRotation = [&]() {
+    if (demoNeedHandgunReload_) {
+      currentWeapon_ = WeaponType::Handgun;
+      if (ammo_ >= kMaxAmmo) {
+        demoNeedHandgunReload_ = false;
+        demoHandgunTimer_ = 5.0f;
+      }
+    } else if (currentWeapon_ == WeaponType::Handgun) {
+      if (!isDemoCovering_) {
+        demoHandgunTimer_ -= kDeltaTime;
+      }
+      if ((demoHandgunTimer_ <= 0.0f || ammo_ <= 0) && machineGunAmmo_ > 0) {
+        currentWeapon_ = WeaponType::MachineGun;
+        demoMachineGunTimer_ = 5.0f;
+      }
+    } else if (currentWeapon_ == WeaponType::MachineGun) {
+      if (!isDemoCovering_) {
+        demoMachineGunTimer_ -= kDeltaTime;
+      }
+      if (demoMachineGunTimer_ <= 0.0f || machineGunAmmo_ <= 0) {
+        demoMachineGunTimer_ = 0.0f;
+        currentWeapon_ = WeaponType::Handgun;
+        if (ammo_ < kMaxAmmo) {
+          demoNeedHandgunReload_ = true;
+        } else {
+          demoHandgunTimer_ = 5.0f;
+        }
+      }
+    }
+  };
 
   // 1. 通常戦闘フェーズ (Playing / RestartSmoothing)
   if (phase_ == Phase::Playing || phase_ == Phase::RestartSmoothing) {
@@ -5946,38 +5987,100 @@ void ShootingScene::UpdateDemoAI() {
       }
     }
 
-    // 武器切り替え：マシンガン弾がある場合はマシンガンを使用し、無ければハンドガンへ戻す
-    if (machineGunAmmo_ > 0) {
-      currentWeapon_ = WeaponType::MachineGun;
-    } else {
-      currentWeapon_ = WeaponType::Handgun;
-    }
-
-    // カバー判断：
-    // - ハンドガンの残弾が少なくなったらリロードのためカバー
-    // - 敵の必中射撃予兆（isNextHitShot）が出ている場合は被弾回避のためカバー
-    // - 残り時間がまだ多く（残り時間 > 22秒）、区間をじっくり進めたい場合は適度にカバーを挟む
-    bool needCover = false;
-    if (currentWeapon_ == WeaponType::Handgun && ammo_ <= 2) {
-      needCover = true;
-    }
-    for (const auto &enemy : enemies_) {
-      if (enemy.isActive && !enemy.isDead && enemy.isNextHitShot) {
-        needCover = true;
-        break;
+    // 飛来中の必中爆発弾を探索（迎撃ターゲット用）
+    EnemyProjectile* targetBlastProj = nullptr;
+    float minBlastDist = 99999.0f;
+    const Vector3 camPos = camera_->GetTranslate();
+    for (const auto& p : projectiles_) {
+      if (!p || p->IsDead() || !p->IsExplosive() || !p->IsHitShot()) {
+        continue;
       }
-    }
-    if (gameTimer_ > 22.0f && targetEnemyIdx >= 0) {
-      float cycle = std::fmod(gameTimer_, 4.0f);
-      if (cycle < 1.0f && ammo_ < kMaxAmmo) {
-        needCover = true;
+      float dist = Length(Subtract(p->GetPosition(), camPos));
+      if (dist < minBlastDist) {
+        minBlastDist = dist;
+        targetBlastProj = p.get();
       }
     }
 
-    isDemoCovering_ = needCover;
+    // 武器切り替え
+    updateDemoWeaponRotation();
 
-    // 照準移動と射撃
-    if (targetEnemyIdx >= 0 && enemies_[targetEnemyIdx].object) {
+    // カバー判断（最低限の長さ・タイミング）：
+    // - ハンドガンの弾が0発（またはマシンガン後のリロード待ち）ならリロード完了までカバー
+    // - 爆発弾: 破壊を試み、間に合わない距離 (<= 8.0f) に迫った場合、2発まで直撃を許容 (playerHp_ <= kDirectDamage のみ回避)
+    // - 通常弾: 直撃を許容しない（接近中 <= 22.0f の場合は即カバー）
+    // - ジャミング弾: 許容するためカバーしない
+    bool needReloadCover = demoNeedHandgunReload_ || (currentWeapon_ == WeaponType::Handgun && ammo_ <= 0 && machineGunAmmo_ <= 0);
+    bool needDodgeCover = false;
+    if (targetBlastProj && minBlastDist <= 8.0f && playerHp_ <= kDirectDamage) {
+      needDodgeCover = true;
+    }
+    if (!needDodgeCover) {
+      for (const auto& p : projectiles_) {
+        if (!p || p->IsDead() || !p->IsHitShot() || p->IsJamming() || p->IsExplosive()) {
+          continue;
+        }
+        // 接近中の必中通常弾がある場合はカバー
+        if (Length(Subtract(p->GetPosition(), camPos)) <= 22.0f) {
+          needDodgeCover = true;
+          break;
+        }
+      }
+    }
+
+    if (needReloadCover || needDodgeCover) {
+      if (!isDemoCovering_) {
+        // リロード時はリロード所要時間+α、回避時は最小限の保持時間を設定
+        demoMinCoverTimer_ = needReloadCover ? (kReloadDuration + 0.15f) : 0.35f;
+      }
+      isDemoCovering_ = true;
+    } else if (demoMinCoverTimer_ <= 0.0f) {
+      isDemoCovering_ = false;
+    }
+
+    // たまに地面を撃つタイマー更新（着弾エフェクトを見せるため）
+    if (!isDemoCovering_ && !targetBlastProj) {
+      if (demoGroundShootTimer_ > 0.0f) {
+        demoGroundShootTimer_ -= kDeltaTime;
+      } else {
+        demoGroundShootCooldown_ -= kDeltaTime;
+        if (demoGroundShootCooldown_ <= 0.0f) {
+          demoGroundShootTimer_ = 0.45f;
+          demoGroundShootCooldown_ = 4.0f;
+        }
+      }
+    }
+
+    // 照準移動と射撃（優先度: 爆発弾迎撃 > 地面撃ち > 敵攻撃 > 索敵）
+    if (targetBlastProj && !isDemoCovering_) {
+      Vector2 targetScreenPos = WorldToScreen(targetBlastProj->GetPosition(), camera_.get());
+      demoMousePos_.x += (targetScreenPos.x - demoMousePos_.x) * 0.30f;
+      demoMousePos_.y += (targetScreenPos.y - demoMousePos_.y) * 0.30f;
+
+      float dist = Length(Vector3{ demoMousePos_.x - targetScreenPos.x, demoMousePos_.y - targetScreenPos.y, 0.0f });
+      if (!isCovering_ && dist < 50.0f && demoShootCooldown_ <= 0.0f) {
+        isDemoShootTriggered_ = true;
+        demoShootCooldown_ = (currentWeapon_ == WeaponType::MachineGun) ? kMachineGunFireInterval : 0.22f;
+      }
+    } else if (demoGroundShootTimer_ > 0.0f && !isDemoCovering_) {
+      // 前方床面 (y = 0) を狙って着弾エフェクトを見せる
+      Vector3 camRot = camera_->GetRotate();
+      Vector3 forward = { std::sin(camRot.y), 0.0f, std::cos(camRot.y) };
+      Vector3 groundTarget = {
+          camPos.x + forward.x * 10.0f,
+          0.0f,
+          camPos.z + forward.z * 10.0f
+      };
+      Vector2 targetScreenPos = WorldToScreen(groundTarget, camera_.get());
+      demoMousePos_.x += (targetScreenPos.x - demoMousePos_.x) * 0.25f;
+      demoMousePos_.y += (targetScreenPos.y - demoMousePos_.y) * 0.25f;
+
+      float dist = Length(Vector3{ demoMousePos_.x - targetScreenPos.x, demoMousePos_.y - targetScreenPos.y, 0.0f });
+      if (!isCovering_ && dist < 50.0f && demoShootCooldown_ <= 0.0f) {
+        isDemoShootTriggered_ = true;
+        demoShootCooldown_ = (currentWeapon_ == WeaponType::MachineGun) ? kMachineGunFireInterval : 0.25f;
+      }
+    } else if (targetEnemyIdx >= 0 && enemies_[targetEnemyIdx].object) {
       Vector3 enemyWorldPos = enemies_[targetEnemyIdx].object->GetTranslate();
       enemyWorldPos.y += 0.7f; // 胸〜頭部を狙う
       Vector2 targetScreenPos = WorldToScreen(enemyWorldPos, camera_.get());
@@ -6003,31 +6106,49 @@ void ShootingScene::UpdateDemoAI() {
       }
     } else {
       // 敵がいない移動中：前方を索敵するように中央付近を見回す
-      isDemoCovering_ = false;
       demoMousePos_.x += (640.0f + std::sin(gameTimer_ * 1.5f) * 60.0f - demoMousePos_.x) * 0.05f;
       demoMousePos_.y += (360.0f + std::cos(gameTimer_ * 1.2f) * 30.0f - demoMousePos_.y) * 0.05f;
     }
   }
   // 2. ボス戦フェーズ (SwarmBattle)
   else if (phase_ == Phase::SwarmBattle) {
-    isDemoCovering_ = false;
     demoSwarmBattleTimer_ += kDeltaTime;
 
-    // スウォーム群体へ照準を向けて攻撃
-    demoMousePos_.x += (640.0f + std::sin(demoSwarmBattleTimer_ * 3.0f) * 100.0f - demoMousePos_.x) * 0.15f;
-    demoMousePos_.y += (280.0f + std::cos(demoSwarmBattleTimer_ * 2.0f) * 50.0f - demoMousePos_.y) * 0.15f;
+    int bossPhase = swarmManager_ ? swarmManager_->GetBossPhase() : 1;
 
-    if (demoShootCooldown_ <= 0.0f) {
-      isDemoShootTriggered_ = true;
-      demoShootCooldown_ = (machineGunAmmo_ > 0) ? 0.1f : 0.25f;
-    }
+    if (bossPhase <= 1) {
+      // 第一形態の間はスウォームドローンを狙って攻撃し、グループ攻撃フェーズ(Phase 2)まで削る
+      updateDemoWeaponRotation();
 
-    // ボス戦を約5秒間見せたら、クリアとしてリトライ（ループ再生）
-    if (demoSwarmBattleTimer_ >= 5.0f) {
-      demoSwarmBattleTimer_ = 0.0f;
-      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
-      SceneManager::GetInstance()->ChangeScene("SHOOTING");
-      return;
+      bool needReloadCover = demoNeedHandgunReload_ || (currentWeapon_ == WeaponType::Handgun && ammo_ <= 0 && machineGunAmmo_ <= 0);
+      if (needReloadCover) {
+        if (!isDemoCovering_) {
+          demoMinCoverTimer_ = kReloadDuration + 0.15f;
+        }
+        isDemoCovering_ = true;
+      } else if (demoMinCoverTimer_ <= 0.0f) {
+        isDemoCovering_ = false;
+      }
+
+      Vector3 targetPos{};
+      if (swarmManager_ && swarmManager_->GetAutoAimTarget(targetPos)) {
+        Vector2 targetScreenPos = WorldToScreen(targetPos, camera_.get());
+        demoMousePos_.x += (targetScreenPos.x - demoMousePos_.x) * 0.25f;
+        demoMousePos_.y += (targetScreenPos.y - demoMousePos_.y) * 0.25f;
+      } else {
+        demoMousePos_.x += (640.0f + std::sin(demoSwarmBattleTimer_ * 3.0f) * 100.0f - demoMousePos_.x) * 0.15f;
+        demoMousePos_.y += (280.0f + std::cos(demoSwarmBattleTimer_ * 2.0f) * 50.0f - demoMousePos_.y) * 0.15f;
+      }
+
+      if (!isCovering_ && demoShootCooldown_ <= 0.0f) {
+        isDemoShootTriggered_ = true;
+        demoShootCooldown_ = (currentWeapon_ == WeaponType::MachineGun) ? kMachineGunFireInterval : 0.22f;
+      }
+    } else {
+      // 第二形態以降（グループ攻撃フェーズ）：カバーせずグループ攻撃を受けて負け（GameOver -> Retry）へ繋げる
+      isDemoCovering_ = false;
+      demoMousePos_.x += (640.0f + std::sin(demoSwarmBattleTimer_ * 1.5f) * 80.0f - demoMousePos_.x) * 0.08f;
+      demoMousePos_.y += (260.0f + std::cos(demoSwarmBattleTimer_ * 1.2f) * 40.0f - demoMousePos_.y) * 0.08f;
     }
   }
   // 3. ゲームオーバーフェーズ (GameOver: 万一のセーフティ)

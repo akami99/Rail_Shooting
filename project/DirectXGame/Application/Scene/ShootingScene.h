@@ -551,6 +551,12 @@ private:
     bool isDemoShootTriggered_ = false;
     float demoShootCooldown_ = 0.0f;
     float demoSwarmBattleTimer_ = 0.0f;
+    float demoMinCoverTimer_ = 0.0f;
+    float demoGroundShootTimer_ = 0.0f;
+    float demoGroundShootCooldown_ = 3.0f;
+    float demoMachineGunTimer_ = 0.0f;
+    float demoHandgunTimer_ = 5.0f;
+    bool demoNeedHandgunReload_ = false;
     void UpdateDemoAI();
     Vector2 GetActiveMousePos() const;
 
