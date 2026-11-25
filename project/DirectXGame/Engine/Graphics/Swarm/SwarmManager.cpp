@@ -633,6 +633,7 @@ void SwarmManager::CreateChargeGroup(const std::vector<uint32_t>& indices, bool 
     group.hpFrameSprite->SetAnchorPoint({ 0.5f, 0.5f });
     group.hpFrameSprite->SetScale({ 90.0f, 16.0f });
 
+    frameEvents_.chargeStartPositions.push_back(group.centerPos);
     chargeGroups_.push_back(std::move(group));
 }
 
@@ -682,6 +683,7 @@ void SwarmManager::TriggerCharge(uint32_t count, const Vector3& playerPos) {
             uint32_t idx = selectedIndices[i];
             dronesShadow_[idx].state = 1; // Charge
             dronesShadow_[idx].stateTimer = -static_cast<float>(i) * 0.18f;
+            frameEvents_.chargeStartPositions.push_back(dronesShadow_[idx].position);
         }
     }
 }

@@ -255,6 +255,9 @@
     <ClCompile Include="DirectXGame\Engine\Graphics\Particle\ParticleEmitter.cpp">
       <Filter>ソース ファイル\Engine\Graphics\Particle</Filter>
     </ClCompile>
+    <ClCompile Include="DirectXGame\Engine\Graphics\Particle\EffectEditor.cpp">
+      <Filter>ソース ファイル\Engine\Graphics\Particle</Filter>
+    </ClCompile>
     <ClCompile Include="DirectXGame\Engine\Graphics\ImGui\ImGuiManager.cpp">
       <Filter>ソース ファイル\Engine\Graphics\ImGui</Filter>
     </ClCompile>
@@ -390,6 +393,9 @@
       <Filter>ヘッダー ファイル\Engine\Graphics\Particle</Filter>
     </ClInclude>
     <ClInclude Include="DirectXGame\Engine\Graphics\Particle\ParticleEmitter.h">
+      <Filter>ヘッダー ファイル\Engine\Graphics\Particle</Filter>
+    </ClInclude>
+    <ClInclude Include="DirectXGame\Engine\Graphics\Particle\EffectEditor.h">
       <Filter>ヘッダー ファイル\Engine\Graphics\Particle</Filter>
     </ClInclude>
     <ClInclude Include="DirectXGame\Engine\Graphics\ImGui\ImGuiManager.h">

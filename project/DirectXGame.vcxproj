@@ -196,6 +196,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="DirectXGame\Engine\Graphics\Base\SrvManager.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\Particle\ParticleManager.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\Particle\ParticleEmitter.cpp" />
+    <ClCompile Include="DirectXGame\Engine\Graphics\Particle\EffectEditor.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\ImGui\ImGuiManager.cpp" />
     <ClCompile Include="DirectXGame\Application\Core\RAFramework.cpp" />
     <ClCompile Include="DirectXGame\Engine\Level\LevelLoader.cpp" />
@@ -413,6 +414,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="DirectXGame\Engine\Graphics\Base\SrvManager.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Particle\ParticleManager.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Particle\ParticleEmitter.h" />
+    <ClInclude Include="DirectXGame\Engine\Graphics\Particle\EffectEditor.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\ImGui\ImGuiManager.h" />
     <ClInclude Include="DirectXGame\Application\Core\RAFramework.h" />
     <ClInclude Include="DirectXGame\Engine\Scene\SceneManager.h" />

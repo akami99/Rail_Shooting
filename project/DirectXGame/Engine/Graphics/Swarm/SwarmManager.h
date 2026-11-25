@@ -56,6 +56,7 @@ public:
         std::vector<Vector3> hitPositions;
         std::vector<Vector3> destroyedPositions;
         std::vector<Vector3> selfDestructPositions;
+        std::vector<Vector3> chargeStartPositions;
         int dronesKilledByPlayer = 0;
         int playerDirectHits = 0;     // 直撃ヒット数（通常時：10ダメージ）
         int playerGroupBlastHits = 0; // グループ自爆ヒット数（カバー時：3ダメージ）

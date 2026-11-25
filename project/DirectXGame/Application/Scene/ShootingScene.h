@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "EnemyProjectile.h"
+#include "EffectEditor.h"
 #include "PostProcessManager.h"
 #include "RenderTexture.h"
 #include "Swarm/SwarmManager.h"
@@ -57,6 +58,12 @@ private:
 
     // 敵の出現位置を計算する関数
     Vector3 CalculateRingRotation(const Vector3 &direction);
+
+    // プレイヤー射撃着弾エフェクト・ボス攻撃時エフェクトの初期化と再生
+    void InitializeCustomEffects();
+    void EmitPlayerHitEffect(const Vector3& hitPos);
+    void EmitBossChargeEffect(const Vector3& pos);
+    void EmitBossAttackEffect(const Vector3& pos);
 
 #ifdef USE_IMGUI
     // ImGui操作の更新
@@ -567,4 +574,7 @@ private:
     bool debugAutoRotate_ = true;
     bool debugShowSecondDrone_ = false;
 #endif // USE_IMGUI
+
+    // エフェクトエディタツール
+    std::unique_ptr<EffectEditor> effectEditor_;
 };

@@ -472,8 +472,15 @@ void ShootingScene::Initialize() {
     ParticleManager::GetInstance()->SetEmitter("EnemyChargeRing", emitter);
   }
 
+  // プレイヤー射撃着弾エフェクト・ボス攻撃時エフェクトの初期化
+  InitializeCustomEffects();
+
   // 初期化直後の余分なパーティクル描画を防ぐため全パーティクルをクリア
   ParticleManager::GetInstance()->ClearAllParticles();
+
+  // エフェクトエディタの初期化
+  effectEditor_ = std::make_unique<EffectEditor>();
+  effectEditor_->Initialize();
 
   // スカイボックスの初期化（タイリング用シェーダーで初期化）
   skybox_ = std::make_unique<Skybox>();
@@ -1163,6 +1170,13 @@ void ShootingScene::Update() {
 
   if (isPaused_ || isDebugPaused_) {
     camera_->Update();
+#ifdef USE_IMGUI
+    if (isDebugPaused_ && effectEditor_) {
+      ParticleManager::GetInstance()->SetIsUpdate(effectEditor_->IsUpdateParticle());
+      ParticleManager::GetInstance()->SetUseBillboard(effectEditor_->UseBillboard());
+      ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
+    }
+#endif // USE_IMGUI
     return;
   }
 
@@ -3121,6 +3135,7 @@ void ShootingScene::Update() {
     // 3. 最も手前のターゲットにのみヒット処理（奥への貫通を防止）
     if (hitType == HitTargetType::BlastProjectile && hitProjectile) {
       Vector3 pPos = hitProjectile->GetPosition();
+      EmitPlayerHitEffect(pPos);
       bool isDestroyed = hitProjectile->ApplyDamage(1);
       if (isDestroyed) {
         // 爆発弾の破壊エフェクト
@@ -3138,6 +3153,7 @@ void ShootingScene::Update() {
       }
     } else if (hitType == HitTargetType::Enemy && hitEnemy) {
       Vector3 enemyPos = hitEnemy->object->GetTranslate();
+      EmitPlayerHitEffect(enemyPos);
       hitEnemy->hp--;
 
       if (hitEnemy->hp > 0) {
@@ -3183,24 +3199,24 @@ void ShootingScene::Update() {
         }
         score_ += 10;
 
-        // 敵のインデックスに応じて再生する撃破エフェクトを決定
-        std::string effectName =
-            ringParticleGroupName_; // デフォルトは1体目のリング
-        if (!enemies_.empty()) {
-          size_t idx = hitEnemy - &enemies_[0];
-          if (idx % 3 == 1) {
-            effectName = "CylinderGroup"; // 2体目：シリンダー
-          } else if (idx % 3 == 2) {
-            effectName = "SparkGroup"; // 3体目：火花
-          }
-        }
-
-        // 敵撃破時にパーティクルを放出
+        // 敵撃破時は光の線が上昇するシリンダーパーティクルのみを放出
+        const std::string effectName = "CylinderGroup";
         if (auto *emitter =
                 ParticleManager::GetInstance()->GetEmitter(effectName)) {
           emitter->isPlaying = true;
         }
         ParticleManager::GetInstance()->Emit(effectName, enemyPos, 32);
+      }
+    } else if (hitType == HitTargetType::None) {
+      // スウォームにも当たっていない場合、床面 (y = 0) との交点に着弾エフェクトを出す
+      bool hitSwarm = (swarmManager_ && swarmManager_->IsActive() && swarmManager_->IsRayHitting(nearPos, rayDir));
+      if (!hitSwarm && rayDir.y < -0.01f && nearPos.y > 0.0f) {
+        float tGround = -nearPos.y / rayDir.y;
+        if (tGround > 0.0f && tGround < 120.0f) {
+          Vector3 groundHitPos = Add(nearPos, Multiply(tGround, rayDir));
+          groundHitPos.y += 0.05f;
+          EmitPlayerHitEffect(groundHitPos);
+        }
       }
     }
   }
@@ -3294,7 +3310,11 @@ void ShootingScene::Update() {
 
     // ボス戦中のイベント処理（エフェクト発生・スコア・突撃被弾・クリア判定）
     const auto& swarmEvents = swarmManager_->GetFrameEvents();
+    for (const auto& pos : swarmEvents.chargeStartPositions) {
+      EmitBossChargeEffect(pos);
+    }
     for (const auto& pos : swarmEvents.hitPositions) {
+      EmitPlayerHitEffect(pos);
       if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("AmmoSparkGroup")) {
         emitter->isPlaying = true;
       }
@@ -3314,10 +3334,7 @@ void ShootingScene::Update() {
       score_ += swarmEvents.dronesKilledByPlayer * 5;
     }
     for (const auto& pos : swarmEvents.selfDestructPositions) {
-      if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("SparkGroup")) {
-        emitter->isPlaying = true;
-      }
-      ParticleManager::GetInstance()->Emit("SparkGroup", pos, 30);
+      EmitBossAttackEffect(pos);
     }
     // グループ自爆によるカバー時プレイヤー被弾処理（貫通ダメージ3）
     if (swarmEvents.playerGroupBlastHits > 0 && !isForceInvincible) {
@@ -3896,8 +3913,13 @@ void ShootingScene::Update() {
   }
 
   // パーティクルの更新
-  ParticleManager::GetInstance()->SetIsUpdate(true);
-  ParticleManager::GetInstance()->SetUseBillboard(false);
+  if (effectEditor_) {
+    ParticleManager::GetInstance()->SetIsUpdate(effectEditor_->IsUpdateParticle());
+    ParticleManager::GetInstance()->SetUseBillboard(effectEditor_->UseBillboard());
+  } else {
+    ParticleManager::GetInstance()->SetIsUpdate(true);
+    ParticleManager::GetInstance()->SetUseBillboard(false);
+  }
   ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
 }
 
@@ -3947,10 +3969,28 @@ void ShootingScene::UpdateImGui() {
     UpdateImGui_IntroSettings();
     UpdateImGui_Object3d();
     UpdateImGui_Skybox();
+    UpdateImGui_Particle();
   }
   ImGui::End();
 
+  if (effectEditor_) {
+    effectEditor_->UpdateImGui(camera_.get());
+  }
+
   UpdateImGui_GameStatus();
+}
+
+void ShootingScene::UpdateImGui_Particle() {
+  ImGui::Separator();
+  if (ImGui::TreeNode("Particle / Effect Tool")) {
+    if (effectEditor_) {
+      bool isOpen = effectEditor_->IsWindowOpen();
+      if (ImGui::Checkbox("Open Effect Editor Window", &isOpen)) {
+        effectEditor_->SetWindowOpen(isOpen);
+      }
+    }
+    ImGui::TreePop();
+  }
 }
 
 // ImGuiでグローバル設定のパラメータを調整するための関数
@@ -4865,8 +4905,11 @@ void ShootingScene::Draw() {
   if (isShowSkybox_)
     skybox_->Draw(0);
 
-  // パーティクルの描画 (加算合成)
-  ParticleManager::GetInstance()->Draw(BlendMode::BlendState::kBlendModeAdd);
+  // パーティクルの描画
+  BlendMode::BlendState particleBlend = effectEditor_
+      ? effectEditor_->GetBlendMode()
+      : BlendMode::BlendState::kBlendModeAdd;
+  ParticleManager::GetInstance()->Draw(particleBlend);
 
   // スプライトの描画
   SpriteCommon::GetInstance()->SetCommonDrawSettings(
@@ -6076,4 +6119,291 @@ Vector3 ShootingScene::CalculateBossEntranceAnchor(float t, const Vector3& baseP
       basePos.y + local.y,
       basePos.z + right.z * local.x + forward.z * local.z
   };
+}
+
+void ShootingScene::InitializeCustomEffects() {
+  TextureManager::GetInstance()->LoadTexture("Particles/gradationLine.png");
+  TextureManager::GetInstance()->LoadTexture("Particles/circle2.png");
+  TextureManager::GetInstance()->LoadTexture("white.png");
+
+  // =========================================================
+  // プレイヤー射撃着弾エフェクト (各シーン共通)
+  // 1. PlayerHitRing: シャープな衝撃波リング
+  // =========================================================
+  ParticleManager::GetInstance()->CreateParticleGroup("PlayerHitRing", "Particles/gradationLine.png");
+  {
+    Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+    ParticleEmitter emitter(t, 2, 0.2f);
+    emitter.isEmit = false;
+    emitter.isEffectMode = true;
+    emitter.isLoop = false;
+
+    emitter.generateSettings.isRandomScale = false;
+    emitter.generateSettings.fixedScale = { 0.45f, 0.45f, 0.45f };
+    emitter.generateSettings.isRandomRotate = true;
+    emitter.generateSettings.rotateMin = { -0.5f, -3.14f, -3.14f };
+    emitter.generateSettings.rotateMax = { 0.5f, 3.14f, 3.14f };
+    emitter.generateSettings.isRandomVelocity = false;
+    emitter.generateSettings.fixedVelocity = { 0.0f, 0.0f, 0.0f };
+    emitter.generateSettings.isRandomLifeTime = false;
+    emitter.generateSettings.fixedLifeTime = 0.28f;
+    emitter.generateSettings.isRandomColor = true;
+    emitter.generateSettings.colorMin = { 0.4f, 0.9f, 1.0f, 1.0f };
+    emitter.generateSettings.colorMax = { 0.9f, 1.0f, 1.0f, 1.0f };
+
+    emitter.uvAnimationSettings.isActive = true;
+    emitter.uvAnimationSettings.isIndividual = true;
+    emitter.uvAnimationSettings.scrollSpeed = { 1.8f, 0.0f };
+    emitter.uvAnimationSettings.rotateSpeed = 0.3f;
+    emitter.uvAnimationSettings.scaleSpeed = { 2.5f, -1.5f };
+
+    emitter.SetShapeType(ParticleShapeType::Ring);
+    if (auto* rs = emitter.GetRingShape()) {
+      rs->settings.innerRadius = 0.12f;
+      rs->settings.startOuterRadius = 0.45f;
+      rs->settings.midOuterRadius = 0.85f;
+      rs->settings.endOuterRadius = 1.25f;
+      rs->settings.startAngle = 0.0f;
+      rs->settings.endAngle = 360.0f;
+      rs->settings.division = 24;
+      rs->settings.isUvSwap = false;
+      rs->settings.innerColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+      rs->settings.outerColor = { 0.2f, 0.85f, 1.0f, 0.9f };
+      rs->settings.fadeStartAlpha = 1.0f;
+      rs->settings.fadeEndAlpha = 0.0f;
+      rs->settings.fadeRange = 0.1f;
+    }
+    ParticleManager::GetInstance()->SetEmitter("PlayerHitRing", emitter);
+  }
+
+  // 2. PlayerHitSpark: 重力で飛び散る鋭い着弾火花 (Plane)
+  ParticleManager::GetInstance()->CreateParticleGroup("PlayerHitSpark", "white.png");
+  {
+    Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+    ParticleEmitter emitter(t, 12, 0.2f);
+    emitter.isEmit = false;
+    emitter.isEffectMode = true;
+    emitter.isLoop = false;
+
+    emitter.generateSettings.isRandomScale = true;
+    emitter.generateSettings.scaleMin = { 0.04f, 0.14f, 0.04f };
+    emitter.generateSettings.scaleMax = { 0.08f, 0.30f, 0.08f };
+    emitter.generateSettings.isRandomRotate = true;
+    emitter.generateSettings.rotateMin = { -3.14f, -3.14f, -3.14f };
+    emitter.generateSettings.rotateMax = { 3.14f, 3.14f, 3.14f };
+    emitter.generateSettings.isRandomVelocity = true;
+    emitter.generateSettings.velocityMin = { -4.5f, 1.0f, -4.5f };
+    emitter.generateSettings.velocityMax = { 4.5f, 6.5f, 4.5f };
+    emitter.generateSettings.isRandomLifeTime = true;
+    emitter.generateSettings.lifeTimeMin = 0.18f;
+    emitter.generateSettings.lifeTimeMax = 0.38f;
+    emitter.generateSettings.isRandomColor = true;
+    emitter.generateSettings.colorMin = { 0.6f, 0.95f, 1.0f, 1.0f };
+    emitter.generateSettings.colorMax = { 1.0f, 0.85f, 0.3f, 1.0f };
+
+    emitter.fieldSettings.isGravityFieldActive = true;
+    emitter.fieldSettings.gravity = { 0.0f, -15.0f, 0.0f };
+
+    emitter.SetShapeType(ParticleShapeType::Plane);
+    ParticleManager::GetInstance()->SetEmitter("PlayerHitSpark", emitter);
+  }
+
+  // =========================================================
+  // ボス攻撃時エフェクト
+  // 1. BossChargeRing: ボス突撃開始時の警告・収束リング
+  // =========================================================
+  ParticleManager::GetInstance()->CreateParticleGroup("BossChargeRing", "Particles/gradationLine.png");
+  {
+    Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+    ParticleEmitter emitter(t, 4, 0.3f);
+    emitter.isEmit = false;
+    emitter.isEffectMode = true;
+    emitter.isLoop = false;
+
+    emitter.generateSettings.isRandomScale = false;
+    emitter.generateSettings.fixedScale = { 1.2f, 1.2f, 1.2f };
+    emitter.generateSettings.isRandomRotate = true;
+    emitter.generateSettings.rotateMin = { -0.4f, -3.14f, -3.14f };
+    emitter.generateSettings.rotateMax = { 0.4f, 3.14f, 3.14f };
+    emitter.generateSettings.isRandomVelocity = false;
+    emitter.generateSettings.fixedVelocity = { 0.0f, 0.0f, 0.0f };
+    emitter.generateSettings.isRandomLifeTime = false;
+    emitter.generateSettings.fixedLifeTime = 0.45f;
+    emitter.generateSettings.isRandomColor = true;
+    emitter.generateSettings.colorMin = { 1.0f, 0.15f, 0.3f, 1.0f };
+    emitter.generateSettings.colorMax = { 1.0f, 0.45f, 0.1f, 1.0f };
+
+    emitter.uvAnimationSettings.isActive = true;
+    emitter.uvAnimationSettings.isIndividual = true;
+    emitter.uvAnimationSettings.scrollSpeed = { -2.0f, 0.0f };
+    emitter.uvAnimationSettings.rotateSpeed = 1.2f;
+    emitter.uvAnimationSettings.scaleSpeed = { -1.2f, 0.8f };
+
+    emitter.SetShapeType(ParticleShapeType::Ring);
+    if (auto* rs = emitter.GetRingShape()) {
+      rs->settings.innerRadius = 0.25f;
+      rs->settings.startOuterRadius = 1.4f;
+      rs->settings.midOuterRadius = 1.8f;
+      rs->settings.endOuterRadius = 2.2f;
+      rs->settings.division = 32;
+      rs->settings.innerColor = { 1.0f, 0.3f, 0.5f, 1.0f };
+      rs->settings.outerColor = { 1.0f, 0.05f, 0.1f, 0.9f };
+      rs->settings.fadeStartAlpha = 1.0f;
+      rs->settings.fadeEndAlpha = 0.0f;
+      rs->settings.fadeRange = 0.15f;
+    }
+    ParticleManager::GetInstance()->SetEmitter("BossChargeRing", emitter);
+  }
+
+  // 2. BossAttackRing: ボス突撃爆発の衝撃波リング
+  ParticleManager::GetInstance()->CreateParticleGroup("BossAttackRing", "Particles/gradationLine.png");
+  {
+    Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+    ParticleEmitter emitter(t, 6, 0.3f);
+    emitter.isEmit = false;
+    emitter.isEffectMode = true;
+    emitter.isLoop = false;
+
+    emitter.generateSettings.isRandomScale = false;
+    emitter.generateSettings.fixedScale = { 1.5f, 1.5f, 1.5f };
+    emitter.generateSettings.isRandomRotate = true;
+    emitter.generateSettings.rotateMin = { -1.57f, -3.14f, -3.14f };
+    emitter.generateSettings.rotateMax = { 1.57f, 3.14f, 3.14f };
+    emitter.generateSettings.isRandomVelocity = false;
+    emitter.generateSettings.fixedVelocity = { 0.0f, 0.0f, 0.0f };
+    emitter.generateSettings.isRandomLifeTime = false;
+    emitter.generateSettings.fixedLifeTime = 0.55f;
+    emitter.generateSettings.isRandomColor = true;
+    emitter.generateSettings.colorMin = { 1.0f, 0.2f, 0.0f, 1.0f };
+    emitter.generateSettings.colorMax = { 1.0f, 0.7f, 0.1f, 1.0f };
+
+    emitter.uvAnimationSettings.isActive = true;
+    emitter.uvAnimationSettings.isIndividual = true;
+    emitter.uvAnimationSettings.scrollSpeed = { 2.5f, 0.0f };
+    emitter.uvAnimationSettings.rotateSpeed = 0.5f;
+    emitter.uvAnimationSettings.scaleSpeed = { 2.0f, -1.2f };
+
+    emitter.SetShapeType(ParticleShapeType::Ring);
+    if (auto* rs = emitter.GetRingShape()) {
+      rs->settings.innerRadius = 0.2f;
+      rs->settings.startOuterRadius = 1.2f;
+      rs->settings.midOuterRadius = 2.4f;
+      rs->settings.endOuterRadius = 3.5f;
+      rs->settings.division = 32;
+      rs->settings.innerColor = { 1.0f, 0.9f, 0.4f, 1.0f };
+      rs->settings.outerColor = { 1.0f, 0.15f, 0.0f, 0.9f };
+      rs->settings.fadeStartAlpha = 1.0f;
+      rs->settings.fadeEndAlpha = 0.0f;
+      rs->settings.fadeRange = 0.1f;
+    }
+    ParticleManager::GetInstance()->SetEmitter("BossAttackRing", emitter);
+  }
+
+  // 3. BossAttackCylinder: ボス突撃爆発の爆風柱
+  ParticleManager::GetInstance()->CreateParticleGroup("BossAttackCylinder", "Particles/gradationLine.png");
+  {
+    Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+    ParticleEmitter emitter(t, 4, 0.3f);
+    emitter.isEmit = false;
+    emitter.isEffectMode = true;
+    emitter.isLoop = false;
+
+    emitter.generateSettings.isRandomScale = false;
+    emitter.generateSettings.fixedScale = { 1.0f, 2.2f, 1.0f };
+    emitter.generateSettings.isRandomRotate = true;
+    emitter.generateSettings.rotateMin = { -0.3f, -3.14f, -0.3f };
+    emitter.generateSettings.rotateMax = { 0.3f, 3.14f, 0.3f };
+    emitter.generateSettings.isRandomVelocity = false;
+    emitter.generateSettings.fixedVelocity = { 0.0f, 2.5f, 0.0f };
+    emitter.generateSettings.isRandomLifeTime = false;
+    emitter.generateSettings.fixedLifeTime = 0.50f;
+    emitter.generateSettings.isRandomColor = true;
+    emitter.generateSettings.colorMin = { 1.0f, 0.25f, 0.0f, 1.0f };
+    emitter.generateSettings.colorMax = { 1.0f, 0.65f, 0.1f, 1.0f };
+
+    emitter.uvAnimationSettings.isActive = true;
+    emitter.uvAnimationSettings.isIndividual = true;
+    emitter.uvAnimationSettings.scrollSpeed = { 0.0f, -2.5f };
+    emitter.uvAnimationSettings.rotateSpeed = 0.8f;
+    emitter.uvAnimationSettings.scaleSpeed = { 1.2f, 1.0f };
+
+    emitter.SetShapeType(ParticleShapeType::Cylinder);
+    if (auto* cs = emitter.GetCylinderShape()) {
+      cs->settings.height = 1.6f;
+      cs->settings.topRadius = { 2.2f, 2.2f };
+      cs->settings.bottomRadius = { 0.3f, 0.3f };
+      cs->settings.division = 32;
+      cs->settings.verticalDivision = 1;
+      cs->settings.flipV = true;
+      cs->settings.topColor = { 1.0f, 0.2f, 0.0f, 0.0f };
+      cs->settings.bottomColor = { 1.0f, 0.85f, 0.3f, 1.0f };
+      cs->settings.alphaReference = 0.05f;
+    }
+    ParticleManager::GetInstance()->SetEmitter("BossAttackCylinder", emitter);
+  }
+
+  // 4. BossAttackSpark: ボス突撃爆発の飛散火花
+  ParticleManager::GetInstance()->CreateParticleGroup("BossAttackSpark", "white.png");
+  {
+    Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+    ParticleEmitter emitter(t, 28, 0.3f);
+    emitter.isEmit = false;
+    emitter.isEffectMode = true;
+    emitter.isLoop = false;
+
+    emitter.generateSettings.isRandomScale = true;
+    emitter.generateSettings.scaleMin = { 0.08f, 0.08f, 0.08f };
+    emitter.generateSettings.scaleMax = { 0.25f, 0.25f, 0.25f };
+    emitter.generateSettings.isRandomRotate = true;
+    emitter.generateSettings.rotateMin = { 0.0f, 0.0f, -3.14f };
+    emitter.generateSettings.rotateMax = { 0.0f, 0.0f, 3.14f };
+    emitter.generateSettings.isRandomVelocity = true;
+    emitter.generateSettings.velocityMin = { -7.0f, 1.5f, -7.0f };
+    emitter.generateSettings.velocityMax = { 7.0f, 9.0f, 7.0f };
+    emitter.generateSettings.isRandomLifeTime = true;
+    emitter.generateSettings.lifeTimeMin = 0.35f;
+    emitter.generateSettings.lifeTimeMax = 0.75f;
+    emitter.generateSettings.isRandomColor = true;
+    emitter.generateSettings.colorMin = { 1.0f, 0.2f, 0.0f, 1.0f };
+    emitter.generateSettings.colorMax = { 1.0f, 0.9f, 0.2f, 1.0f };
+
+    emitter.fieldSettings.isGravityFieldActive = true;
+    emitter.fieldSettings.gravity = { 0.0f, -12.0f, 0.0f };
+
+    emitter.SetShapeType(ParticleShapeType::Billboard);
+    ParticleManager::GetInstance()->SetEmitter("BossAttackSpark", emitter);
+  }
+}
+
+void ShootingScene::EmitPlayerHitEffect(const Vector3& hitPos) {
+  if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("PlayerHitRing")) {
+    emitter->isPlaying = true;
+    ParticleManager::GetInstance()->Emit("PlayerHitRing", hitPos, emitter->count);
+  }
+  if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("PlayerHitSpark")) {
+    emitter->isPlaying = true;
+    ParticleManager::GetInstance()->Emit("PlayerHitSpark", hitPos, emitter->count);
+  }
+}
+
+void ShootingScene::EmitBossChargeEffect(const Vector3& pos) {
+  if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("BossChargeRing")) {
+    emitter->isPlaying = true;
+    ParticleManager::GetInstance()->Emit("BossChargeRing", pos, emitter->count);
+  }
+}
+
+void ShootingScene::EmitBossAttackEffect(const Vector3& pos) {
+  if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("BossAttackRing")) {
+    emitter->isPlaying = true;
+    ParticleManager::GetInstance()->Emit("BossAttackRing", pos, emitter->count);
+  }
+  if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("BossAttackCylinder")) {
+    emitter->isPlaying = true;
+    ParticleManager::GetInstance()->Emit("BossAttackCylinder", pos, emitter->count);
+  }
+  if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("BossAttackSpark")) {
+    emitter->isPlaying = true;
+    ParticleManager::GetInstance()->Emit("BossAttackSpark", pos, emitter->count);
+  }
 }
