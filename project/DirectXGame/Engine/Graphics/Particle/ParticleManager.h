@@ -9,6 +9,7 @@
 #include <random>
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include <wrl/client.h>
 
 class Camera;
@@ -32,9 +33,72 @@ private: // namespace省略のためのusing宣言
 #pragma endregion
 
 private: // メンバ変数
+    /// <summary>
+    /// Object Pool パターン：事前確保したパーティクル配列を再利用し、動的確保・解放をゼロにする
+    /// </summary>
+    class ParticlePool {
+    public:
+        void Initialize(size_t capacity) {
+            pool_.resize(capacity);
+            activeIndices_.clear();
+            activeIndices_.reserve(capacity);
+            freeIndices_.clear();
+            freeIndices_.reserve(capacity);
+            for (size_t i = capacity; i > 0; --i) {
+                freeIndices_.push_back(i - 1);
+            }
+        }
+
+        Particle* Acquire() {
+            if (freeIndices_.empty()) {
+                return nullptr;
+            }
+            size_t idx = freeIndices_.back();
+            freeIndices_.pop_back();
+            activeIndices_.push_back(idx);
+            return &pool_[idx];
+        }
+
+        void Clear() {
+            while (!activeIndices_.empty()) {
+                freeIndices_.push_back(activeIndices_.back());
+                activeIndices_.pop_back();
+            }
+        }
+
+        bool Empty() const { return activeIndices_.empty(); }
+
+        template <typename Pred>
+        void UpdateAndRelease(Pred&& pred) {
+            size_t i = 0;
+            while (i < activeIndices_.size()) {
+                size_t idx = activeIndices_[i];
+                if (!pred(pool_[idx])) {
+                    freeIndices_.push_back(idx);
+                    activeIndices_[i] = activeIndices_.back();
+                    activeIndices_.pop_back();
+                } else {
+                    ++i;
+                }
+            }
+        }
+
+        template <typename Fn>
+        void ForEachActive(Fn&& fn) {
+            for (size_t idx : activeIndices_) {
+                fn(pool_[idx]);
+            }
+        }
+
+    private:
+        std::vector<Particle> pool_;
+        std::vector<size_t> activeIndices_;
+        std::vector<size_t> freeIndices_;
+    };
+
     struct ParticleGroup {
         std::string name;
-        std::list<Particle> particles;           // パーティクルのリスト
+        ParticlePool particlePool;               // Object Pool によるパーティクル管理
         ParticleEmitter emitter;
 
         // マテリアルや定数バッファ関連

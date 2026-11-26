@@ -280,6 +280,100 @@ const IShapeInspector* GetShapeInspector(ParticleShapeType type) {
 
 } // namespace
 
+// =========================================================================
+// Command Pattern (Undo / Redo) 実装
+// =========================================================================
+class EffectEditor::EditEmitterCommand final : public EffectEditor::IEffectCommand {
+public:
+	EditEmitterCommand(EffectEditor* editor, EditorSnapshot before, EditorSnapshot after, std::string label)
+		: editor_(editor)
+		, before_(std::move(before))
+		, after_(std::move(after))
+		, label_(std::move(label)) {
+	}
+
+	void Execute() override {
+		if (editor_) {
+			editor_->ApplySnapshot(after_);
+		}
+	}
+
+	void Undo() override {
+		if (editor_) {
+			editor_->ApplySnapshot(before_);
+		}
+	}
+
+	const char* GetLabel() const override { return label_.c_str(); }
+
+private:
+	EffectEditor* editor_ = nullptr;
+	EditorSnapshot before_;
+	EditorSnapshot after_;
+	std::string label_;
+};
+
+EffectEditor::EditorSnapshot EffectEditor::CaptureSnapshot(const std::string& groupName, const ParticleEmitter& emitter) const {
+	EditorSnapshot snap;
+	snap.groupName = groupName;
+	snap.emitter = emitter;
+	snap.texturePath = ParticleManager::GetInstance()->GetGroupTexture(groupName);
+	snap.blendMode = blendMode_;
+	snap.useBillboard = useBillboard_;
+	return snap;
+}
+
+void EffectEditor::ApplySnapshot(const EditorSnapshot& snapshot) {
+	if (snapshot.groupName.empty()) return;
+	if (ParticleManager::GetInstance()->GetEmitter(snapshot.groupName) == nullptr) return;
+
+	if (!snapshot.texturePath.empty()) {
+		TextureManager::GetInstance()->LoadTexture(snapshot.texturePath);
+		ParticleManager::GetInstance()->SetGroupTexture(snapshot.groupName, snapshot.texturePath);
+	}
+	ParticleManager::GetInstance()->SetEmitter(snapshot.groupName, snapshot.emitter);
+	blendMode_ = snapshot.blendMode;
+	useBillboard_ = snapshot.useBillboard;
+	selectedGroupName_ = snapshot.groupName;
+
+	if (autoRefreshCode_) {
+		generatedCode_ = GenerateCppCode(selectedGroupName_, codeVarPrefixBuf_);
+	}
+}
+
+void EffectEditor::RecordCommand(std::unique_ptr<IEffectCommand> command) {
+	if (!command) return;
+	undoStack_.push_back(std::move(command));
+	if (undoStack_.size() > kMaxHistorySize) {
+		undoStack_.erase(undoStack_.begin());
+	}
+	redoStack_.clear();
+}
+
+void EffectEditor::Undo() {
+	if (undoStack_.empty()) return;
+	auto cmd = std::move(undoStack_.back());
+	undoStack_.pop_back();
+	cmd->Undo();
+	redoStack_.push_back(std::move(cmd));
+	hasPendingEdit_ = false;
+}
+
+void EffectEditor::Redo() {
+	if (redoStack_.empty()) return;
+	auto cmd = std::move(redoStack_.back());
+	redoStack_.pop_back();
+	cmd->Execute();
+	undoStack_.push_back(std::move(cmd));
+	hasPendingEdit_ = false;
+}
+
+void EffectEditor::ClearHistory() {
+	undoStack_.clear();
+	redoStack_.clear();
+	hasPendingEdit_ = false;
+}
+
 void EffectEditor::Initialize(const std::string& effectsDir) {
 	effectsDir_ = effectsDir;
 	RefreshTextureList();
@@ -560,23 +654,72 @@ void EffectEditor::UpdateImGui(const Camera* camera) {
 
 	ImGui::SetNextWindowSize(ImVec2(480.0f, 680.0f), ImGuiCond_Once);
 	if (ImGui::Begin("Effect Editor", &isWindowOpen_)) {
+		// キーボードショートカット (Ctrl+Z / Ctrl+Y)
+		if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
+			const ImGuiIO& io = ImGui::GetIO();
+			if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
+				Undo();
+			} else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
+				Redo();
+			}
+		}
+
+		// Undo / Redo ツールバー
+		ImGui::BeginDisabled(!CanUndo());
+		if (ImGui::Button("Undo (Ctrl+Z)")) {
+			Undo();
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!CanRedo());
+		if (ImGui::Button("Redo (Ctrl+Y)")) {
+			Redo();
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::TextDisabled("History: %zu / %zu", undoStack_.size(), redoStack_.size());
+		ImGui::Separator();
+
+		std::string prevGroup = selectedGroupName_;
 		DrawGroupSelectorSection();
+		if (prevGroup != selectedGroupName_) {
+			hasPendingEdit_ = false;
+		}
 
 		ParticleEmitter* emitter = selectedGroupName_.empty()
 			? nullptr
 			: ParticleManager::GetInstance()->GetEmitter(selectedGroupName_);
 
 		if (emitter) {
+			EditorSnapshot beforeFrameSnapshot;
+			if (!hasPendingEdit_) {
+				beforeFrameSnapshot = CaptureSnapshot(selectedGroupName_, *emitter);
+			}
+
 			ImGui::Separator();
-			DrawPreviewControlSection(camera, selectedGroupName_, emitter);
+			bool edited = false;
+			edited |= DrawPreviewControlSection(camera, selectedGroupName_, emitter);
 			ImGui::Separator();
-			DrawEmitterSettingsSection(selectedGroupName_, emitter);
-			DrawShapeSettingsSection(emitter);
+			edited |= DrawEmitterSettingsSection(selectedGroupName_, emitter);
+			edited |= DrawShapeSettingsSection(emitter);
+
+			if (!hasPendingEdit_ && edited) {
+				pendingBeforeSnapshot_ = std::move(beforeFrameSnapshot);
+				hasPendingEdit_ = true;
+			}
+			if (hasPendingEdit_ && !ImGui::IsAnyItemActive()) {
+				EditorSnapshot afterSnapshot = CaptureSnapshot(selectedGroupName_, *emitter);
+				RecordCommand(std::make_unique<EditEmitterCommand>(
+					this, std::move(pendingBeforeSnapshot_), std::move(afterSnapshot), "Edit Effect"));
+				hasPendingEdit_ = false;
+			}
+
 			ImGui::Separator();
 			DrawCodeExportSection(selectedGroupName_);
 			ImGui::Separator();
 			DrawJsonSection(selectedGroupName_);
 		} else {
+			hasPendingEdit_ = false;
 			ImGui::TextDisabled("編集可能なパーティクルグループがありません。");
 		}
 	}
@@ -669,16 +812,18 @@ void EffectEditor::DrawGroupSelectorSection() {
 	}
 }
 
-void EffectEditor::DrawPreviewControlSection(const Camera* camera, const std::string& groupName, ParticleEmitter* emitter) {
+bool EffectEditor::DrawPreviewControlSection(const Camera* camera, const std::string& groupName, ParticleEmitter* emitter) {
+	bool edited = false;
 	if (ImGui::CollapsingHeader("Preview & Play Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::Checkbox("Update Particles", &isUpdateParticle_);
 		ImGui::SameLine();
-		ImGui::Checkbox("Use Billboard", &useBillboard_);
+		edited |= ImGui::Checkbox("Use Billboard", &useBillboard_);
 
 		const char* blendNames[] = { "None", "Normal", "Add", "Subtract", "Multiply", "Screen" };
 		int blendIdx = static_cast<int>(blendMode_);
 		if (ImGui::Combo("Blend Mode", &blendIdx, blendNames, 6)) {
 			blendMode_ = static_cast<BlendMode::BlendState>(blendIdx);
+			edited = true;
 		}
 
 		ImGui::DragFloat("Camera Front Dist", &cameraEmitDistance_, 0.1f, 0.5f, 50.0f);
@@ -694,6 +839,7 @@ void EffectEditor::DrawPreviewControlSection(const Camera* camera, const std::st
 
 		if (ImGui::Button("Move Emitter to Camera Front")) {
 			emitter->SetTranslate(CalculateCameraFrontPos(camera, cameraEmitDistance_));
+			edited = true;
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Clear Group")) {
@@ -704,20 +850,24 @@ void EffectEditor::DrawPreviewControlSection(const Camera* camera, const std::st
 			ParticleManager::GetInstance()->ClearAllParticles();
 		}
 	}
+	return edited;
 }
 
-void EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, ParticleEmitter* emitter) {
-	auto DragFloatMinMax = [](const char* labelMin, const char* labelMax, float* minVal, float* maxVal, float speed = 0.01f) {
+bool EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, ParticleEmitter* emitter) {
+	bool sectionEdited = false;
+	auto DragFloatMinMax = [&](const char* labelMin, const char* labelMax, float* minVal, float* maxVal, float speed = 0.01f) {
 		if (ImGui::DragFloat(labelMin, minVal, speed, 0.0f, *maxVal)) {
 			if (*minVal > *maxVal) *minVal = *maxVal;
+			sectionEdited = true;
 		}
 		if (ImGui::DragFloat(labelMax, maxVal, speed, *minVal, 100.0f)) {
 			if (*maxVal < *minVal) *maxVal = *minVal;
+			sectionEdited = true;
 		}
 	};
-	auto DragFloat3MinMax = [](const char* labelMin, const char* labelMax, Vector3* minVal, Vector3* maxVal, float speed = 0.01f) {
-		ImGui::DragFloat3(labelMin, &minVal->x, speed);
-		ImGui::DragFloat3(labelMax, &maxVal->x, speed);
+	auto DragFloat3MinMax = [&](const char* labelMin, const char* labelMax, Vector3* minVal, Vector3* maxVal, float speed = 0.01f) {
+		sectionEdited |= ImGui::DragFloat3(labelMin, &minVal->x, speed);
+		sectionEdited |= ImGui::DragFloat3(labelMax, &maxVal->x, speed);
 		if (minVal->x > maxVal->x) minVal->x = maxVal->x;
 		if (minVal->y > maxVal->y) minVal->y = maxVal->y;
 		if (minVal->z > maxVal->z) minVal->z = maxVal->z;
@@ -725,15 +875,16 @@ void EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, Part
 
 	if (ImGui::CollapsingHeader("Emitter & Animation Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
 		Vector3 translate = emitter->GetTranslate();
-		if (ImGui::DragFloat3("Translate", &translate.x, 0.01f)) { emitter->SetTranslate(translate); }
+		if (ImGui::DragFloat3("Translate", &translate.x, 0.01f)) { emitter->SetTranslate(translate); sectionEdited = true; }
 		Vector3 rotate = emitter->GetRotate();
-		if (ImGui::DragFloat3("Rotate", &rotate.x, 0.01f)) { emitter->SetRotate(rotate); }
+		if (ImGui::DragFloat3("Rotate", &rotate.x, 0.01f)) { emitter->SetRotate(rotate); sectionEdited = true; }
 		Vector3 scale = emitter->GetScale();
-		if (ImGui::DragFloat3("Scale", &scale.x, 0.01f)) { emitter->SetScale(scale); }
+		if (ImGui::DragFloat3("Scale", &scale.x, 0.01f)) { emitter->SetScale(scale); sectionEdited = true; }
 
 		int count = static_cast<int>(emitter->GetCount());
 		if (ImGui::DragInt("Count", &count, 1, 1, 100)) {
 			emitter->SetCount(static_cast<uint32_t>(count));
+			sectionEdited = true;
 		}
 
 		// テクスチャ選択
@@ -743,6 +894,7 @@ void EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, Part
 				bool isSelected = (currentTex == tex);
 				if (ImGui::Selectable(tex.c_str(), isSelected)) {
 					ParticleManager::GetInstance()->SetGroupTexture(groupName, tex);
+					sectionEdited = true;
 					if (autoRefreshCode_) {
 						generatedCode_ = GenerateCppCode(groupName, codeVarPrefixBuf_);
 					}
@@ -755,15 +907,15 @@ void EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, Part
 		}
 
 		bool isEmit = emitter->IsEmit();
-		if (ImGui::Checkbox("Enable Auto Emit", &isEmit)) { emitter->SetIsEmit(isEmit); }
+		if (ImGui::Checkbox("Enable Auto Emit", &isEmit)) { emitter->SetIsEmit(isEmit); sectionEdited = true; }
 		float frequency = emitter->GetFrequency();
-		if (ImGui::DragFloat("Frequency", &frequency, 0.01f, 0.01f, 10.0f)) { emitter->SetFrequency(frequency); }
+		if (ImGui::DragFloat("Frequency", &frequency, 0.01f, 0.01f, 10.0f)) { emitter->SetFrequency(frequency); sectionEdited = true; }
 
 		bool isEffectMode = emitter->IsEffectMode();
-		if (ImGui::Checkbox("Effect Mode (Single/Loop)", &isEffectMode)) { emitter->SetIsEffectMode(isEffectMode); }
+		if (ImGui::Checkbox("Effect Mode (Single/Loop)", &isEffectMode)) { emitter->SetIsEffectMode(isEffectMode); sectionEdited = true; }
 		if (emitter->IsEffectMode()) {
 			bool isLoop = emitter->IsLoop();
-			if (ImGui::Checkbox("Loop Effect", &isLoop)) { emitter->SetIsLoop(isLoop); }
+			if (ImGui::Checkbox("Loop Effect", &isLoop)) { emitter->SetIsLoop(isLoop); sectionEdited = true; }
 			ImGui::Text("Playing State: %s", emitter->IsPlaying() ? "Playing" : "Stopped");
 		}
 
@@ -812,6 +964,7 @@ void EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, Part
 			}
 			if (changed) {
 				emitter->SetGenerateSettings(gs);
+				sectionEdited = true;
 			}
 			ImGui::TreePop();
 		}
@@ -833,6 +986,7 @@ void EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, Part
 			}
 			if (changed) {
 				emitter->SetFieldSettings(fsSettings);
+				sectionEdited = true;
 			}
 			ImGui::TreePop();
 		}
@@ -857,24 +1011,32 @@ void EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, Part
 			}
 			if (changed) {
 				emitter->SetUVAnimationSettings(uvas);
+				sectionEdited = true;
 			}
 			ImGui::TreePop();
 		}
 	}
+	return sectionEdited;
 }
 
-void EffectEditor::DrawShapeSettingsSection(ParticleEmitter* emitter) {
+bool EffectEditor::DrawShapeSettingsSection(ParticleEmitter* emitter) {
+	bool edited = false;
 	if (ImGui::CollapsingHeader("Shape Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
 		const char* shapeItems[] = { "Billboard", "Ring", "Cylinder", "Plane" };
 		int shapeIndex = static_cast<int>(emitter->GetShapeType());
 		if (ImGui::Combo("Shape Type", &shapeIndex, shapeItems, 4)) {
 			emitter->SetShapeType(static_cast<ParticleShapeType>(shapeIndex));
+			edited = true;
 		}
 
 		if (const auto* inspector = GetShapeInspector(emitter->GetShapeType())) {
 			inspector->DrawImGui(emitter->GetShape());
+			if (ImGui::IsAnyItemActive()) {
+				edited = true;
+			}
 		}
 	}
+	return edited;
 }
 
 void EffectEditor::DrawCodeExportSection(const std::string& groupName) {

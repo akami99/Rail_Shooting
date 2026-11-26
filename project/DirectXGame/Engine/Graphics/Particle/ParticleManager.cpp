@@ -287,7 +287,7 @@ void ParticleManager::CreateParticleGroup(const std::string& name,
 	auto it = particleGroups_.find(name);
 	if (it != particleGroups_.end()) {
 		ParticleGroup& group = it->second;
-		group.particles.clear();
+		group.particlePool.Clear();
 		group.instanceCount = 0;
 		group.defaultModel = model;
 		group.model = model;
@@ -299,6 +299,7 @@ void ParticleManager::CreateParticleGroup(const std::string& name,
 
 	// 新たな空のパーティクルグループを作成し、コンテナに登録
 	ParticleGroup newGroup;
+	newGroup.particlePool.Initialize(kNumMaxParticle);
 	newGroup.defaultModel = model;
 	newGroup.model = model;
 	newGroup.materialData.textureFilePath = textureFilePath;
@@ -375,14 +376,14 @@ void ParticleManager::CreateParticleGroup(const std::string& name,
 void ParticleManager::ClearParticles(const std::string& name) {
 	auto it = particleGroups_.find(name);
 	if (it != particleGroups_.end()) {
-		it->second.particles.clear();
+		it->second.particlePool.Clear();
 		it->second.instanceCount = 0;
 	}
 }
 
 void ParticleManager::ClearAllParticles() {
 	for (auto& pair : particleGroups_) {
-		pair.second.particles.clear();
+		pair.second.particlePool.Clear();
 		pair.second.instanceCount = 0;
 	}
 }
@@ -398,13 +399,13 @@ void ParticleManager::Emit(const std::string& name, const Vector3& translate,
 
 	ParticleGroup& group = it->second;
 
-	// 指定された個数だけパーティクルを生成
+	// 指定された個数だけ Object Pool からスロットを取得して初期化
 	for (uint32_t i = 0; i < count; ++i) {
-		// MakeNewParticle で設定に基づいたランダムな初期値を持つパーティクルを生成
-		Particle newParticle = MakeNewParticle(translate, group.emitter.GetGenerateSettings());
-
-		// グループ内のパーティクルリストに追加
-		group.particles.push_back(std::move(newParticle));
+		Particle* slot = group.particlePool.Acquire();
+		if (!slot) {
+			break; // プール上限到達
+		}
+		*slot = MakeNewParticle(translate, group.emitter.GetGenerateSettings());
 	}
 }
 
@@ -416,16 +417,18 @@ void ParticleManager::EmitCustom(const std::string& name, const Vector3& transla
 
 	ParticleGroup& group = it->second;
 
-	Particle particle;
-	particle.transform.translate = translate;
-	particle.transform.rotate = rotate;
-	particle.transform.scale = scale;
-	particle.velocity = { 0.0f, 0.0f, 0.0f };
-	particle.color = color;
-	particle.lifeTime = lifeTime;
-	particle.currentTime = 0.0f;
-
-	group.particles.push_back(std::move(particle));
+	Particle* slot = group.particlePool.Acquire();
+	if (!slot) {
+		return;
+	}
+	*slot = Particle{};
+	slot->transform.translate = translate;
+	slot->transform.rotate = rotate;
+	slot->transform.scale = scale;
+	slot->velocity = { 0.0f, 0.0f, 0.0f };
+	slot->color = color;
+	slot->lifeTime = lifeTime;
+	slot->currentTime = 0.0f;
 }
 
 // パーティクル生成関数
@@ -493,7 +496,7 @@ Particle ParticleManager::MakeNewParticle(const Vector3& translate, const Partic
 void ParticleManager::UpdateGroupEmitter(ParticleGroup& group, const std::string& name, float deltaTime) {
 	if (group.emitter.IsEffectMode()) {
 		// エフェクトモードの場合（独立した別枠の「パーティクル生成システム」）
-		bool hasActiveParticles = !group.particles.empty();
+		bool hasActiveParticles = !group.particlePool.Empty();
 
 		if (!hasActiveParticles) {
 			// パーティクルがない（消滅した＝アニメーション完了）
@@ -621,16 +624,7 @@ void ParticleManager::WriteInstanceData(
 {
 	auto* instanceData = static_cast<ParticleInstanceData*>(group.mappedData);
 
-	auto it = group.particles.begin();
-	while (it != group.particles.end()) {
-		Particle& particle = *it;
-
-		// 更新して寿命切れなら削除
-		if (!UpdateParticle(particle, group, 0.0f)) {
-			// ※ 時間はすでに Update 本体で進めているため 0 を渡すのは NG。
-			// この関数ではインスタンスデータ書き込みのみ担う（時間更新済み）
-		}
-
+	group.particlePool.ForEachActive([&](Particle& particle) {
 		float alpha = 1.0f - (particle.currentTime / particle.lifeTime);
 
 		if (instanceIndex < kNumMaxParticle) {
@@ -674,8 +668,7 @@ void ParticleManager::WriteInstanceData(
 			instanceData[instanceIndex].uvTransform  = uvM;
 			++instanceIndex;
 		}
-		++it;
-	}
+	});
 }
 
 // ---------------------------------------------------------------------------
@@ -695,16 +688,10 @@ void ParticleManager::Update(const Camera& camera, float deltaTime) {
 		// 2. マテリアル・UV・リング更新
 		UpdateGroupMaterial(group, deltaTime);
 
-		// 3. パーティクル物理更新のみ行う（寿命切れは削除）
-		auto it = group.particles.begin();
-		while (it != group.particles.end()) {
-			Particle& particle = *it;
-			if (!UpdateParticle(particle, group, deltaTime)) {
-				it = group.particles.erase(it);
-				continue;
-			}
-			++it;
-		}
+		// 3. パーティクル物理更新のみ行う（寿命切れはプールへ返却）
+		group.particlePool.UpdateAndRelease([&](Particle& particle) {
+			return UpdateParticle(particle, group, deltaTime);
+		});
 
 		// 4. インスタンスデータ書き込み
 		uint32_t instanceIndex = 0;

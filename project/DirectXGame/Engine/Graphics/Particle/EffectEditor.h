@@ -2,6 +2,7 @@
 
 #include "BlendMode/BlendMode.h"
 #include "ParticleEmitter.h"
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -50,16 +51,45 @@ public:
 	BlendMode::BlendState GetBlendMode() const { return blendMode_; }
 	void SetBlendMode(BlendMode::BlendState mode) { blendMode_ = mode; }
 
+	// Command Pattern による Undo / Redo 操作
+	void Undo();
+	void Redo();
+	bool CanUndo() const { return !undoStack_.empty(); }
+	bool CanRedo() const { return !redoStack_.empty(); }
+	void ClearHistory();
+
 private:
+	// Command Pattern 基底インターフェース
+	class IEffectCommand {
+	public:
+		virtual ~IEffectCommand() = default;
+		virtual void Execute() = 0;
+		virtual void Undo() = 0;
+		virtual const char* GetLabel() const = 0;
+	};
+	class EditEmitterCommand;
+
+	struct EditorSnapshot {
+		std::string groupName;
+		ParticleEmitter emitter;
+		std::string texturePath;
+		BlendMode::BlendState blendMode = BlendMode::BlendState::kBlendModeAdd;
+		bool useBillboard = false;
+	};
+
+	EditorSnapshot CaptureSnapshot(const std::string& groupName, const ParticleEmitter& emitter) const;
+	void ApplySnapshot(const EditorSnapshot& snapshot);
+	void RecordCommand(std::unique_ptr<IEffectCommand> command);
+
 	void RefreshTextureList();
 	void RefreshJsonFileList();
 	Vector3 CalculateCameraFrontPos(const Camera* camera, float distance) const;
 
 #ifdef USE_IMGUI
 	void DrawGroupSelectorSection();
-	void DrawPreviewControlSection(const Camera* camera, const std::string& groupName, ParticleEmitter* emitter);
-	void DrawEmitterSettingsSection(const std::string& groupName, ParticleEmitter* emitter);
-	void DrawShapeSettingsSection(ParticleEmitter* emitter);
+	bool DrawPreviewControlSection(const Camera* camera, const std::string& groupName, ParticleEmitter* emitter);
+	bool DrawEmitterSettingsSection(const std::string& groupName, ParticleEmitter* emitter);
+	bool DrawShapeSettingsSection(ParticleEmitter* emitter);
 	void DrawCodeExportSection(const std::string& groupName);
 	void DrawJsonSection(const std::string& groupName);
 #endif // USE_IMGUI
@@ -87,6 +117,13 @@ private:
 	char codeVarPrefixBuf_[64] = "customEffect";
 	std::string generatedCode_;
 	bool autoRefreshCode_ = true;
+
+	// Undo / Redo コマンド履歴
+	static constexpr size_t kMaxHistorySize = 64;
+	std::vector<std::unique_ptr<IEffectCommand>> undoStack_;
+	std::vector<std::unique_ptr<IEffectCommand>> redoStack_;
+	bool hasPendingEdit_ = false;
+	EditorSnapshot pendingBeforeSnapshot_{};
 
 	// JSON保存/読込用
 	char jsonFileNameBuf_[128] = "custom_effect.json";

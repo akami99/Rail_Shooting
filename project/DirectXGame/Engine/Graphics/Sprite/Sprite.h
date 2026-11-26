@@ -76,6 +76,9 @@ private: // メンバ変数
   // Dissolveマスク用テクスチャパス
   std::string dissolveMaskFilePath_ = "masks/noise0.png";
 
+  // Dirty Flag パターン（頂点・変換行列の再計算抑制）
+  bool isDirty_ = true;
+
 public: // メンバ関数
   // 初期化
   void Initialize(const std::string &filePath);
@@ -120,23 +123,28 @@ public: // メンバ関数
   // setter
 
   // 座標の設定
-  void SetTranslate(const Vector2 &translate) { translate_ = translate; }
+  void SetTranslate(const Vector2 &translate) { translate_ = translate; isDirty_ = true; }
   // 回転の設定
-  void SetRotation(const float &rotation) { rotation_ = rotation; }
+  void SetRotation(const float &rotation) { rotation_ = rotation; isDirty_ = true; }
   // スケールの設定
-  void SetScale(const Vector2 &scale) { scale_ = scale; }
+  void SetScale(const Vector2 &scale) { scale_ = scale; isDirty_ = true; }
   // 色の設定
   void SetColor(const Vector4 &color) { materialData_->color = color; }
   // UV座標の設定
   void SetUvTranslate(const Vector3 &uvTranslate) {
     uvTransform_.translate = uvTranslate;
+    isDirty_ = true;
   }
   // UV回転の設定
   void SetUvRotation(const Vector3 &uvRotation) {
     uvTransform_.rotate = uvRotation;
+    isDirty_ = true;
   }
   // UVスケールの設定
-  void SetUvScale(const Vector3 &uvScale) { uvTransform_.scale = uvScale; }
+  void SetUvScale(const Vector3 &uvScale) {
+    uvTransform_.scale = uvScale;
+    isDirty_ = true;
+  }
   // テクスチャを設定するためのセッター
   void SetTexture(const std::string &filePath);
   // SRVインデックスを直接設定するためのセッター
@@ -144,18 +152,21 @@ public: // メンバ関数
   // アンカーポイントの設定
   void SetAnchorPoint(const Vector2 &anchorPoint) {
     anchorPoint_ = anchorPoint;
+    isDirty_ = true;
   }
   // 左右フリップの設定
-  void SetFlipX(const bool &isFlipX) { isFlipX_ = isFlipX; }
+  void SetFlipX(const bool &isFlipX) { isFlipX_ = isFlipX; isDirty_ = true; }
   // 上下フリップの設定
-  void SetFlipY(const bool &isFlipY) { isFlipY_ = isFlipY; }
+  void SetFlipY(const bool &isFlipY) { isFlipY_ = isFlipY; isDirty_ = true; }
   // テクスチャ左上座標の設定
   void SetTextureLeftTop(const Vector2 &textureLeftTop) {
     textureLeftTop_ = textureLeftTop;
+    isDirty_ = true;
   }
   // テクスチャ切り出しサイズの設定
   void SetTextureSize(const Vector2 &textureSize) {
     textureSize_ = textureSize;
+    isDirty_ = true;
   }
 
   // Dissolveの設定

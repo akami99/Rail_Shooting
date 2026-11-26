@@ -47,6 +47,11 @@ private: // メンバ変数
   Transform transform_ = {
       {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}};
 
+  // Dirty Flag パターン（World行列・逆転置行列のキャッシュ用）
+  bool isWorldDirty_ = true;
+  Matrix4x4 cachedWorldMatrix_{};
+  Matrix4x4 cachedWorldInverseTranspose_{};
+
   // 上書き用テクスチャ
   std::string overrideTexturePath_;
 
@@ -105,7 +110,12 @@ public: // getter
 
 public: // setter
   // モデルの設定
-  void SetModel(Model *model) { model_ = model; };
+  void SetModel(Model *model) {
+    if (model_ != model) {
+      model_ = model;
+      isWorldDirty_ = true;
+    }
+  }
   void SetModel(const std::string &filepath);
 
   // カメラの設定
@@ -114,11 +124,18 @@ public: // setter
   // 座標の設定
   void SetTranslate(const Vector3 &translate) {
     transform_.translate = translate;
+    isWorldDirty_ = true;
   }
   // 回転の設定
-  void SetRotation(const Vector3 &rotation) { transform_.rotate = rotation; }
+  void SetRotation(const Vector3 &rotation) {
+    transform_.rotate = rotation;
+    isWorldDirty_ = true;
+  }
   // スケールの設定
-  void SetScale(const Vector3 &scale) { transform_.scale = scale; }
+  void SetScale(const Vector3 &scale) {
+    transform_.scale = scale;
+    isWorldDirty_ = true;
+  }
 
   // 上書き用テクスチャの設定
   void SetOverrideTexturePath(const std::string &filePath) { overrideTexturePath_ = filePath; }

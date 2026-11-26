@@ -51,33 +51,36 @@ void Object3d::Update() {
 void Object3d::Update(uint32_t viewIndex, Camera *camera) {
   assert(viewIndex < kMaxViews);
 
-  // Transform情報からワールド行列を作る (全ビュー共通)
-  Matrix4x4 worldMatrix = MakeAffineMatrix(transform_.scale, transform_.rotate,
-                                           transform_.translate);
+  // Dirty Flag パターン：Transform または Model が変更された時のみ重い行列計算を実行
+  if (isWorldDirty_) {
+    cachedWorldMatrix_ = MakeAffineMatrix(transform_.scale, transform_.rotate,
+                                          transform_.translate);
 
-  // Model側のRootNodeのTransformを反映する
-  if (model_) {
-    Matrix4x4 rootMatrix = model_->GetRootNode().localMatrix;
-    worldMatrix = rootMatrix * worldMatrix;
+    // Model側のRootNodeのTransformを反映する
+    if (model_) {
+      Matrix4x4 rootMatrix = model_->GetRootNode().localMatrix;
+      cachedWorldMatrix_ = rootMatrix * cachedWorldMatrix_;
+    }
+
+    // 非均一スケール対応：逆転置行列の計算
+    cachedWorldInverseTranspose_ = Transpose(Inverse(cachedWorldMatrix_));
+    isWorldDirty_ = false;
   }
 
   // ワールドビュー射影行列の計算
   Matrix4x4 wvpMatrix;
   if (camera) {
     const Matrix4x4 &viewProjectionMatrix = camera->GetViewProjectionMatrix();
-    wvpMatrix = worldMatrix * viewProjectionMatrix;
+    wvpMatrix = cachedWorldMatrix_ * viewProjectionMatrix;
   } else {
-    wvpMatrix = worldMatrix;
+    wvpMatrix = cachedWorldMatrix_;
   }
-
-  // 非均一スケール対応：逆転置行列の計算
-  Matrix4x4 worldInverseTranspose = Transpose(Inverse(worldMatrix));
 
   // 指定されたビューのデータを更新
   transformationMatrixData_[viewIndex]->WVP = wvpMatrix;
-  transformationMatrixData_[viewIndex]->World = worldMatrix;
+  transformationMatrixData_[viewIndex]->World = cachedWorldMatrix_;
   transformationMatrixData_[viewIndex]->WorldInverseTranspose =
-      worldInverseTranspose;
+      cachedWorldInverseTranspose_;
 }
 
 // 描画処理
@@ -145,7 +148,11 @@ void Object3d::DrawWireframe(float dissolveThreshold, const Vector4 &wireColor, 
 
 void Object3d::SetModel(const std::string &filepath) {
   // モデルを検索してセットする
-  model_ = ModelManager::GetInstance()->FindModel(filepath);
+  Model *newModel = ModelManager::GetInstance()->FindModel(filepath);
+  if (model_ != newModel) {
+    model_ = newModel;
+    isWorldDirty_ = true;
+  }
 }
 
 void Object3d::SetDissolveParams(int32_t enable, float threshold,

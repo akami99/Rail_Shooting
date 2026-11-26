@@ -35,6 +35,9 @@ void Sprite::Initialize(const std::string &filePath) {
 
 // 更新処理
 void Sprite::Update() {
+  if (!isDirty_) {
+    return;
+  }
 
   // アンカーポイント
   float left = 0.0f - anchorPoint_.x;
@@ -141,6 +144,8 @@ void Sprite::Update() {
   transformationMatrixData_->World =
       worldMatrix; // 純粋なワールド行列をWorldメンバーに入れる
 
+  isDirty_ = false;
+
 #pragma endregion ここまで
 }
 
@@ -194,11 +199,13 @@ void Sprite::SetTexture(const std::string &filePath) {
 
   // テクスチャが変わったので、切り出しサイズを新しいテクスチャに合わせる
   AdjustTextureSize();
+  isDirty_ = true;
 }
 
 void Sprite::SetTexture(uint32_t srvIndex) {
     useCustomSrv_ = true;
     srvIndex_ = srvIndex;
+    isDirty_ = true;
 }
 
 // 頂点バッファとインデックスバッファの作成
