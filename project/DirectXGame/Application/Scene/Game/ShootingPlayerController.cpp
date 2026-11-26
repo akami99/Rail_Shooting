@@ -16,7 +16,141 @@
 using namespace MathUtils;
 using namespace MathGenerators;
 
+class ShootingPlayerController::HandgunWeapon final : public ShootingPlayerController::IWeapon {
+public:
+    WeaponType GetType() const override { return WeaponType::Handgun; }
+    const char* GetName() const override { return "Handgun"; }
+    int GetAmmo() const override { return ammo_; }
+    int GetMaxAmmo() const override { return kMaxAmmo; }
+    void SetAmmo(int ammo) override { ammo_ = std::clamp(ammo, 0, kMaxAmmo); }
+    void AddAmmo(int amount) override { ammo_ = std::clamp(ammo_ + amount, 0, kMaxAmmo); }
+    float GetFireInterval() const override { return kHandgunFireInterval; }
+
+    bool WantsFireInput(bool isDemoMode, bool demoShootTriggered) const override {
+        return isDemoMode ? demoShootTriggered : Input::GetInstance()->IsMouseButtonTriggered(0);
+    }
+
+    bool TryConsumeShot(bool isInfiniteAmmo) override {
+        if (ammo_ <= 0 && !isInfiniteAmmo) {
+            return false;
+        }
+        if (!isInfiniteAmmo) {
+            ammo_--;
+        }
+        return true;
+    }
+
+    void UpdateAmmoUI(const std::vector<std::unique_ptr<Sprite>>& ammoUnits,
+                      std::vector<float>& currentX,
+                      std::vector<float>& targetX,
+                      Sprite* machineGunBar) const override {
+        for (int i = 0; i < kMaxAmmo; ++i) {
+            if (i >= 9 - ammo_) {
+                targetX[i] = 202.0f - (i - 9 + ammo_) * 20.0f;
+                currentX[i] += (targetX[i] - currentX[i]) * 0.15f;
+                ammoUnits[i]->SetTranslate({currentX[i], 648.0f});
+                ammoUnits[i]->SetColor({183.0f / 255.0f, 132.0f / 255.0f, 48.0f / 255.0f, 1.0f});
+            } else {
+                ammoUnits[i]->SetColor({0.0f, 0.0f, 0.0f, 0.0f});
+            }
+            ammoUnits[i]->Update();
+        }
+        if (machineGunBar) {
+            machineGunBar->SetScale({0.0f, 0.0f});
+            machineGunBar->SetColor({0.0f, 0.0f, 0.0f, 0.0f});
+            machineGunBar->Update();
+        }
+    }
+
+    void DrawAmmoUI(const std::vector<std::unique_ptr<Sprite>>& ammoUnits,
+                    Sprite* machineGunBar) const override {
+        (void)machineGunBar;
+        for (int i = 0; i < kMaxAmmo; ++i) {
+            if (ammoUnits[i]) {
+                ammoUnits[i]->Draw();
+            }
+        }
+    }
+
+    const Vector2& GetCursorTargetPos(const Vector2& handgunPos,
+                                      const Vector2& machineGunPos) const override {
+        (void)machineGunPos;
+        return handgunPos;
+    }
+
+private:
+    int ammo_ = kMaxAmmo;
+};
+
+class ShootingPlayerController::MachineGunWeapon final : public ShootingPlayerController::IWeapon {
+public:
+    WeaponType GetType() const override { return WeaponType::MachineGun; }
+    const char* GetName() const override { return "MachineGun"; }
+    int GetAmmo() const override { return ammo_; }
+    int GetMaxAmmo() const override { return kMaxMachineGunAmmo; }
+    void SetAmmo(int ammo) override { ammo_ = std::clamp(ammo, 0, kMaxMachineGunAmmo); }
+    void AddAmmo(int amount) override { ammo_ = std::clamp(ammo_ + amount, 0, kMaxMachineGunAmmo); }
+    float GetFireInterval() const override { return kMachineGunFireInterval; }
+
+    bool WantsFireInput(bool isDemoMode, bool demoShootTriggered) const override {
+        return isDemoMode ? demoShootTriggered : Input::GetInstance()->IsMouseButtonDown(0);
+    }
+
+    bool TryConsumeShot(bool isInfiniteAmmo) override {
+        if (ammo_ <= 0 && !isInfiniteAmmo) {
+            return false;
+        }
+        if (!isInfiniteAmmo) {
+            ammo_--;
+        }
+        return true;
+    }
+
+    void UpdateAmmoUI(const std::vector<std::unique_ptr<Sprite>>& ammoUnits,
+                      std::vector<float>& currentX,
+                      std::vector<float>& targetX,
+                      Sprite* machineGunBar) const override {
+        (void)currentX;
+        (void)targetX;
+        for (int i = 0; i < kMaxAmmo; ++i) {
+            ammoUnits[i]->SetColor({0.0f, 0.0f, 0.0f, 0.0f});
+            ammoUnits[i]->Update();
+        }
+        if (machineGunBar) {
+            float ammoRatio = static_cast<float>(ammo_) / static_cast<float>(kMaxMachineGunAmmo);
+            ammoRatio = std::clamp(ammoRatio, 0.0f, 1.0f);
+            machineGunBar->SetScale({190.0f * ammoRatio, 24.0f});
+            machineGunBar->SetColor({1.0f, 0.65f, 0.15f, 1.0f});
+            machineGunBar->Update();
+        }
+    }
+
+    void DrawAmmoUI(const std::vector<std::unique_ptr<Sprite>>& ammoUnits,
+                    Sprite* machineGunBar) const override {
+        (void)ammoUnits;
+        if (machineGunBar) {
+            machineGunBar->Draw();
+        }
+    }
+
+    const Vector2& GetCursorTargetPos(const Vector2& handgunPos,
+                                      const Vector2& machineGunPos) const override {
+        (void)handgunPos;
+        return machineGunPos;
+    }
+
+private:
+    int ammo_ = 0;
+};
+
+void ShootingPlayerController::SetCurrentWeapon(WeaponType weapon) {
+    activeWeapon_ = (weapon == WeaponType::MachineGun) ? machineGunWeapon_.get() : handgunWeapon_.get();
+}
+
 void ShootingPlayerController::Initialize(const std::string& crosshairPath) {
+  handgunWeapon_ = std::make_unique<HandgunWeapon>();
+  machineGunWeapon_ = std::make_unique<MachineGunWeapon>();
+  activeWeapon_ = handgunWeapon_.get();
   TextureManager::GetInstance()->LoadTexture(crosshairPath);
   TextureManager::GetInstance()->LoadTexture("white.png");
   TextureManager::GetInstance()->LoadTexture("ui/weaponBG.png");
@@ -110,10 +244,12 @@ void ShootingPlayerController::Finalize() {
 
 void ShootingPlayerController::ResetState(bool resetMachineGunAmmo) {
   hp_ = kMaxHp;
-  currentWeapon_ = WeaponType::Handgun;
-  ammo_ = kMaxAmmo;
+  if (!handgunWeapon_) handgunWeapon_ = std::make_unique<HandgunWeapon>();
+  if (!machineGunWeapon_) machineGunWeapon_ = std::make_unique<MachineGunWeapon>();
+  activeWeapon_ = handgunWeapon_.get();
+  handgunWeapon_->SetAmmo(kMaxAmmo);
   if (resetMachineGunAmmo) {
-    machineGunAmmo_ = 0;
+    machineGunWeapon_->SetAmmo(0);
   }
   shootCooldownTimer_ = 0.0f;
   ammoGetEffectTimer_ = 0.0f;
@@ -168,16 +304,16 @@ void ShootingPlayerController::UpdateCoverAndWeapon(bool isDemoMode, bool demoIs
 
   // 右クリックによる武器切り替え（ハンドガン ⇔ マシンガン）
   if (Input::GetInstance()->IsMouseButtonTriggered(1)) {
-    currentWeapon_ = (currentWeapon_ == WeaponType::Handgun) ? WeaponType::MachineGun : WeaponType::Handgun;
+    activeWeapon_ = (activeWeapon_ == handgunWeapon_.get()) ? machineGunWeapon_.get() : handgunWeapon_.get();
   }
 
   // 隠れるアクションの更新
   isCovering_ = isDemoMode ? demoIsCovering : Input::GetInstance()->IsKeyDown(DIK_SPACE);
   if (isCovering_) {
-    if (ammo_ < kMaxAmmo) {
+    if (handgunWeapon_ && handgunWeapon_->GetAmmo() < handgunWeapon_->GetMaxAmmo()) {
       reloadTimer_ += ApplicationConfig::kDeltaTime;
       if (reloadTimer_ >= kReloadDuration) {
-        ammo_ = kMaxAmmo;
+        handgunWeapon_->SetAmmo(handgunWeapon_->GetMaxAmmo());
         reloadTimer_ = 0.0f;
 
         if (camera && effectManager) {
@@ -213,28 +349,14 @@ void ShootingPlayerController::FadeCrosshair(float remainAlpha) {
 }
 
 bool ShootingPlayerController::TryFire(bool isDemoMode, bool demoShootTriggered) {
-  if (isCovering_ || shootCooldownTimer_ > 0.0f) {
+  if (isCovering_ || shootCooldownTimer_ > 0.0f || !activeWeapon_) {
     return false;
   }
 
-  if (currentWeapon_ == WeaponType::Handgun) {
-    bool triggerShot = isDemoMode ? demoShootTriggered : Input::GetInstance()->IsMouseButtonTriggered(0);
-    if (triggerShot && (ammo_ > 0 || isDebugInfiniteAmmo_)) {
-      shootCooldownTimer_ = kHandgunFireInterval;
-      if (!isDebugInfiniteAmmo_) {
-        ammo_--;
-      }
-      return true;
-    }
-  } else if (currentWeapon_ == WeaponType::MachineGun) {
-    bool downShot = isDemoMode ? demoShootTriggered : Input::GetInstance()->IsMouseButtonDown(0);
-    if (downShot && (machineGunAmmo_ > 0 || isDebugInfiniteAmmo_)) {
-      shootCooldownTimer_ = kMachineGunFireInterval;
-      if (!isDebugInfiniteAmmo_) {
-        machineGunAmmo_--;
-      }
-      return true;
-    }
+  if (activeWeapon_->WantsFireInput(isDemoMode, demoShootTriggered) &&
+      activeWeapon_->TryConsumeShot(isDebugInfiniteAmmo_)) {
+    shootCooldownTimer_ = activeWeapon_->GetFireInterval();
+    return true;
   }
 
   return false;
@@ -246,7 +368,9 @@ bool ShootingPlayerController::ApplyDamage(int damage) {
 }
 
 void ShootingPlayerController::OnEliteEnemyDefeated(const Vector3& worldPos) {
-  machineGunAmmo_ = (std::min)(kMaxMachineGunAmmo, machineGunAmmo_ + kEliteDropMachineGunAmmo);
+  if (machineGunWeapon_) {
+    machineGunWeapon_->AddAmmo(kEliteDropMachineGunAmmo);
+  }
 
   MachineGunAmmoDropEffect drop;
   drop.baseWorldPos = Add(worldPos, {0.0f, 1.8f, 0.0f});
@@ -264,7 +388,8 @@ void ShootingPlayerController::OnEliteEnemyDefeated(const Vector3& worldPos) {
 
 void ShootingPlayerController::UpdateUI(const Camera& camera, float clientWidth, float clientHeight) {
   // 1. 弾薬UIの更新
-  bool isReloading = isCovering_ && (ammo_ < kMaxAmmo);
+  const int handgunAmmo = GetAmmo();
+  bool isReloading = isCovering_ && (handgunAmmo < kMaxAmmo);
 
   if (isReloading) {
     float t = reloadTimer_ / (kReloadDuration * 0.85f);
@@ -292,43 +417,19 @@ void ShootingPlayerController::UpdateUI(const Camera& camera, float clientWidth,
       }
       ammoUnits_[i]->Update();
     }
+    if (machineGunAmmoBar_) {
+      machineGunAmmoBar_->SetScale({0.0f, 0.0f});
+      machineGunAmmoBar_->SetColor({0.0f, 0.0f, 0.0f, 0.0f});
+      machineGunAmmoBar_->Update();
+    }
   } else {
     lastReloadCount_ = 0;
-    if (currentWeapon_ == WeaponType::MachineGun) {
-      for (int i = 0; i < kMaxAmmo; ++i) {
-        ammoUnits_[i]->SetColor({0.0f, 0.0f, 0.0f, 0.0f});
-        ammoUnits_[i]->Update();
-      }
-    } else {
-      int currentAmmo = ammo_;
-      for (int i = 0; i < kMaxAmmo; ++i) {
-        if (i >= 9 - currentAmmo) {
-          ammoTargetX_[i] = 202.0f - (i - 9 + currentAmmo) * 20.0f;
-          ammoCurrentX_[i] += (ammoTargetX_[i] - ammoCurrentX_[i]) * 0.15f;
-          ammoUnits_[i]->SetTranslate({ammoCurrentX_[i], 648.0f});
-          ammoUnits_[i]->SetColor({183.0f / 255.0f, 132.0f / 255.0f, 48.0f / 255.0f, 1.0f});
-        } else {
-          ammoUnits_[i]->SetColor({0.0f, 0.0f, 0.0f, 0.0f});
-        }
-        ammoUnits_[i]->Update();
-      }
+    if (activeWeapon_) {
+      activeWeapon_->UpdateAmmoUI(ammoUnits_, ammoCurrentX_, ammoTargetX_, machineGunAmmoBar_.get());
     }
   }
   if (ammoBg_) {
     ammoBg_->Update();
-  }
-
-  if (machineGunAmmoBar_) {
-    if (currentWeapon_ == WeaponType::MachineGun) {
-      float ammoRatio = static_cast<float>(machineGunAmmo_) / static_cast<float>(kMaxMachineGunAmmo);
-      ammoRatio = std::clamp(ammoRatio, 0.0f, 1.0f);
-      machineGunAmmoBar_->SetScale({190.0f * ammoRatio, 24.0f});
-      machineGunAmmoBar_->SetColor({1.0f, 0.65f, 0.15f, 1.0f});
-    } else {
-      machineGunAmmoBar_->SetScale({0.0f, 0.0f});
-      machineGunAmmoBar_->SetColor({0.0f, 0.0f, 0.0f, 0.0f});
-    }
-    machineGunAmmoBar_->Update();
   }
 
   // 2. 武器選択UIの更新
@@ -338,8 +439,8 @@ void ShootingPlayerController::UpdateUI(const Camera& camera, float clientWidth,
     weaponBg_->Update();
   }
 
-  if (weaponSelectCursor_) {
-    Vector2 targetCursorPos = (currentWeapon_ == WeaponType::Handgun) ? weaponHandgunPos_ : weaponMachineGunPos_;
+  if (weaponSelectCursor_ && activeWeapon_) {
+    const Vector2& targetCursorPos = activeWeapon_->GetCursorTargetPos(weaponHandgunPos_, weaponMachineGunPos_);
     weaponSelectCursor_->SetTranslate(targetCursorPos);
     weaponSelectCursor_->SetScale(weaponCursorSize_);
     weaponSelectCursor_->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
@@ -349,14 +450,14 @@ void ShootingPlayerController::UpdateUI(const Camera& camera, float clientWidth,
   if (weaponHandgunIcon_) {
     weaponHandgunIcon_->SetTranslate(weaponHandgunPos_);
     weaponHandgunIcon_->SetScale(weaponIconSize_);
-    weaponHandgunIcon_->SetColor(ammo_ > 0 ? Vector4{1.0f, 1.0f, 1.0f, 1.0f} : Vector4{0.5f, 0.5f, 0.5f, 0.25f});
+    weaponHandgunIcon_->SetColor(handgunAmmo > 0 ? Vector4{1.0f, 1.0f, 1.0f, 1.0f} : Vector4{0.5f, 0.5f, 0.5f, 0.25f});
     weaponHandgunIcon_->Update();
   }
 
   if (weaponMachineGunIcon_) {
     weaponMachineGunIcon_->SetTranslate(weaponMachineGunPos_);
     weaponMachineGunIcon_->SetScale(weaponIconSize_);
-    weaponMachineGunIcon_->SetColor(machineGunAmmo_ > 0 ? Vector4{1.0f, 1.0f, 1.0f, 1.0f} : Vector4{0.5f, 0.5f, 0.5f, 0.25f});
+    weaponMachineGunIcon_->SetColor(GetMachineGunAmmo() > 0 ? Vector4{1.0f, 1.0f, 1.0f, 1.0f} : Vector4{0.5f, 0.5f, 0.5f, 0.25f});
     weaponMachineGunIcon_->Update();
   }
 
@@ -427,16 +528,8 @@ void ShootingPlayerController::DrawAmmoAndWeaponUI() {
   if (ammoBg_) {
     ammoBg_->Draw();
   }
-  if (currentWeapon_ == WeaponType::MachineGun) {
-    if (machineGunAmmoBar_) {
-      machineGunAmmoBar_->Draw();
-    }
-  } else {
-    for (int i = 0; i < kMaxAmmo; ++i) {
-      if (ammoUnits_[i]) {
-        ammoUnits_[i]->Draw();
-      }
-    }
+  if (activeWeapon_) {
+    activeWeapon_->DrawAmmoUI(ammoUnits_, machineGunAmmoBar_.get());
   }
 
   if (weaponBg_) weaponBg_->Draw();
@@ -473,21 +566,22 @@ bool ShootingPlayerController::IsInvincible(bool isAutoClearing) const {
 }
 
 bool ShootingPlayerController::HasCurrentWeaponAmmo() const {
-  int currentAmmo = (currentWeapon_ == WeaponType::Handgun) ? ammo_ : machineGunAmmo_;
+  int currentAmmo = activeWeapon_ ? activeWeapon_->GetAmmo() : 0;
   return currentAmmo > 0 || isDebugInfiniteAmmo_;
 }
 
 #ifdef USE_IMGUI
 void ShootingPlayerController::UpdateGlobalDebugImGui() {
+  const int handgunAmmo = GetAmmo();
   ImGui::Text("Player HP: %d / %d", hp_, kMaxHp);
   if (ImGui::Button("Reset Player HP")) {
     hp_ = kMaxHp;
   }
   ImGui::Text(hp_ > 0 ? "Player is Alive" : "Player is Dead");
   ImGui::Separator();
-  ImGui::Text("Ammo: %d / %d", ammo_, kMaxAmmo);
+  ImGui::Text("Ammo: %d / %d", handgunAmmo, kMaxAmmo);
   ImGui::Text("Covering (SPACE): %s", isCovering_ ? "YES (Invincible)" : "NO");
-  if (isCovering_ && ammo_ < kMaxAmmo) {
+  if (isCovering_ && handgunAmmo < kMaxAmmo) {
     ImGui::ProgressBar(reloadTimer_ / kReloadDuration, ImVec2(0.0f, 0.0f), "Reloading...");
   }
   ImGui::Checkbox("Debug Infinite Ammo", &isDebugInfiniteAmmo_);
@@ -508,12 +602,13 @@ void ShootingPlayerController::UpdateCoverImGui(bool isAutoClearing) {
 }
 
 void ShootingPlayerController::UpdateStatusImGui() {
-  ImGui::Text("Weapon: %s", (currentWeapon_ == WeaponType::Handgun) ? "Handgun" : "MachineGun");
+  const int handgunAmmo = GetAmmo();
+  ImGui::Text("Weapon: %s", activeWeapon_ ? activeWeapon_->GetName() : "Handgun");
   ImGui::Text("Player HP: %d / %d", hp_, kMaxHp);
-  ImGui::Text("Handgun Ammo: %d / %d", ammo_, kMaxAmmo);
-  ImGui::Text("MachineGun Ammo: %d / %d", machineGunAmmo_, kMaxMachineGunAmmo);
+  ImGui::Text("Handgun Ammo: %d / %d", handgunAmmo, kMaxAmmo);
+  ImGui::Text("MachineGun Ammo: %d / %d", GetMachineGunAmmo(), kMaxMachineGunAmmo);
   ImGui::Text("Covering (SPACE): %s", isCovering_ ? "YES (Invincible)" : "NO");
-  if (isCovering_ && ammo_ < kMaxAmmo) {
+  if (isCovering_ && handgunAmmo < kMaxAmmo) {
     ImGui::ProgressBar(reloadTimer_ / kReloadDuration, ImVec2(0.0f, 0.0f), "Reloading...");
   }
 }

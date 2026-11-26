@@ -13,7 +13,7 @@ namespace {
     Vector3 CalculateTrailRotation(const Vector3& dir, float rollAngle) {
         Vector3 Y_axis = dir;
         Vector3 ref = (std::abs(dir.y) < 0.99f) ? Vector3(0.0f, 1.0f, 0.0f) : Vector3(1.0f, 0.0f, 0.0f);
-        
+
         Vector3 X_base = MathUtils::Normalize(MathUtils::Cross(Y_axis, ref));
         Vector3 Z_base = MathUtils::Normalize(MathUtils::Cross(X_base, Y_axis));
 
@@ -48,66 +48,40 @@ namespace {
         }
         return rot;
     }
+} // namespace
+
+// =========================================================================
+// EnemyProjectile（基底）
+// =========================================================================
+std::unique_ptr<EnemyProjectile> EnemyProjectile::Create(Type type, const Vector3& position, const Vector3& velocity) {
+    std::unique_ptr<EnemyProjectile> projectile;
+    switch (type) {
+    case Type::Blast:
+        projectile = std::make_unique<BlastEnemyProjectile>();
+        break;
+    case Type::Jamming:
+        projectile = std::make_unique<JammingEnemyProjectile>();
+        break;
+    case Type::Normal:
+    default:
+        projectile = std::make_unique<NormalEnemyProjectile>();
+        break;
+    }
+    projectile->Initialize(position, velocity);
+    return projectile;
 }
 
-void EnemyProjectile::Initialize(const Vector3& position, const Vector3& velocity, Type type) {
+void EnemyProjectile::Initialize(const Vector3& position, const Vector3& velocity) {
     position_ = position;
     velocity_ = velocity;
-    type_ = type;
     isHitShot_ = true;
     trailRotation_ = 0.0f;
-    
+
     object_ = std::make_unique<Object3d>();
     object_->Initialize();
-    
-    if (type_ == Type::Blast) {
-        radius_ = 0.7f; // ロケット弾イメージで少し大きめ
-        maxHp_ = 5;     // 5回で破壊可能
-        hp_ = maxHp_;
-        damageBarRatio_ = 1.0f;
-        isHpGaugeVisible_ = false;
 
-        hpBgSprite_ = std::make_unique<Sprite>();
-        hpBgSprite_->Initialize("white.png");
-        hpBgSprite_->SetAnchorPoint({0.0f, 0.5f});
-        hpBgSprite_->SetColor({0.08f, 0.08f, 0.08f, 0.85f});
+    SetupVisualAndStats();
 
-        hpDamageSprite_ = std::make_unique<Sprite>();
-        hpDamageSprite_->Initialize("white.png");
-        hpDamageSprite_->SetAnchorPoint({0.0f, 0.5f});
-        hpDamageSprite_->SetColor({1.0f, 0.2f, 0.1f, 0.9f});
-
-        hpFillSprite_ = std::make_unique<Sprite>();
-        hpFillSprite_->Initialize("white.png");
-        hpFillSprite_->SetAnchorPoint({0.0f, 0.5f});
-        hpFillSprite_->SetColor({1.0f, 0.85f, 0.1f, 1.0f});
-
-        hpFrameSprite_ = std::make_unique<Sprite>();
-        hpFrameSprite_->Initialize("ui/enemyHpFrame.png");
-        hpFrameSprite_->SetAnchorPoint({0.5f, 0.5f});
-        hpFrameSprite_->SetScale({70.0f, 14.0f});
-    } else {
-        radius_ = 0.5f;
-        maxHp_ = 1;
-        hp_ = 1;
-    }
-
-    if (type_ != Type::Normal) {
-        // 属性弾用に個別のモデルインスタンスを作成
-        customModel_ = std::make_unique<Model>();
-        customModel_->Initialize(bulletModelDirectory_, bulletModelPath_);
-        
-        if (type_ == Type::Blast) {
-            customModel_->SetColor({1.0f, 0.8f, 0.0f, 1.0f}); // 黄色
-        } else if (type_ == Type::Jamming) {
-            customModel_->SetColor({0.0f, 0.5f, 1.0f, 1.0f}); // 青色
-        }
-        
-        object_->SetModel(customModel_.get());
-    } else {
-        object_->SetModel(bulletModelPath_);
-    }
-    
     object_->SetTranslate(position_);
     object_->SetScale({radius_, radius_, radius_});
     float speed = MathUtils::Length(velocity_);
@@ -125,7 +99,7 @@ void EnemyProjectile::Update() {
     position_.x += velocity_.x;
     position_.y += velocity_.y;
     position_.z += velocity_.z;
-    
+
     object_->SetTranslate(position_);
     // デフォルトのUpdate(全ビューをcamera_で更新)
     object_->Update();
@@ -135,7 +109,7 @@ void EnemyProjectile::Update() {
         float speed = MathUtils::Length(velocity_);
         if (speed > 0.0001f) {
             Vector3 dir = MathUtils::Normalize(velocity_);
-            
+
             // ライフリング回転角を進める (毎フレーム約35度 = 0.6 rad ずつ回転)
             trailRotation_ += 0.6f;
             if (trailRotation_ > 6.2831853f) {
@@ -147,24 +121,7 @@ void EnemyProjectile::Update() {
 
             // 弾の後方座標にトレイルを発生
             Vector3 trailPos = MathUtils::Subtract(position_, MathUtils::Multiply(radius_ * 0.4f, dir));
-
-            std::string groupName = "BulletTrail_Normal";
-            Vector4 color = { 1.0f, 1.0f, 1.0f, 0.85f };
-            float lifeTime = 0.25f;
-            Vector3 scale = { 1.0f, 1.0f, 1.0f };
-
-            if (type_ == Type::Blast) {
-                groupName = "BulletTrail_Blast";
-                color = { 1.0f, 0.75f, 0.1f, 0.9f };
-                lifeTime = 0.35f;
-                scale = { 1.3f, 1.3f, 1.3f }; // 爆発弾は少し大きめ
-            } else if (type_ == Type::Jamming) {
-                groupName = "BulletTrail_Jamming";
-                color = { 0.1f, 0.65f, 1.0f, 0.9f };
-                lifeTime = 0.25f;
-            }
-
-            ParticleManager::GetInstance()->EmitCustom(groupName, trailPos, rot, scale, color, lifeTime);
+            EmitTrailEffect(trailPos, rot);
         }
     }
 }
@@ -178,9 +135,84 @@ void EnemyProjectile::Draw(uint32_t viewIndex) {
     object_->Draw(viewIndex);
 }
 
-void EnemyProjectile::UpdateHpGauge(Camera* camera, float clientWidth, float clientHeight) {
+bool EnemyProjectile::ApplyDamage(int damage) {
+    hp_ -= damage;
+    if (hp_ <= 0) {
+        hp_ = 0;
+        isDead_ = true;
+        return true; // 破壊された
+    }
+    return false; // 耐久値残存
+}
+
+// =========================================================================
+// NormalEnemyProjectile
+// =========================================================================
+void NormalEnemyProjectile::SetupVisualAndStats() {
+    radius_ = 0.5f;
+    maxHp_ = 1;
+    hp_ = 1;
+    object_->SetModel(bulletModelPath_);
+}
+
+void NormalEnemyProjectile::EmitTrailEffect(const Vector3& trailPos, const Vector3& rot) const {
+    ParticleManager::GetInstance()->EmitCustom(
+        "BulletTrail_Normal", trailPos, rot, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 0.85f }, 0.25f);
+}
+
+// =========================================================================
+// BlastEnemyProjectile
+// =========================================================================
+void BlastEnemyProjectile::SetupVisualAndStats() {
+    radius_ = 0.7f; // ロケット弾イメージで少し大きめ
+    maxHp_ = 5;     // 5回で破壊可能
+    hp_ = maxHp_;
+    damageBarRatio_ = 1.0f;
     isHpGaugeVisible_ = false;
-    // 生存中 かつ 最大HPが2以上（ランチャー弾） かつ 一度でもダメージを受けている（hp_ < maxHp_）場合のみ表示
+
+    hpBgSprite_ = std::make_unique<Sprite>();
+    hpBgSprite_->Initialize("white.png");
+    hpBgSprite_->SetAnchorPoint({0.0f, 0.5f});
+    hpBgSprite_->SetColor({0.08f, 0.08f, 0.08f, 0.85f});
+
+    hpDamageSprite_ = std::make_unique<Sprite>();
+    hpDamageSprite_->Initialize("white.png");
+    hpDamageSprite_->SetAnchorPoint({0.0f, 0.5f});
+    hpDamageSprite_->SetColor({1.0f, 0.2f, 0.1f, 0.9f});
+
+    hpFillSprite_ = std::make_unique<Sprite>();
+    hpFillSprite_->Initialize("white.png");
+    hpFillSprite_->SetAnchorPoint({0.0f, 0.5f});
+    hpFillSprite_->SetColor({1.0f, 0.85f, 0.1f, 1.0f});
+
+    hpFrameSprite_ = std::make_unique<Sprite>();
+    hpFrameSprite_->Initialize("ui/enemyHpFrame.png");
+    hpFrameSprite_->SetAnchorPoint({0.5f, 0.5f});
+    hpFrameSprite_->SetScale({70.0f, 14.0f});
+
+    // 属性弾用に個別のモデルインスタンスを作成
+    customModel_ = std::make_unique<Model>();
+    customModel_->Initialize(bulletModelDirectory_, bulletModelPath_);
+    customModel_->SetColor({1.0f, 0.8f, 0.0f, 1.0f}); // 黄色
+    object_->SetModel(customModel_.get());
+}
+
+void BlastEnemyProjectile::EmitTrailEffect(const Vector3& trailPos, const Vector3& rot) const {
+    ParticleManager::GetInstance()->EmitCustom(
+        "BulletTrail_Blast", trailPos, rot, { 1.3f, 1.3f, 1.3f }, { 1.0f, 0.75f, 0.1f, 0.9f }, 0.35f);
+}
+
+bool BlastEnemyProjectile::ApplyDamage(int damage) {
+    if (EnemyProjectile::ApplyDamage(damage)) {
+        isHpGaugeVisible_ = false;
+        return true;
+    }
+    return false;
+}
+
+void BlastEnemyProjectile::UpdateHpGauge(Camera* camera, float clientWidth, float clientHeight) {
+    isHpGaugeVisible_ = false;
+    // 生存中 かつ 一度でもダメージを受けている（hp_ < maxHp_）場合のみ表示
     if (isDead_ || !camera || maxHp_ <= 1 || hp_ >= maxHp_) {
         return;
     }
@@ -254,7 +286,7 @@ void EnemyProjectile::UpdateHpGauge(Camera* camera, float clientWidth, float cli
     isHpGaugeVisible_ = true;
 }
 
-void EnemyProjectile::DrawHpGauge() {
+void BlastEnemyProjectile::DrawHpGauge() {
     if (!isHpGaugeVisible_) {
         return;
     }
@@ -262,4 +294,23 @@ void EnemyProjectile::DrawHpGauge() {
     if (hpDamageSprite_) hpDamageSprite_->Draw();
     if (hpFillSprite_) hpFillSprite_->Draw();
     if (hpFrameSprite_) hpFrameSprite_->Draw();
+}
+
+// =========================================================================
+// JammingEnemyProjectile
+// =========================================================================
+void JammingEnemyProjectile::SetupVisualAndStats() {
+    radius_ = 0.5f;
+    maxHp_ = 1;
+    hp_ = 1;
+
+    customModel_ = std::make_unique<Model>();
+    customModel_->Initialize(bulletModelDirectory_, bulletModelPath_);
+    customModel_->SetColor({0.0f, 0.5f, 1.0f, 1.0f}); // 青色
+    object_->SetModel(customModel_.get());
+}
+
+void JammingEnemyProjectile::EmitTrailEffect(const Vector3& trailPos, const Vector3& rot) const {
+    ParticleManager::GetInstance()->EmitCustom(
+        "BulletTrail_Jamming", trailPos, rot, { 1.0f, 1.0f, 1.0f }, { 0.1f, 0.65f, 1.0f, 0.9f }, 0.25f);
 }

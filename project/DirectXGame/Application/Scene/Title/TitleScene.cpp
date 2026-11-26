@@ -716,8 +716,7 @@ void TitleScene::UpdateEnemyShooting() {
   Vector3 dir = Normalize(Subtract(playerPos, spawnPos));
   Vector3 velocity = Multiply(kEnemyBulletSpeed, dir);
   // 弾を生成して追加
-  auto projectile = std::make_unique<EnemyProjectile>();
-  projectile->Initialize(spawnPos, velocity, EnemyProjectile::Type::Normal);
+  auto projectile = EnemyProjectile::Create(EnemyProjectile::Type::Normal, spawnPos, velocity);
   projectiles_.push_back(std::move(projectile));
 }
 

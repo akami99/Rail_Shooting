@@ -19,6 +19,90 @@
 using namespace MathUtils;
 using namespace MathGenerators;
 
+class ShootingWaveManager::NormalEnemyBehavior : public ShootingWaveManager::IEnemyBehavior {
+public:
+    EnemyType GetType() const override { return EnemyType::Normal; }
+    int GetMaxHp() const override { return 1; }
+    Vector4 GetModelColor() const override { return { 1.0f, 1.0f, 1.0f, 1.0f }; }
+    float GetSpawnInterval(float normalInterval, float engineerInterval) const override {
+        (void)engineerInterval;
+        return normalInterval;
+    }
+    float GetHitShotRate(float baseRate) const override { return baseRate; }
+    Vector4 GetChargeRingColor(int hitShotCount) const override {
+        return ((hitShotCount + 1) % 2 == 0) ? Vector4{ 0.1f, 0.65f, 1.0f, 1.0f } : Vector4{ 1.0f, 0.0f, 0.0f, 1.0f };
+    }
+    EnemyProjectile::Type SelectHitProjectileType(int hitShotCount) const override {
+        return (hitShotCount % 2 == 0) ? EnemyProjectile::Type::Jamming : EnemyProjectile::Type::Normal;
+    }
+    EnemyProjectile::Type SelectMissProjectileType() const override { return EnemyProjectile::Type::Normal; }
+};
+
+class ShootingWaveManager::EngineerEnemyBehavior final : public ShootingWaveManager::IEnemyBehavior {
+public:
+    EnemyType GetType() const override { return EnemyType::Engineer; }
+    int GetMaxHp() const override { return 3; }
+    Vector4 GetModelColor() const override { return { 1.0f, 0.8f, 0.2f, 1.0f }; }
+    float GetSpawnInterval(float normalInterval, float engineerInterval) const override {
+        (void)normalInterval;
+        return engineerInterval;
+    }
+    float GetHitShotRate(float baseRate) const override {
+        (void)baseRate;
+        return 0.75f;
+    }
+    Vector4 GetChargeRingColor(int hitShotCount) const override {
+        (void)hitShotCount;
+        return { 1.0f, 0.8f, 0.1f, 1.0f };
+    }
+    EnemyProjectile::Type SelectHitProjectileType(int hitShotCount) const override {
+        (void)hitShotCount;
+        return EnemyProjectile::Type::Blast;
+    }
+    EnemyProjectile::Type SelectMissProjectileType() const override { return EnemyProjectile::Type::Blast; }
+};
+
+class ShootingWaveManager::EliteEnemyBehavior final : public ShootingWaveManager::NormalEnemyBehavior {
+public:
+    EnemyType GetType() const override { return EnemyType::Elite; }
+    int GetMaxHp() const override { return 3; }
+    Vector4 GetModelColor() const override { return { 1.0f, 0.2f, 0.2f, 1.0f }; }
+    bool DropsMachineGunAmmoOnDeath() const override { return true; }
+    void PrepareFirstShotIfNeeded(float chargeStart, float& shootTimer,
+                                  bool& isNextHitShot, bool hasFiredFirstShot) const override {
+        if (!hasFiredFirstShot && shootTimer < chargeStart) {
+            shootTimer = chargeStart;
+            isNextHitShot = true;
+        }
+    }
+    bool ShouldMarkFirstShotFired() const override { return true; }
+};
+
+std::unique_ptr<ShootingWaveManager::IEnemyBehavior> ShootingWaveManager::CreateEnemyBehavior(EnemyType type) {
+    switch (type) {
+    case EnemyType::Engineer:
+        return std::make_unique<EngineerEnemyBehavior>();
+    case EnemyType::Elite:
+        return std::make_unique<EliteEnemyBehavior>();
+    case EnemyType::Normal:
+    default:
+        return std::make_unique<NormalEnemyBehavior>();
+    }
+}
+
+void ShootingWaveManager::ApplyEnemyType(EnemyInfo& enemy, EnemyType type, bool resetHpAndGauge) const {
+    enemy.behavior = CreateEnemyBehavior(type);
+    if (enemy.model && enemy.behavior) {
+        enemy.model->SetColor(enemy.behavior->GetModelColor());
+    }
+    if (resetHpAndGauge && enemy.behavior) {
+        enemy.maxHp = enemy.behavior->GetMaxHp();
+        enemy.hp = enemy.maxHp;
+        enemy.damageBarRatio = 1.0f;
+        enemy.isHpGaugeVisible = false;
+    }
+}
+
 void ShootingWaveManager::Initialize(const LevelData* levelData,
                                      const StageRailManager& railManager,
                                      Camera* camera,
@@ -56,19 +140,13 @@ void ShootingWaveManager::Initialize(const LevelData* levelData,
       enemy.baseRotation = enemyData.rotation;
       enemy.distance = enemyData.distance;
 
+      EnemyType parsedType = EnemyType::Normal;
       if (enemyData.enemyType == "ENGINEER" || enemyData.enemyType == "Engineer") {
-        enemy.type = EnemyType::Engineer;
-        if (enemy.model) {
-          enemy.model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
-        }
+        parsedType = EnemyType::Engineer;
       } else if (enemyData.enemyType == "ELITE" || enemyData.enemyType == "Elite") {
-        enemy.type = EnemyType::Elite;
-        if (enemy.model) {
-          enemy.model->SetColor({1.0f, 0.2f, 0.2f, 1.0f});
-        }
-      } else {
-        enemy.type = EnemyType::Normal;
+        parsedType = EnemyType::Elite;
       }
+      ApplyEnemyType(enemy, parsedType, false);
 
       enemy.isActive = false;
       enemy.isDead = false;
@@ -77,7 +155,7 @@ void ShootingWaveManager::Initialize(const LevelData* levelData,
       enemy.slideTimer = 0.0f;
       enemy.deathTimer = 0.0f;
       enemy.hasFiredEliteFirstShot = false;
-      float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
+      float rate = enemy.behavior->GetHitShotRate(hitShotRate_);
       enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
       enemies_.push_back(std::move(enemy));
     }
@@ -85,7 +163,7 @@ void ShootingWaveManager::Initialize(const LevelData* levelData,
     TextureManager::GetInstance()->LoadTexture("white.png");
     TextureManager::GetInstance()->LoadTexture("ui/enemyHpFrame.png");
     for (auto& enemy : enemies_) {
-      enemy.maxHp = (enemy.type == EnemyType::Engineer || enemy.type == EnemyType::Elite) ? 3 : 1;
+      enemy.maxHp = enemy.behavior->GetMaxHp();
       enemy.hp = enemy.maxHp;
       enemy.damageBarRatio = 1.0f;
       enemy.isHpGaugeVisible = false;
@@ -460,15 +538,10 @@ void ShootingWaveManager::UpdateEnemiesAndProjectiles(float deltaTime, float rai
     }
 
     if (enemy.spawnTimer >= 1.0f) {
-      float spawnInterval = (enemy.type == EnemyType::Engineer) ? kEngineerSpawnInterval : kProjectileSpawnInterval;
+      float spawnInterval = enemy.behavior->GetSpawnInterval(kProjectileSpawnInterval, kEngineerSpawnInterval);
       float chargeStart = spawnInterval - kChargeDuration;
 
-      if (enemy.type == EnemyType::Elite && !enemy.hasFiredEliteFirstShot) {
-        if (enemy.shootTimer < chargeStart) {
-          enemy.shootTimer = chargeStart;
-          enemy.isNextHitShot = true;
-        }
-      }
+      enemy.behavior->PrepareFirstShotIfNeeded(chargeStart, enemy.shootTimer, enemy.isNextHitShot, enemy.hasFiredEliteFirstShot);
 
       if (enemy.isNextHitShot && !enemy.isHitShotReserved && enemy.shootTimer >= chargeStart) {
         if (squadHitShotCooldown_ <= 0.0f && squadHitShotCount_ < kMaxSquadHitShots) {
@@ -490,19 +563,14 @@ void ShootingWaveManager::UpdateEnemiesAndProjectiles(float deltaTime, float rai
         Vector3 muzzlePos = Add(startPos, Multiply(1.2f, dir));
         Vector3 ringRot = CalculateRingRotation(dir);
 
-        Vector4 ringColor = {1.0f, 0.0f, 0.0f, 1.0f};
-        if (enemy.type == EnemyType::Engineer) {
-          ringColor = {1.0f, 0.8f, 0.1f, 1.0f};
-        } else if ((enemy.hitShotCount + 1) % 2 == 0) {
-          ringColor = {0.1f, 0.65f, 1.0f, 1.0f};
-        }
+        Vector4 ringColor = enemy.behavior->GetChargeRingColor(enemy.hitShotCount);
         ParticleManager::GetInstance()->EmitCustom("EnemyChargeRing", muzzlePos, ringRot, ringScale, ringColor, 1.0f);
       }
 
       enemy.shootTimer += 1.0f;
       if (enemy.shootTimer >= spawnInterval) {
         enemy.shootTimer = 0.0f;
-        if (enemy.type == EnemyType::Elite && !enemy.hasFiredEliteFirstShot) {
+        if (enemy.behavior->ShouldMarkFirstShotFired() && !enemy.hasFiredEliteFirstShot) {
           enemy.hasFiredEliteFirstShot = true;
         }
         Vector3 startPos = enemy.object->GetTranslate();
@@ -523,11 +591,7 @@ void ShootingWaveManager::UpdateEnemiesAndProjectiles(float deltaTime, float rai
 
         if (isHitShot) {
           enemy.hitShotCount++;
-          if (enemy.type == EnemyType::Engineer) {
-            pType = EnemyProjectile::Type::Blast;
-          } else {
-            pType = (enemy.hitShotCount % 2 == 0) ? EnemyProjectile::Type::Jamming : EnemyProjectile::Type::Normal;
-          }
+          pType = enemy.behavior->SelectHitProjectileType(enemy.hitShotCount);
         } else {
           float minOffset = 2.5f;
           float maxOffset = (missShotSpread_ > minOffset) ? missShotSpread_ : minOffset + 1.5f;
@@ -541,7 +605,7 @@ void ShootingWaveManager::UpdateEnemiesAndProjectiles(float deltaTime, float rai
           }
           targetPos.y += offsetY;
 
-          pType = (enemy.type == EnemyType::Engineer) ? EnemyProjectile::Type::Blast : EnemyProjectile::Type::Normal;
+          pType = enemy.behavior->SelectMissProjectileType();
         }
 
         Vector3 dir = Normalize(Subtract(targetPos, startPos));
@@ -553,12 +617,11 @@ void ShootingWaveManager::UpdateEnemiesAndProjectiles(float deltaTime, float rai
         }
         Vector3 velocity = Multiply(bulletSpeed, dir);
 
-        auto newProjectile = std::make_unique<EnemyProjectile>();
-        newProjectile->Initialize(startPos, velocity, pType);
+        auto newProjectile = EnemyProjectile::Create(pType, startPos, velocity);
         newProjectile->SetHitShot(isHitShot);
         projectiles_.push_back(std::move(newProjectile));
 
-        float nextHitRate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
+        float nextHitRate = enemy.behavior->GetHitShotRate(hitShotRate_);
         float nextRand = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
         enemy.isNextHitShot = (nextRand < nextHitRate);
       }
@@ -750,7 +813,7 @@ ShootingWaveManager::PlayerShotResult ShootingWaveManager::ProcessPlayerShot(
       hitEnemy->isActive = false;
       hitEnemy->isHpGaugeVisible = false;
       hitEnemy->deathTimer = 0.0f;
-      if (hitEnemy->type == EnemyType::Elite) {
+      if (hitEnemy->behavior->DropsMachineGunAmmoOnDeath()) {
         result.killedElite = true;
         result.elitePos = hitEnemy->object->GetTranslate();
       }
@@ -1127,20 +1190,8 @@ void ShootingWaveManager::ResetForJumpToSection(float targetProgress, int mainVi
     enemy.shootCount = 0;
     enemy.hitShotCount = 0;
     enemy.isHitShotReserved = false;
-    enemy.maxHp = (enemy.type == EnemyType::Engineer || enemy.type == EnemyType::Elite) ? 3 : 1;
-    enemy.hp = enemy.maxHp;
-    enemy.damageBarRatio = 1.0f;
-    enemy.isHpGaugeVisible = false;
     enemy.hasFiredEliteFirstShot = false;
-    if (enemy.model) {
-      if (enemy.type == EnemyType::Engineer) {
-        enemy.model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
-      } else if (enemy.type == EnemyType::Elite) {
-        enemy.model->SetColor({1.0f, 0.2f, 0.2f, 1.0f});
-      } else {
-        enemy.model->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
-      }
-    }
+    ApplyEnemyType(enemy, enemy.behavior->GetType());
     if (enemy.distance < targetProgress) {
       enemy.isDead = true;
       enemy.isActive = false;
@@ -1156,7 +1207,7 @@ void ShootingWaveManager::ResetForJumpToSection(float targetProgress, int mainVi
       enemy.shootTimer = 0.0f;
       enemy.slideTimer = (enemy.distance == targetProgress) ? 10.0f : 0.0f;
       enemy.deathTimer = 0.0f;
-      float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
+      float rate = enemy.behavior->GetHitShotRate(hitShotRate_);
       enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
       enemy.object->SetTranslate(enemy.distance == targetProgress ? enemy.basePosition : enemy.initialOffsetPosition);
       enemy.object->SetRotation(enemy.baseRotation);
@@ -1183,22 +1234,12 @@ void ShootingWaveManager::ResetForGameReset(int mainViewIndex, Camera* camera) {
     enemy.spawnTimer = 0.0f;
     enemy.slideTimer = 0.0f;
     enemy.deathTimer = 0.0f;
-    enemy.maxHp = (enemy.type == EnemyType::Engineer || enemy.type == EnemyType::Elite) ? 3 : 1;
-    enemy.hp = enemy.maxHp;
-    enemy.damageBarRatio = 1.0f;
-    enemy.isHpGaugeVisible = false;
-    float rate = (enemy.type == EnemyType::Engineer) ? 0.75f : hitShotRate_;
+    ApplyEnemyType(enemy, enemy.behavior->GetType());
+    float rate = enemy.behavior->GetHitShotRate(hitShotRate_);
     enemy.isNextHitShot = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < rate);
     enemy.object->SetTranslate(enemy.initialOffsetPosition);
     enemy.object->SetRotation(enemy.baseRotation);
     if (enemy.model) {
-      if (enemy.type == EnemyType::Engineer) {
-        enemy.model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
-      } else if (enemy.type == EnemyType::Elite) {
-        enemy.model->SetColor({1.0f, 0.2f, 0.2f, 1.0f});
-      } else {
-        enemy.model->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
-      }
       enemy.model->SetDissolveParams(0, 0.0f, 0.05f, Vector3(1.0f, 0.4f, 0.3f));
     }
     enemy.object->Update(mainViewIndex, camera);
@@ -1371,22 +1412,9 @@ void ShootingWaveManager::UpdateObject3dImGui(Camera* camera, bool& outRequested
     for (size_t i = 0; i < enemies_.size(); ++i) {
       auto& enemy = enemies_[i];
       const char* typeNames[] = {"Normal", "Engineer", "Elite"};
-      int typeIdx = static_cast<int>(enemy.type);
+      int typeIdx = static_cast<int>(enemy.behavior->GetType());
       if (ImGui::Combo(("Enemy " + std::to_string(i) + " Type").c_str(), &typeIdx, typeNames, 3)) {
-        enemy.type = static_cast<EnemyType>(typeIdx);
-        enemy.maxHp = (enemy.type == EnemyType::Engineer || enemy.type == EnemyType::Elite) ? 3 : 1;
-        enemy.hp = enemy.maxHp;
-        enemy.damageBarRatio = 1.0f;
-        enemy.isHpGaugeVisible = false;
-        if (enemy.model) {
-          if (enemy.type == EnemyType::Engineer) {
-            enemy.model->SetColor({1.0f, 0.8f, 0.2f, 1.0f});
-          } else if (enemy.type == EnemyType::Elite) {
-            enemy.model->SetColor({1.0f, 0.2f, 0.2f, 1.0f});
-          } else {
-            enemy.model->SetColor({1.0f, 1.0f, 1.0f, 1.0f});
-          }
-        }
+        ApplyEnemyType(enemy, static_cast<EnemyType>(typeIdx));
       }
       ImGui::Text("[%zu] Dist: %.1f, HP: %d/%d, Active: %s, Dead: %s", i, enemy.distance,
                   enemy.hp, enemy.maxHp, enemy.isActive ? "Yes" : "No", enemy.isDead ? "Yes" : "No");

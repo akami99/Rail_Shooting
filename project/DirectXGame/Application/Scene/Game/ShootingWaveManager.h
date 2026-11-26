@@ -125,9 +125,32 @@ private:
         Elite
     };
 
+    /// <summary>
+    /// 敵種別ごとの振る舞いを抽象化する基底クラス
+    /// </summary>
+    class IEnemyBehavior {
+    public:
+        virtual ~IEnemyBehavior() = default;
+        virtual EnemyType GetType() const = 0;
+        virtual int GetMaxHp() const = 0;
+        virtual Vector4 GetModelColor() const = 0;
+        virtual float GetSpawnInterval(float normalInterval, float engineerInterval) const = 0;
+        virtual float GetHitShotRate(float baseRate) const = 0;
+        virtual Vector4 GetChargeRingColor(int hitShotCount) const = 0;
+        virtual EnemyProjectile::Type SelectHitProjectileType(int hitShotCount) const = 0;
+        virtual EnemyProjectile::Type SelectMissProjectileType() const = 0;
+        virtual bool DropsMachineGunAmmoOnDeath() const { return false; }
+        virtual void PrepareFirstShotIfNeeded(float chargeStart, float& shootTimer,
+                                              bool& isNextHitShot, bool hasFiredFirstShot) const {
+            (void)chargeStart; (void)shootTimer; (void)isNextHitShot; (void)hasFiredFirstShot;
+        }
+        virtual bool ShouldMarkFirstShotFired() const { return false; }
+    };
+
     struct EnemyInfo {
         std::unique_ptr<Object3d> object;
         std::unique_ptr<Model> model;
+        std::unique_ptr<IEnemyBehavior> behavior;
         Vector3 basePosition;
         Vector3 baseRotation;
         float distance = 0.0f;
@@ -145,7 +168,6 @@ private:
         float slideDelay = 0.0f;
         float slideDuration = 1.0f;
         float deathTimer = 0.0f;
-        EnemyType type = EnemyType::Normal;
         int hp = 1;
         int maxHp = 1;
         float damageBarRatio = 1.0f;
@@ -155,6 +177,13 @@ private:
         std::unique_ptr<Sprite> hpFillSprite;
         std::unique_ptr<Sprite> hpFrameSprite;
     };
+
+    static std::unique_ptr<IEnemyBehavior> CreateEnemyBehavior(EnemyType type);
+    void ApplyEnemyType(EnemyInfo& enemy, EnemyType type, bool resetHpAndGauge = true) const;
+
+    class NormalEnemyBehavior;
+    class EngineerEnemyBehavior;
+    class EliteEnemyBehavior;
 
     Vector3 CalculateRingRotation(const Vector3& direction) const;
     Vector3 CalculateBossEntranceAnchor(float t, const Vector3& basePos, float baseYaw) const;

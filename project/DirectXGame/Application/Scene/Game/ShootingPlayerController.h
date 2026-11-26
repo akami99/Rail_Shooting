@@ -64,10 +64,10 @@ public:
         return isAutoClearing || isDebugInvincible_ || sectionJumpInvincibleTimer_ > 0.0f;
     }
     bool IsInvincible(bool isAutoClearing) const;
-    WeaponType GetCurrentWeapon() const { return currentWeapon_; }
-    void SetCurrentWeapon(WeaponType weapon) { currentWeapon_ = weapon; }
-    int GetAmmo() const { return ammo_; }
-    int GetMachineGunAmmo() const { return machineGunAmmo_; }
+    WeaponType GetCurrentWeapon() const { return activeWeapon_ ? activeWeapon_->GetType() : WeaponType::Handgun; }
+    void SetCurrentWeapon(WeaponType weapon);
+    int GetAmmo() const { return handgunWeapon_ ? handgunWeapon_->GetAmmo() : 0; }
+    int GetMachineGunAmmo() const { return machineGunWeapon_ ? machineGunWeapon_->GetAmmo() : 0; }
     bool HasCurrentWeaponAmmo() const;
     float GetEyeHeight() const { return eyeHeight_; }
     float GetCoverYOffset() const { return coverYOffset_; }
@@ -105,10 +105,35 @@ private:
     bool isDebugInvincible_ = false;
     float sectionJumpInvincibleTimer_ = 0.0f;
 
+    // 武器抽象インターフェース（内部実装詳細としてカプセル化）
+    class IWeapon {
+    public:
+        virtual ~IWeapon() = default;
+        virtual WeaponType GetType() const = 0;
+        virtual const char* GetName() const = 0;
+        virtual int GetAmmo() const = 0;
+        virtual int GetMaxAmmo() const = 0;
+        virtual void SetAmmo(int ammo) = 0;
+        virtual void AddAmmo(int amount) = 0;
+        virtual float GetFireInterval() const = 0;
+        virtual bool WantsFireInput(bool isDemoMode, bool demoShootTriggered) const = 0;
+        virtual bool TryConsumeShot(bool isInfiniteAmmo) = 0;
+        virtual void UpdateAmmoUI(const std::vector<std::unique_ptr<Sprite>>& ammoUnits,
+                                  std::vector<float>& currentX,
+                                  std::vector<float>& targetX,
+                                  Sprite* machineGunBar) const = 0;
+        virtual void DrawAmmoUI(const std::vector<std::unique_ptr<Sprite>>& ammoUnits,
+                                Sprite* machineGunBar) const = 0;
+        virtual const Vector2& GetCursorTargetPos(const Vector2& handgunPos,
+                                                  const Vector2& machineGunPos) const = 0;
+    };
+    class HandgunWeapon;
+    class MachineGunWeapon;
+
     // 武器・弾薬状態
-    WeaponType currentWeapon_ = WeaponType::Handgun;
-    int ammo_ = kMaxAmmo;
-    int machineGunAmmo_ = 0;
+    std::unique_ptr<IWeapon> handgunWeapon_;
+    std::unique_ptr<IWeapon> machineGunWeapon_;
+    IWeapon* activeWeapon_ = nullptr;
     float shootCooldownTimer_ = 0.0f;
     float reloadTimer_ = 0.0f;
     int lastReloadCount_ = 0;
