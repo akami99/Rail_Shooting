@@ -12,6 +12,7 @@
 #include "SceneManager.h"
 #include "Win32Window.h"
 #include "ApplicationConfig.h" // kDeltaTimeなど
+#include "GameSession.h"
 // 計算用関数など
 #include "MathUtils.h"
 #include "MatrixGenerators.h"
@@ -23,10 +24,6 @@
 using namespace MathUtils;
 using namespace MathGenerators;
 using namespace BlendMode;
-
-// 静的メンバ変数の実体
-int ClearScene::clearScore_ = 0;
-float ClearScene::clearRemainingTime_ = 0.0f;
 
 namespace {
 Vector2 WorldToScreen(const Vector3& worldPos, Camera* camera) {
@@ -144,7 +141,7 @@ void ClearScene::Initialize()
     clearTextSprite_->SetScale({ 420.0f, 105.0f });
 
     // 2. タイムテキスト & 経過時間数値スプライト（クリアテキスト中央の少し左下に配置）
-    float elapsedTime = 60.0f - clearRemainingTime_;
+    float elapsedTime = 60.0f - GameSession::GetInstance().GetClearRemainingTime();
     if (elapsedTime < 0.0f) elapsedTime = 0.0f;
     if (elapsedTime > 99.99f) elapsedTime = 99.99f;
 
@@ -185,7 +182,7 @@ void ClearScene::Initialize()
     scoreTextSprite_->SetTranslate({ 360.0f, 460.0f });
     scoreTextSprite_->SetScale({ 220.0f, 55.0f });
 
-    int tempScore = clearScore_;
+    int tempScore = GameSession::GetInstance().GetClearScore();
     if (tempScore > 9999) tempScore = 9999;
     if (tempScore < 0) tempScore = 0;
     int sDigits[4] = { tempScore / 1000, (tempScore % 1000) / 100, (tempScore % 100) / 10, tempScore % 10 };
@@ -212,7 +209,7 @@ void ClearScene::Update()
 {
     // 退場フェードアウト（目を閉じてシーン遷移）
     if (isTransitioningOut_) {
-        transitionOutTimer_ += kDeltaTime;
+        transitionOutTimer_ += ApplicationConfig::kDeltaTime;
         float t = std::clamp(transitionOutTimer_ / kTransitionOutDuration, 0.0f, 1.0f);
         float easedT = t * t;
         float scale = 16.0f * (1.0f - easedT);
@@ -230,7 +227,7 @@ void ClearScene::Update()
         }
     } else if (introFadeTimer_ < kIntroFadeDuration) {
         // 入場フェードイン（暗転から目を開ける）
-        introFadeTimer_ += kDeltaTime;
+        introFadeTimer_ += ApplicationConfig::kDeltaTime;
         float t = std::clamp(introFadeTimer_ / kIntroFadeDuration, 0.0f, 1.0f);
         float eased = 1.0f - (1.0f - t) * (1.0f - t);
         float scale = 16.0f * eased;
@@ -569,7 +566,7 @@ void ClearScene::UpdateAimAndBoards()
     // 6. 看板の倒れアニメーション更新（90度倒れたら暗転遷移を開始）
     const float maxAngle = std::numbers::pi_v<float> * 0.5f;
     if (titleBoardState_ == BoardState::Falling) {
-        titleBoardFallAngle_ += kBoardFallSpeed * kDeltaTime;
+        titleBoardFallAngle_ += kBoardFallSpeed * ApplicationConfig::kDeltaTime;
         if (titleBoardFallAngle_ >= maxAngle) {
             titleBoardFallAngle_ = maxAngle;
             titleBoardState_ = BoardState::Down;
@@ -582,7 +579,7 @@ void ClearScene::UpdateAimAndBoards()
     }
 
     if (retryBoardState_ == BoardState::Falling) {
-        retryBoardFallAngle_ += kBoardFallSpeed * kDeltaTime;
+        retryBoardFallAngle_ += kBoardFallSpeed * ApplicationConfig::kDeltaTime;
         if (retryBoardFallAngle_ >= maxAngle) {
             retryBoardFallAngle_ = maxAngle;
             retryBoardState_ = BoardState::Down;
@@ -600,10 +597,10 @@ void ClearScene::UpdateImGui()
 #ifdef USE_IMGUI
     ImGui::Begin("Scene");
     ImGui::Text("Clear Scene");
-    float elapsedTime = 60.0f - clearRemainingTime_;
+    float elapsedTime = 60.0f - GameSession::GetInstance().GetClearRemainingTime();
     if (elapsedTime < 0.0f) elapsedTime = 0.0f;
     ImGui::Text("Clear Time : %.2f s", elapsedTime);
-    ImGui::Text("Clear Score: %d", clearScore_);
+    ImGui::Text("Clear Score: %d", GameSession::GetInstance().GetClearScore());
     ImGui::Separator();
     ImGui::Text("Press ENTER to return to Title (SPACE: Cover)");
     if (ImGui::Button("Return to Title")) {

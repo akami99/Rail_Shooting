@@ -21,6 +21,14 @@ public:
     void DrawHpGauge();
 
     const Vector3& GetPosition() const { return position_; }
+    void SetPosition(const Vector3& pos) {
+        position_ = pos;
+        if (object_) { object_->SetTranslate(pos); }
+    }
+    Vector3 GetRotation() const { return object_ ? object_->GetRotation() : Vector3{ 0.0f, 0.0f, 0.0f }; }
+    void SetRotation(const Vector3& rot) { if (object_) { object_->SetRotation(rot); } }
+    Vector3 GetScale() const { return object_ ? object_->GetScale() : Vector3{ 1.0f, 1.0f, 1.0f }; }
+    void SetScale(const Vector3& scale) { if (object_) { object_->SetScale(scale); } }
     const Vector3& GetVelocity() const { return velocity_; }
     bool IsDead() const { return isDead_; }
     void Kill() { isDead_ = true; }
@@ -44,11 +52,6 @@ public:
         }
         return false; // 耐久値残存
     }
-
-#ifdef USE_IMGUI
-    // ImGui用のゲッター
-    Object3d &GetObjectDebug() const { return *object_; }
-#endif // USE_IMGUI
 
 private:
     std::unique_ptr<Object3d> object_;

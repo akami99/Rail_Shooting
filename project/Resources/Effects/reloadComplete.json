@@ -1,0 +1,166 @@
+{
+  "blendMode": 2,
+  "emitter": {
+    "count": 8,
+    "frequency": 0.4000000059604645,
+    "isEffectMode": true,
+    "isEmit": false,
+    "isLoop": false,
+    "transform": {
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "translate": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "fieldSettings": {
+    "acceleration": [
+      15.0,
+      0.0,
+      0.0
+    ],
+    "areaMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "areaMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "gravity": [
+      0.0,
+      -9.800000190734863,
+      0.0
+    ],
+    "isAccelerationFieldActive": false,
+    "isGravityFieldActive": false
+  },
+  "generateSettings": {
+    "colorMax": [
+      0.5,
+      1.0,
+      0.5,
+      1.0
+    ],
+    "colorMin": [
+      0.0,
+      0.800000011920929,
+      0.20000000298023224,
+      1.0
+    ],
+    "fixedColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedLifeTime": 0.6000000238418579,
+    "fixedRotate": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixedScale": [
+      0.5,
+      0.5,
+      1.0
+    ],
+    "fixedVelocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "isRandomColor": true,
+    "isRandomLifeTime": false,
+    "isRandomRotate": true,
+    "isRandomScale": false,
+    "isRandomVelocity": false,
+    "lifeTimeMax": 3.0,
+    "lifeTimeMin": 1.0,
+    "rotateMax": [
+      0.0,
+      0.0,
+      3.140000104904175
+    ],
+    "rotateMin": [
+      0.0,
+      0.0,
+      -3.140000104904175
+    ],
+    "scaleMax": [
+      0.05000000074505806,
+      1.5,
+      1.0
+    ],
+    "scaleMin": [
+      0.05000000074505806,
+      0.4000000059604645,
+      1.0
+    ],
+    "velocityMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "velocityMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ]
+  },
+  "groupName": "ReloadCompleteGroup",
+  "ringSettings": {
+    "division": 32,
+    "endAngle": 360.0,
+    "endOuterRadius": 3.0,
+    "fadeEndAlpha": 1.0,
+    "fadeRange": 0.0,
+    "fadeStartAlpha": 1.0,
+    "innerColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "innerRadius": 0.009999999776482582,
+    "isUvSwap": false,
+    "midOuterRadius": 1.5,
+    "outerColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "startAngle": 0.0,
+    "startOuterRadius": 0.5
+  },
+  "shapeType": 1,
+  "texture": "Particles/circle.png",
+  "useBillboard": false,
+  "uvAnimationSettings": {
+    "isActive": true,
+    "isIndividual": true,
+    "rotateSpeed": 0.10000000149011612,
+    "scaleSpeed": [
+      2.5,
+      -2.0
+    ],
+    "scrollSpeed": [
+      1.5,
+      0.0
+    ]
+  }
+}

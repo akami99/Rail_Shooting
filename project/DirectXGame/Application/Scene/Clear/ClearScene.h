@@ -17,13 +17,6 @@ public:
     void Draw() override;
     void Finalize() override;
 
-    // シューティングシーンから結果データ（スコアと残り時間）を受け取る
-    static void SetResultData(int score, float remainingTime)
-    {
-        clearScore_ = score;
-        clearRemainingTime_ = remainingTime;
-    }
-
 private:
     // ゲームカメラの更新
     void UpdateGameCamera();
@@ -134,9 +127,9 @@ private:
     float titleBoardCurrentYaw_ = -0.58f;
     float retryBoardCurrentYaw_ = 0.58f;
     static constexpr float kBoardFallSpeed = 4.0f;
-    const Vector3 kBoardBaseAabbSize = { 3.0f, 1.5f, 0.3f };
-    const Vector4 kCrosshairColorAim = { 1.0f, 0.0f, 0.0f, 1.0f };
-    const Vector4 kCrosshairColorNoAim = { 0.0f, 1.0f, 0.0f, 0.4f };
+    static constexpr Vector3 kBoardBaseAabbSize = { 3.0f, 1.5f, 0.3f };
+    static constexpr Vector4 kCrosshairColorAim = { 1.0f, 0.0f, 0.0f, 1.0f };
+    static constexpr Vector4 kCrosshairColorNoAim = { 0.0f, 1.0f, 0.0f, 0.4f };
 
     // 退場フェードアウト用（目を閉じて遷移）
     bool isTransitioningOut_ = false;
@@ -165,8 +158,4 @@ private:
     const std::string timeTextPath_ = "ui/timeText.png";
     const std::string scoreTextPath_ = "ui/scoreText.png";
     const std::string crosshairPath_ = "ui/crosshair.png";
-
-    // 静的結果データ
-    static int clearScore_;
-    static float clearRemainingTime_;
 };

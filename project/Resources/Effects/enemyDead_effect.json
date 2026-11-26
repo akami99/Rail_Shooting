@@ -1,0 +1,174 @@
+{
+  "blendMode": 2,
+  "cylinderSettings": {
+    "alphaReference": 0.0,
+    "bottomColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "bottomRadius": [
+      0.10000000149011612,
+      0.10000000149011612
+    ],
+    "division": 32,
+    "endAngle": 360.0,
+    "fadeEndAlpha": 1.0,
+    "fadeRange": 0.0,
+    "fadeStartAlpha": 1.0,
+    "flipV": false,
+    "height": 1.0,
+    "isUvSwap": false,
+    "startAngle": 0.0,
+    "topColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "topRadius": [
+      0.10000000149011612,
+      0.10000000149011612
+    ],
+    "verticalDivision": 1
+  },
+  "emitter": {
+    "count": 16,
+    "frequency": 0.4000000059604645,
+    "isEffectMode": true,
+    "isEmit": false,
+    "isLoop": false,
+    "transform": {
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "translate": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "fieldSettings": {
+    "acceleration": [
+      15.0,
+      0.0,
+      0.0
+    ],
+    "areaMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "areaMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "gravity": [
+      0.0,
+      -9.800000190734863,
+      0.0
+    ],
+    "isAccelerationFieldActive": false,
+    "isGravityFieldActive": false
+  },
+  "generateSettings": {
+    "colorMax": [
+      0.5,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "colorMin": [
+      0.0,
+      0.5,
+      0.5,
+      1.0
+    ],
+    "fixedColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedLifeTime": 0.800000011920929,
+    "fixedRotate": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixedScale": [
+      0.5,
+      2.0,
+      0.5
+    ],
+    "fixedVelocity": [
+      0.0,
+      3.0,
+      0.0
+    ],
+    "isRandomColor": true,
+    "isRandomLifeTime": false,
+    "isRandomRotate": false,
+    "isRandomScale": false,
+    "isRandomVelocity": false,
+    "lifeTimeMax": 3.0,
+    "lifeTimeMin": 1.0,
+    "rotateMax": [
+      0.0,
+      0.0,
+      3.1415927410125732
+    ],
+    "rotateMin": [
+      0.0,
+      0.0,
+      -3.1415927410125732
+    ],
+    "scaleMax": [
+      0.05000000074505806,
+      1.5,
+      1.0
+    ],
+    "scaleMin": [
+      0.05000000074505806,
+      0.4000000059604645,
+      1.0
+    ],
+    "velocityMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "velocityMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ]
+  },
+  "groupName": "CylinderGroup",
+  "shapeType": 2,
+  "texture": "Particles/circle.png",
+  "useBillboard": false,
+  "uvAnimationSettings": {
+    "isActive": true,
+    "isIndividual": true,
+    "rotateSpeed": 0.0,
+    "scaleSpeed": [
+      0.5,
+      1.5
+    ],
+    "scrollSpeed": [
+      0.0,
+      -2.0
+    ]
+  }
+}

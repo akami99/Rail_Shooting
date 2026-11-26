@@ -1,0 +1,141 @@
+{
+  "blendMode": 2,
+  "emitter": {
+    "count": 1,
+    "frequency": 0.4000000059604645,
+    "isEffectMode": true,
+    "isEmit": false,
+    "isLoop": false,
+    "transform": {
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "translate": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "fieldSettings": {
+    "acceleration": [
+      15.0,
+      0.0,
+      0.0
+    ],
+    "areaMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "areaMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "gravity": [
+      0.0,
+      -4.0,
+      0.0
+    ],
+    "isAccelerationFieldActive": false,
+    "isGravityFieldActive": true
+  },
+  "generateSettings": {
+    "colorMax": [
+      1.0,
+      0.800000011920929,
+      0.20000000298023224,
+      1.0
+    ],
+    "colorMin": [
+      1.0,
+      0.6000000238418579,
+      0.10000000149011612,
+      1.0
+    ],
+    "fixedColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedLifeTime": 1.0,
+    "fixedRotate": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixedScale": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedVelocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "isRandomColor": true,
+    "isRandomLifeTime": true,
+    "isRandomRotate": true,
+    "isRandomScale": true,
+    "isRandomVelocity": true,
+    "lifeTimeMax": 0.3499999940395355,
+    "lifeTimeMin": 0.15000000596046448,
+    "rotateMax": [
+      0.0,
+      0.0,
+      3.140000104904175
+    ],
+    "rotateMin": [
+      0.0,
+      0.0,
+      -3.140000104904175
+    ],
+    "scaleMax": [
+      0.019999999552965164,
+      0.019999999552965164,
+      0.019999999552965164
+    ],
+    "scaleMin": [
+      0.009999999776482582,
+      0.009999999776482582,
+      0.009999999776482582
+    ],
+    "velocityMax": [
+      0.20000000298023224,
+      1.0,
+      1.0
+    ],
+    "velocityMin": [
+      -0.5,
+      0.4000000059604645,
+      0.20000000298023224
+    ]
+  },
+  "groupName": "AmmoSparkGroup",
+  "shapeType": 0,
+  "texture": "white.png",
+  "useBillboard": false,
+  "uvAnimationSettings": {
+    "isActive": false,
+    "isIndividual": false,
+    "rotateSpeed": 0.0,
+    "scaleSpeed": [
+      0.0,
+      0.0
+    ],
+    "scrollSpeed": [
+      0.0,
+      0.0
+    ]
+  }
+}

@@ -25,12 +25,14 @@ public:
         return endRequest_;
     }
 
-protected: // 継承先の MyGame でも使えるように protected にする
+protected: // 継承先から操作するためのメンバ関数
+    void RequestEnd() { endRequest_ = true; }
+    ImGuiManager* GetImGuiManager() const { return imGuiManager_.get(); }
+
+private:
     bool endRequest_ = false;
 
     // --- 基盤システム (これらはFrameworkが持つ) ---
     // ImGuiマネージャ
     std::unique_ptr<ImGuiManager> imGuiManager_;
-
-private:
 };

@@ -92,8 +92,8 @@ void SwarmManager::InitializeBuffers() {
     }
     commandList->ResourceBarrier(2, initBarriers);
 
-    commandList->CopyResource(droneBuffers_[0].Get(), intermediateUploadBuffer_.Get());
-    commandList->CopyResource(droneBuffers_[1].Get(), intermediateUploadBuffer_.Get());
+    commandList->CopyBufferRegion(droneBuffers_[0].Get(), 0, intermediateUploadBuffer_.Get(), 0, bufferSize);
+    commandList->CopyBufferRegion(droneBuffers_[1].Get(), 0, intermediateUploadBuffer_.Get(), 0, bufferSize);
 
     // Buffer 0 & 1: COPY_DEST -> NON_PIXEL_SHADER_RESOURCE
     for (int i = 0; i < 2; ++i) {
@@ -1558,7 +1558,7 @@ void SwarmManager::Draw(Camera* camera) {
         bCopy.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         commandList->ResourceBarrier(1, &bCopy);
 
-        commandList->CopyResource(droneBuffers_[readIndex_].Get(), intermediateUploadBuffer_.Get());
+        commandList->CopyBufferRegion(droneBuffers_[readIndex_].Get(), 0, intermediateUploadBuffer_.Get(), 0, bufferSize);
 
         bCopy.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
         bCopy.Transition.StateAfter = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;

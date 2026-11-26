@@ -1,0 +1,174 @@
+{
+  "blendMode": 2,
+  "cylinderSettings": {
+    "alphaReference": 0.0,
+    "bottomColor": [
+      0.800000011920929,
+      0.8999999761581421,
+      1.0,
+      0.699999988079071
+    ],
+    "bottomRadius": [
+      0.44999998807907104,
+      0.44999998807907104
+    ],
+    "division": 24,
+    "endAngle": 180.0,
+    "fadeEndAlpha": 1.0,
+    "fadeRange": 0.15000000596046448,
+    "fadeStartAlpha": 1.0,
+    "flipV": false,
+    "height": 0.11999999731779099,
+    "isUvSwap": false,
+    "startAngle": 0.0,
+    "topColor": [
+      0.8999999761581421,
+      0.949999988079071,
+      1.0,
+      0.8500000238418579
+    ],
+    "topRadius": [
+      0.44999998807907104,
+      0.44999998807907104
+    ],
+    "verticalDivision": 1
+  },
+  "emitter": {
+    "count": 1,
+    "frequency": 0.10000000149011612,
+    "isEffectMode": false,
+    "isEmit": false,
+    "isLoop": false,
+    "transform": {
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "translate": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "fieldSettings": {
+    "acceleration": [
+      15.0,
+      0.0,
+      0.0
+    ],
+    "areaMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "areaMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "gravity": [
+      0.0,
+      -9.800000190734863,
+      0.0
+    ],
+    "isAccelerationFieldActive": false,
+    "isGravityFieldActive": false
+  },
+  "generateSettings": {
+    "colorMax": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "colorMin": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ],
+    "fixedColor": [
+      0.8999999761581421,
+      0.949999988079071,
+      1.0,
+      0.8500000238418579
+    ],
+    "fixedLifeTime": 0.30000001192092896,
+    "fixedRotate": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixedScale": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedVelocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "isRandomColor": false,
+    "isRandomLifeTime": false,
+    "isRandomRotate": false,
+    "isRandomScale": false,
+    "isRandomVelocity": false,
+    "lifeTimeMax": 3.0,
+    "lifeTimeMin": 1.0,
+    "rotateMax": [
+      0.0,
+      0.0,
+      3.1415927410125732
+    ],
+    "rotateMin": [
+      0.0,
+      0.0,
+      -3.1415927410125732
+    ],
+    "scaleMax": [
+      0.05000000074505806,
+      1.5,
+      1.0
+    ],
+    "scaleMin": [
+      0.05000000074505806,
+      0.4000000059604645,
+      1.0
+    ],
+    "velocityMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "velocityMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ]
+  },
+  "groupName": "BulletTrail_Normal",
+  "shapeType": 2,
+  "texture": "white.png",
+  "useBillboard": false,
+  "uvAnimationSettings": {
+    "isActive": false,
+    "isIndividual": false,
+    "rotateSpeed": 0.0,
+    "scaleSpeed": [
+      0.0,
+      0.0
+    ],
+    "scrollSpeed": [
+      0.0,
+      0.0
+    ]
+  }
+}

@@ -9,7 +9,7 @@
 #include "DebugCamera.h"
 #include "Object3d.h"
 #include "Sprite.h"
-#include "EnemyProjectile.h"
+#include "Game/EnemyProjectile.h"
 
 class TitleScene : public BaseScene {
 public:
@@ -72,7 +72,7 @@ private:
   float introTimer_ = 0.0f;                   // 入場演出の経過時間(s)
   static constexpr float kIntroBlinkDuration = 1.0f; // 入場まばたきの長さ(s)
   float transitionTimer_ = 0.0f;              // 退場演出の経過時間(s)
-  const float kTransitionOutDuration = 2.5f; // 退場演出全体の長さ(s)
+  static constexpr float kTransitionOutDuration = 2.5f; // 退場演出全体の長さ(s)
 
   // カメラ(必ずスマートポインタにすること)
   std::unique_ptr<Camera> camera_;
@@ -157,8 +157,8 @@ private:
       { { 4.5f, 0.9f, 24.5f}, true  }, // 3. 右内（縦長・敵の半分を隠すように配置）
       { { 7.5f, 0.3f, 24.5f}, false }  // 4. 右外（横長・動き始め）
   };
-  const Vector3 kCoverVerticalSize = { 1.0f, 1.8f, 0.5f };; // 縦長カバーのサイズ
-  const Vector3 kCoverVerticalRotate = { 0.0f, 0.0f, std::numbers::pi_v<float> *0.5f };; // 縦長カバーの回転角度
+  static constexpr Vector3 kCoverVerticalSize = { 1.0f, 1.8f, 0.5f }; // 縦長カバーのサイズ
+  static constexpr Vector3 kCoverVerticalRotate = { 0.0f, 0.0f, std::numbers::pi_v<float> *0.5f }; // 縦長カバーの回転角度
 
   struct StartBoardObjectInfo {
     Vector3 position_;
@@ -227,7 +227,7 @@ private:
   // --- カバー管理 ---
   bool isCovering_ = false;         // カバー中かどうか
   float coverYOffset_ = 0.0f;       // カバー時のY座標オフセット
-  const float kCoverYTarget = -0.5f; // カバー時のY座標目標値
+  static constexpr float kCoverYTarget = -0.5f; // カバー時のY座標目標値
 
   // --- 照準中のターゲット情報 ---
   enum class TargetType { None, Cover, StartBoard, TargetBoard };
@@ -236,20 +236,20 @@ private:
 
   // --- 敵の射撃管理 ---
   std::vector<std::unique_ptr<EnemyProjectile>> projectiles_;
-  const Vector3 kShootOffset = {-0.3f, 1.0f, -0.5f}; // 射撃位置のオフセット
+  static constexpr Vector3 kShootOffset = {-0.3f, 1.0f, -0.5f}; // 射撃位置のオフセット
   float shootTimer_ = 0.0f;
-  const float kShootInterval = 3.0f; // 発射間隔（3秒）
+  static constexpr float kShootInterval = 3.0f; // 発射間隔（3秒）
   int nextShootTargetIndex_ = 0;       //次に撃つ的（0: 左, 1: 右）
-  const float kEnemyBulletSpeed = 0.8f; // 弾速
+  static constexpr float kEnemyBulletSpeed = 0.8f; // 弾速
 
   // --- 自動カバー管理 ---
   bool isAutoCovering_ = false; // 自動カバー中フラグ
-  const float kAutoCoverDistance = 8.0f; // 自動カバーを発動する接近距離（8m）
+  static constexpr float kAutoCoverDistance = 8.0f; // 自動カバーを発動する接近距離（8m）
 
   // --- アニメーション用 ---
-  const float kTargetFallSpeed = 4.0f; // 倒れる角速度（0.4秒で倒れ切る）
-  const float kTargetRiseSpeed = 2.0f; // 起き上がる角速度（0.8秒で起き上がる）
-  const float kTargetWaitDuration = 2.0f; // 倒れてから復帰するまでの待ち時間（2秒）
+  static constexpr float kTargetFallSpeed = 4.0f; // 倒れる角速度（0.4秒で倒れ切る）
+  static constexpr float kTargetRiseSpeed = 2.0f; // 起き上がる角速度（0.8秒で起き上がる）
+  static constexpr float kTargetWaitDuration = 2.0f; // 倒れてから復帰するまでの待ち時間（2秒）
 
   // --- デモ遷移管理 ---
   float idleTimer_ = 0.0f;

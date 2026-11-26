@@ -1,6 +1,6 @@
 #include "TitleScene.h"
-#include "ShootingScene.h"
 #include "ApplicationConfig.h" // kDeltaTimeなど
+#include "GameSession.h"
 #include "BlendMode.h"
 #include "DX12Context.h"
 #include "ImGuiManager.h"
@@ -52,7 +52,7 @@ void TitleScene::Initialize() {
   transitionTimer_ = 0.0f;
   idleTimer_ = 0.0f;
   isStartingDemo_ = false;
-  ShootingScene::SetDemoMode(false);
+  GameSession::GetInstance().SetDemoMode(false);
   POINT pt;
   GetCursorPos(&pt);
   ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &pt);
@@ -279,17 +279,17 @@ void TitleScene::Update() {
           idleTimer_ = 0.0f;
           if (isStartingDemo_) {
               isStartingDemo_ = false;
-              ShootingScene::SetDemoMode(false);
+              GameSession::GetInstance().SetDemoMode(false);
           }
       } else {
-          idleTimer_ += kDeltaTime;
+          idleTimer_ += ApplicationConfig::kDeltaTime;
       }
 
       // 10秒間無入力でデモシーケンス開始
       if (idleTimer_ >= kDemoIdleTimeout && !isStartingDemo_) {
           isStartingDemo_ = true;
           demoCursorPos_ = currentMousePos;
-          ShootingScene::SetDemoMode(true);
+          GameSession::GetInstance().SetDemoMode(true);
       }
 
       // デモ開始時：スタート看板へ自動エイム＆自動射撃
@@ -388,7 +388,7 @@ void TitleScene::Update() {
   ParticleManager::GetInstance()->SetIsUpdate(true);
   ParticleManager::GetInstance()->SetUseBillboard(
       false); // 3DシリンダーなのでBillboardはOFF
-  ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
+  ParticleManager::GetInstance()->Update(*camera_, ApplicationConfig::kDeltaTime);
 }
 
 void TitleScene::Draw() {
@@ -602,7 +602,7 @@ void TitleScene::UpdateTargetsAnimation() {
   for (auto &target : targetBoards_) {
     // --- 横移動の更新（立っている時のみ移動）---
     if (target.isMoving_ && target.state_ == TargetState::Standing) {
-      target.moveTimer_ += kDeltaTime;
+      target.moveTimer_ += ApplicationConfig::kDeltaTime;
       Vector3 pos = target.basePosition_;
       // sin波で左右に ±1.0m 往復
       pos.x += std::sin(target.moveTimer_ * target.moveSpeed_) * target.moveAmplitude_;
@@ -617,7 +617,7 @@ void TitleScene::UpdateTargetsAnimation() {
       break;
     case TargetState::Falling:
       // 奥へ倒れるアニメーション
-      target.fallAngle_ += kTargetFallSpeed * kDeltaTime;
+      target.fallAngle_ += kTargetFallSpeed * ApplicationConfig::kDeltaTime;
       if (target.fallAngle_ >= maxAngle) {
         target.fallAngle_ = maxAngle;
         target.state_ = TargetState::Down;
@@ -626,14 +626,14 @@ void TitleScene::UpdateTargetsAnimation() {
       break;
     case TargetState::Down:
       // 倒れたまま5秒待機
-      target.downTimer_ += kDeltaTime;
+      target.downTimer_ += ApplicationConfig::kDeltaTime;
       if (target.downTimer_ >= kTargetWaitDuration) {
         target.state_ = TargetState::Rising; // 起き上がり開始
       }
       break;
     case TargetState::Rising:
       // 手前に起き上がるアニメーション
-      target.fallAngle_ -= kTargetRiseSpeed * kDeltaTime;
+      target.fallAngle_ -= kTargetRiseSpeed * ApplicationConfig::kDeltaTime;
       if (target.fallAngle_ <= 0.0f) {
         target.fallAngle_ = 0.0f;
         target.state_ = TargetState::Standing; // 復帰完了
@@ -652,7 +652,7 @@ void TitleScene::UpdateTargetsAnimation() {
 void TitleScene::UpdateStartBoardAnimation() {
   const float maxAngle = std::numbers::pi_v<float> * 0.5f;
   if (startBoardObjectSettings_.state_ == TargetState::Falling) {
-    startBoardObjectSettings_.fallAngle_ += kTargetFallSpeed * kDeltaTime;
+    startBoardObjectSettings_.fallAngle_ += kTargetFallSpeed * ApplicationConfig::kDeltaTime;
     // 倒れ切ったタイミングでシーン遷移
     if (startBoardObjectSettings_.fallAngle_ >= maxAngle) {
       startBoardObjectSettings_.fallAngle_ = maxAngle;
@@ -670,7 +670,7 @@ void TitleScene::UpdateStartBoardAnimation() {
 }
 
 void TitleScene::UpdateEnemyShooting() {
-  shootTimer_ += kDeltaTime;
+  shootTimer_ += ApplicationConfig::kDeltaTime;
   if (shootTimer_ < kShootInterval) { return; }
 
   // 的が存在しない場合は処理しない
@@ -753,7 +753,7 @@ void TitleScene::UpdateProjectiles() {
 }
 
 void TitleScene::UpdateIntroBlink() {
-    introTimer_ += kDeltaTime;
+    introTimer_ += ApplicationConfig::kDeltaTime;
 
     // クリックやキー入力でスキップ
     if (Input::GetInstance()->IsKeyTriggered(DIK_SPACE) ||
@@ -811,7 +811,7 @@ void TitleScene::StartTransitionOut() {
 }
 
 void TitleScene::UpdateTransitionOut(){
-    transitionTimer_ += kDeltaTime;
+    transitionTimer_ += ApplicationConfig::kDeltaTime;
 
     // 各オブジェクトのディゾルブ制御
     float uiThreshold = std::clamp(transitionTimer_ / 0.5f, 0.0f, 1.0f);

@@ -240,9 +240,6 @@
     <ClCompile Include="DirectXGame\Engine\Graphics\Model\Model.cpp">
       <Filter>ソース ファイル\Engine\Graphics\Model</Filter>
     </ClCompile>
-    <ClCompile Include="DirectXGame\Engine\Graphics\Model\ModelCommon.cpp">
-      <Filter>ソース ファイル\Engine\Graphics\Model</Filter>
-    </ClCompile>
     <ClCompile Include="DirectXGame\Engine\Graphics\Model\ModelManager.cpp">
       <Filter>ソース ファイル\Engine\Graphics\Model</Filter>
     </ClCompile>
@@ -285,16 +282,16 @@
     <ClCompile Include="DirectXGame\Engine\Level\LevelLoader.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="DirectXGame\Application\Scene\EnemyProjectile.cpp">
+    <ClCompile Include="DirectXGame\Application\Scene\Game\EnemyProjectile.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="DirectXGame\Application\Scene\GamePlayScene.cpp">
+    <ClCompile Include="DirectXGame\Application\Scene\Demo\DemoScene.cpp">
       <Filter>ソース ファイル\Application\Scene</Filter>
     </ClCompile>
-    <ClCompile Include="DirectXGame\Application\Scene\TitleScene.cpp">
+    <ClCompile Include="DirectXGame\Application\Scene\Title\TitleScene.cpp">
       <Filter>ソース ファイル\Application\Scene</Filter>
     </ClCompile>
-    <ClCompile Include="DirectXGame\Application\Scene\ShootingScene.cpp">
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingScene.cpp">
       <Filter>ソース ファイル\Application\Scene</Filter>
     </ClCompile>
     <ClCompile Include="DirectXGame\Application\Core\RAFramework.cpp">
@@ -309,10 +306,34 @@
     <ClCompile Include="DirectXGame\Engine\Graphics\Particle\ParticleShape.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="DirectXGame\Application\Scene\GameOverScene.cpp">
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingEffectManager.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="DirectXGame\Application\Scene\ClearScene.cpp">
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingDemoAI.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="DirectXGame\Application\Scene\Game\StageRailManager.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingHUD.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingPlayerController.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingWaveManager.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingTransitionDirector.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingGameOverOverlay.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingSceneImGui.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="DirectXGame\Application\Scene\Clear\ClearScene.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="DirectXGame\Engine\Graphics\Swarm\SwarmManager.cpp">
@@ -380,9 +401,6 @@
     <ClInclude Include="DirectXGame\Engine\Graphics\Model\Model.h">
       <Filter>ヘッダー ファイル\Engine\Graphics\Model</Filter>
     </ClInclude>
-    <ClInclude Include="DirectXGame\Engine\Graphics\Model\ModelCommon.h">
-      <Filter>ヘッダー ファイル\Engine\Graphics\Model</Filter>
-    </ClInclude>
     <ClInclude Include="DirectXGame\Engine\Graphics\Model\ModelManager.h">
       <Filter>ヘッダー ファイル\Engine\Graphics\Model</Filter>
     </ClInclude>
@@ -446,16 +464,16 @@
     <ClInclude Include="DirectXGame\Engine\Level\LevelLoader.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="DirectXGame\Application\Scene\EnemyProjectile.h">
+    <ClInclude Include="DirectXGame\Application\Scene\Game\EnemyProjectile.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="DirectXGame\Application\Scene\TitleScene.h">
+    <ClInclude Include="DirectXGame\Application\Scene\Title\TitleScene.h">
       <Filter>ヘッダー ファイル\Application\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="DirectXGame\Application\Scene\ShootingScene.h">
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingScene.h">
       <Filter>ヘッダー ファイル\Application\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="DirectXGame\Application\Scene\GamePlayScene.h">
+    <ClInclude Include="DirectXGame\Application\Scene\Demo\DemoScene.h">
       <Filter>ヘッダー ファイル\Application\Scene</Filter>
     </ClInclude>
     <ClInclude Include="DirectXGame\Application\Core\MyGame.h">
@@ -470,16 +488,40 @@
     <ClInclude Include="DirectXGame\Engine\Graphics\Particle\ParticleShape.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="DirectXGame\Application\Scene\GameOverScene.h">
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingEffectManager.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="DirectXGame\Application\Scene\ClearScene.h">
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingDemoAI.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="DirectXGame\Application\Scene\Game\StageRailManager.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingHUD.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingPlayerController.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingWaveManager.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingTransitionDirector.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingGameOverOverlay.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="DirectXGame\Application\Scene\Clear\ClearScene.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="DirectXGame\Engine\Graphics\Swarm\SwarmTypes.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="DirectXGame\Engine\Graphics\Swarm\SwarmManager.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="DirectXGame\Application\Core\GameSession.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

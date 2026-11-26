@@ -1,0 +1,157 @@
+{
+  "blendMode": 2,
+  "emitter": {
+    "count": 12,
+    "frequency": 0.20000000298023224,
+    "isEffectMode": true,
+    "isEmit": false,
+    "isLoop": false,
+    "transform": {
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "translate": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "fieldSettings": {
+    "acceleration": [
+      15.0,
+      0.0,
+      0.0
+    ],
+    "areaMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "areaMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "gravity": [
+      0.0,
+      -15.0,
+      0.0
+    ],
+    "isAccelerationFieldActive": false,
+    "isGravityFieldActive": true
+  },
+  "generateSettings": {
+    "colorMax": [
+      1.0,
+      0.8500000238418579,
+      0.30000001192092896,
+      1.0
+    ],
+    "colorMin": [
+      0.6000000238418579,
+      0.949999988079071,
+      1.0,
+      1.0
+    ],
+    "fixedColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedLifeTime": 1.0,
+    "fixedRotate": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixedScale": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedVelocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "isRandomColor": true,
+    "isRandomLifeTime": true,
+    "isRandomRotate": true,
+    "isRandomScale": true,
+    "isRandomVelocity": true,
+    "lifeTimeMax": 0.3799999952316284,
+    "lifeTimeMin": 0.18000000715255737,
+    "rotateMax": [
+      3.140000104904175,
+      3.140000104904175,
+      3.140000104904175
+    ],
+    "rotateMin": [
+      -3.140000104904175,
+      -3.140000104904175,
+      -3.140000104904175
+    ],
+    "scaleMax": [
+      0.07999999821186066,
+      0.30000001192092896,
+      0.07999999821186066
+    ],
+    "scaleMin": [
+      0.03999999910593033,
+      0.14000000059604645,
+      0.03999999910593033
+    ],
+    "velocityMax": [
+      4.5,
+      6.5,
+      4.5
+    ],
+    "velocityMin": [
+      -4.5,
+      1.0,
+      -4.5
+    ]
+  },
+  "groupName": "PlayerHitSpark",
+  "planeSettings": {
+    "color": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "divisionX": 1,
+    "divisionY": 1,
+    "flipV": false,
+    "isUvSwap": false,
+    "size": [
+      1.0,
+      1.0
+    ]
+  },
+  "shapeType": 3,
+  "texture": "white.png",
+  "useBillboard": false,
+  "uvAnimationSettings": {
+    "isActive": false,
+    "isIndividual": false,
+    "rotateSpeed": 0.0,
+    "scaleSpeed": [
+      0.0,
+      0.0
+    ],
+    "scrollSpeed": [
+      0.0,
+      0.0
+    ]
+  }
+}

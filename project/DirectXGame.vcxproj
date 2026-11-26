@@ -157,12 +157,20 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="DirectXGame\Application\Core\MyGame.cpp" />
-    <ClCompile Include="DirectXGame\Application\Scene\ClearScene.cpp" />
-    <ClCompile Include="DirectXGame\Application\Scene\EnemyProjectile.cpp" />
-    <ClCompile Include="DirectXGame\Application\Scene\GameOverScene.cpp" />
-    <ClCompile Include="DirectXGame\Application\Scene\GamePlayScene.cpp" />
-    <ClCompile Include="DirectXGame\Application\Scene\ShootingScene.cpp" />
-    <ClCompile Include="DirectXGame\Application\Scene\TitleScene.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Clear\ClearScene.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\EnemyProjectile.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingEffectManager.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingDemoAI.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\StageRailManager.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingHUD.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingPlayerController.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingWaveManager.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingTransitionDirector.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingGameOverOverlay.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingSceneImGui.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Demo\DemoScene.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Game\ShootingScene.cpp" />
+    <ClCompile Include="DirectXGame\Application\Scene\Title\TitleScene.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\Camera\Camera.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\BlendMode\BlendMode.cpp" />
     <ClCompile Include="DirectXGame\Engine\Audio\AudioManager.cpp" />
@@ -191,7 +199,6 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="DirectXGame\Engine\Graphics\PSO\PipelineManager.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\PSO\PostProcessManager.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\Model\Model.cpp" />
-    <ClCompile Include="DirectXGame\Engine\Graphics\Model\ModelCommon.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\Model\ModelManager.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\Base\SrvManager.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\Particle\ParticleManager.cpp" />
@@ -368,10 +375,18 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="DirectXGame\Application\Scene\ClearScene.h" />
-    <ClInclude Include="DirectXGame\Application\Scene\EnemyProjectile.h" />
-    <ClInclude Include="DirectXGame\Application\Scene\GameOverScene.h" />
-    <ClInclude Include="DirectXGame\Application\Scene\ShootingScene.h" />
+    <ClInclude Include="DirectXGame\Application\Core\GameSession.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Clear\ClearScene.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Game\EnemyProjectile.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingEffectManager.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingDemoAI.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Game\StageRailManager.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingHUD.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingPlayerController.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingWaveManager.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingTransitionDirector.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingGameOverOverlay.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Game\ShootingScene.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Particle\ParticleShape.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Texture\RenderTexture.h" />
     <ClInclude Include="DirectXGame\Engine\Level\LevelLoader.h" />
@@ -379,8 +394,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="DirectXGame\Engine\Scene\BaseScene.h" />
     <ClInclude Include="DirectXGame\Engine\Scene\IScene.h" />
     <ClInclude Include="DirectXGame\Application\Core\MyGame.h" />
-    <ClInclude Include="DirectXGame\Application\Scene\GamePlayScene.h" />
-    <ClInclude Include="DirectXGame\Application\Scene\TitleScene.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Demo\DemoScene.h" />
+    <ClInclude Include="DirectXGame\Application\Scene\Title\TitleScene.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Camera\Camera.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\BlendMode\BlendMode.h" />
     <ClInclude Include="DirectXGame\Application\Core\ApplicationConfig.h" />
@@ -409,7 +424,6 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="DirectXGame\Engine\Graphics\PSO\PipelineManager.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\PSO\PostProcessManager.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Model\Model.h" />
-    <ClInclude Include="DirectXGame\Engine\Graphics\Model\ModelCommon.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Model\ModelManager.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Base\SrvManager.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Particle\ParticleManager.h" />

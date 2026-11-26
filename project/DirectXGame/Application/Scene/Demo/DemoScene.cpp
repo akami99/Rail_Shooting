@@ -1,4 +1,4 @@
-#include "GamePlayScene.h"
+#include "DemoScene.h"
 #include "Win32Window.h"
 #include "DX12Context.h"
 #include "ModelManager.h"
@@ -17,15 +17,12 @@
 #include "MathUtils.h"
 #include "MatrixGenerators.h"
 
-// scene
-#include "TitleScene.h"
-
 // using
 using namespace MathUtils;
 using namespace MathGenerators;
 using namespace BlendMode;
 
-void GamePlayScene::Initialize() {
+void DemoScene::Initialize() {
 	// カメラ生成
 	camera_ = std::make_unique<Camera>();
 	camera_->Initialize();
@@ -204,7 +201,7 @@ void GamePlayScene::Initialize() {
 	}
 }
 
-void GamePlayScene::Finalize() {
+void DemoScene::Finalize() {
 	// Object3dCommonの参照をクリア
 	Object3dCommon::GetInstance()->SetDefaultCamera(nullptr);
 	// Object3dを削除
@@ -214,7 +211,7 @@ void GamePlayScene::Finalize() {
 	sprites_.clear();
 }
 
-void GamePlayScene::Update() {
+void DemoScene::Update() {
 	// 入力の更新
 	Input::GetInstance()->Update();
 
@@ -243,7 +240,7 @@ void GamePlayScene::Update() {
 
 	// ※ kDeltaTime は ApplicationConfig.h
 	// から読み込むか、メンバ変数として管理する
-	ParticleManager::GetInstance()->Update(*camera_, kDeltaTime);
+	ParticleManager::GetInstance()->Update(*camera_, ApplicationConfig::kDeltaTime);
 
 
 	if (!object3ds_.empty()) {
@@ -300,7 +297,7 @@ void GamePlayScene::Update() {
 	}
 }
 
-void GamePlayScene::Draw() {
+void DemoScene::Draw() {
 	// MyGame::Draw の中身を移動
 	// ※ dxBase_->PreDraw() などは MyGame 側で行うので、ここでは「シーンの中身の描画」だけを行う
 
@@ -346,7 +343,7 @@ void GamePlayScene::Draw() {
 	}
 }
 
-void GamePlayScene::CreateObjects(const std::vector<LevelData::ObjectData>& data) {
+void DemoScene::CreateObjects(const std::vector<LevelData::ObjectData>& data) {
 	for (const auto& objData : data) {
 		// MESHタイプの場合のみ、エンジンの3Dオブジェクトをインスタンス化
 		if (objData.type == "MESH") {
@@ -372,7 +369,7 @@ void GamePlayScene::CreateObjects(const std::vector<LevelData::ObjectData>& data
 	}
 }
 
-void GamePlayScene::UpdateGameCamera() {
+void DemoScene::UpdateGameCamera() {
 
 	if (Input::GetInstance()->IsKeyTriggered(DIK_F1)) {
 		useDebugCamera_ = !useDebugCamera_;
@@ -413,7 +410,7 @@ void GamePlayScene::UpdateGameCamera() {
 
 #ifdef USE_IMGUI
 
-void GamePlayScene::UpdateImGui() {
+void DemoScene::UpdateImGui() {
 	// メイン設定ウィンドウの位置とサイズ
 	ImGui::SetNextWindowPos(ImVec2(Win32Window::kClientWidth - 10.0f, 10.0f), ImGuiCond_Once, ImVec2(1.0f, 0.0f));
 	ImGui::SetNextWindowSize(ImVec2(450.0f, 600.0f), ImGuiCond_Once);
@@ -434,7 +431,7 @@ void GamePlayScene::UpdateImGui() {
 	UpdateImGui_HelpWindow();
 }
 
-void GamePlayScene::UpdateImGui_GlobalSettings() {
+void DemoScene::UpdateImGui_GlobalSettings() {
 	if (ImGui::TreeNode("Global Settings")) {
 		ImGui::Checkbox("useDebugCamera (F1)", &useDebugCamera_);
 		ImGui::Checkbox("showParticle", &isShowParticle_);
@@ -467,7 +464,7 @@ void GamePlayScene::UpdateImGui_GlobalSettings() {
 	}
 }
 
-void GamePlayScene::UpdateImGui_LightSettings() {
+void DemoScene::UpdateImGui_LightSettings() {
 	ImGui::Separator();
 	if (ImGui::TreeNode("Light Settings")) {
 		// --- Directional Light ---
@@ -521,7 +518,7 @@ void GamePlayScene::UpdateImGui_LightSettings() {
 	}
 }
 
-void GamePlayScene::UpdateImGui_GameCamera() {
+void DemoScene::UpdateImGui_GameCamera() {
 	ImGui::Separator();
 	if (ImGui::TreeNode("GameCamera")) {
 		ImGui::DragFloat3("rotate", &gameCameraRotate_.x, 0.01f);
@@ -530,7 +527,7 @@ void GamePlayScene::UpdateImGui_GameCamera() {
 	}
 }
 
-void GamePlayScene::UpdateImGui_Object3d() {
+void DemoScene::UpdateImGui_Object3d() {
 	ImGui::Separator();
 	if (ImGui::TreeNode("Object3d")) {
 		ImGui::Checkbox("showMaterial", &isShowMaterial_);
@@ -610,7 +607,7 @@ void GamePlayScene::UpdateImGui_Object3d() {
 	}
 }
 
-void GamePlayScene::UpdateImGui_Particle() {
+void DemoScene::UpdateImGui_Particle() {
 	ImGui::Separator();
 	if (ImGui::TreeNode("Particle")) {
 		ImGui::Checkbox("update", &isUpdateParticle_);
@@ -890,7 +887,7 @@ void GamePlayScene::UpdateImGui_Particle() {
 	}
 }
 
-void GamePlayScene::UpdateImGui_Sprite() {
+void DemoScene::UpdateImGui_Sprite() {
 	ImGui::Separator();
 	if (ImGui::TreeNode("Sprite")) {
 		ImGui::Checkbox("showSprite", &isShowSprite_);
@@ -961,7 +958,7 @@ void GamePlayScene::UpdateImGui_Sprite() {
 	}
 }
 
-void GamePlayScene::UpdateImGui_Sound() {
+void DemoScene::UpdateImGui_Sound() {
 	// --- Sound ---
 	ImGui::Separator();
 	if (ImGui::TreeNode("Sound")) {
@@ -973,7 +970,7 @@ void GamePlayScene::UpdateImGui_Sound() {
 	}
 }
 
-void GamePlayScene::UpdateImGui_Skybox() {
+void DemoScene::UpdateImGui_Skybox() {
 	// --- Skybox ---
 	ImGui::Separator();
 	if (ImGui::TreeNode("Skybox")) {
@@ -1000,7 +997,7 @@ void GamePlayScene::UpdateImGui_Skybox() {
 	}
 }
 
-void GamePlayScene::UpdateImGui_HelpWindow() {
+void DemoScene::UpdateImGui_HelpWindow() {
 	ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Once);
 	ImGui::SetNextWindowSize(ImVec2(370.0f, 190.0f), ImGuiCond_Once);
 	ImGui::Begin("Help");
@@ -1021,6 +1018,6 @@ void GamePlayScene::UpdateImGui_HelpWindow() {
 
 #endif // USE_IMGUI
 
-void GamePlayScene::CreatePlayerSpawns(const std::vector<LevelData::PlayerSpawnData>& data) {
+void DemoScene::CreatePlayerSpawns(const std::vector<LevelData::PlayerSpawnData>& data) {
 	(void)data;
 }

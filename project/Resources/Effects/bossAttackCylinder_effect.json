@@ -1,0 +1,174 @@
+{
+  "blendMode": 2,
+  "cylinderSettings": {
+    "alphaReference": 0.05000000074505806,
+    "bottomColor": [
+      1.0,
+      0.8500000238418579,
+      0.30000001192092896,
+      1.0
+    ],
+    "bottomRadius": [
+      0.30000001192092896,
+      0.30000001192092896
+    ],
+    "division": 32,
+    "endAngle": 360.0,
+    "fadeEndAlpha": 1.0,
+    "fadeRange": 0.0,
+    "fadeStartAlpha": 1.0,
+    "flipV": true,
+    "height": 1.600000023841858,
+    "isUvSwap": false,
+    "startAngle": 0.0,
+    "topColor": [
+      1.0,
+      0.20000000298023224,
+      0.0,
+      0.0
+    ],
+    "topRadius": [
+      2.200000047683716,
+      2.200000047683716
+    ],
+    "verticalDivision": 1
+  },
+  "emitter": {
+    "count": 4,
+    "frequency": 0.30000001192092896,
+    "isEffectMode": true,
+    "isEmit": false,
+    "isLoop": false,
+    "transform": {
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "translate": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "fieldSettings": {
+    "acceleration": [
+      15.0,
+      0.0,
+      0.0
+    ],
+    "areaMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "areaMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "gravity": [
+      0.0,
+      -9.800000190734863,
+      0.0
+    ],
+    "isAccelerationFieldActive": false,
+    "isGravityFieldActive": false
+  },
+  "generateSettings": {
+    "colorMax": [
+      1.0,
+      0.6499999761581421,
+      0.10000000149011612,
+      1.0
+    ],
+    "colorMin": [
+      1.0,
+      0.25,
+      0.0,
+      1.0
+    ],
+    "fixedColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedLifeTime": 0.5,
+    "fixedRotate": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixedScale": [
+      1.0,
+      2.200000047683716,
+      1.0
+    ],
+    "fixedVelocity": [
+      0.0,
+      2.5,
+      0.0
+    ],
+    "isRandomColor": true,
+    "isRandomLifeTime": false,
+    "isRandomRotate": true,
+    "isRandomScale": false,
+    "isRandomVelocity": false,
+    "lifeTimeMax": 3.0,
+    "lifeTimeMin": 1.0,
+    "rotateMax": [
+      0.30000001192092896,
+      3.140000104904175,
+      0.30000001192092896
+    ],
+    "rotateMin": [
+      -0.30000001192092896,
+      -3.140000104904175,
+      -0.30000001192092896
+    ],
+    "scaleMax": [
+      0.05000000074505806,
+      1.5,
+      1.0
+    ],
+    "scaleMin": [
+      0.05000000074505806,
+      0.4000000059604645,
+      1.0
+    ],
+    "velocityMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "velocityMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ]
+  },
+  "groupName": "BossAttackCylinder",
+  "shapeType": 2,
+  "texture": "Particles/gradationLine.png",
+  "useBillboard": false,
+  "uvAnimationSettings": {
+    "isActive": true,
+    "isIndividual": true,
+    "rotateSpeed": 0.800000011920929,
+    "scaleSpeed": [
+      1.2000000476837158,
+      1.0
+    ],
+    "scrollSpeed": [
+      0.0,
+      -2.5
+    ]
+  }
+}

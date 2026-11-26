@@ -16,10 +16,6 @@ public:
     void Update() override;
     void Draw() override;
 
-    // ポストエフェクト制御用 (GamePlayScene 等から呼ぶ)
-    static void SetPostEffectMode(int mode)         { PostProcessManager::GetInstance()->SetMode(mode); }
-    static void SetPostEffectStrength(float s)      { PostProcessManager::GetInstance()->SetStrength(s); }
-
 private:
     std::unique_ptr<RenderTexture> renderTexture_;
 };

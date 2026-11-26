@@ -77,7 +77,7 @@ void MyGame::Update() {
   PostProcessManager::GetInstance()->Update(deltaTime);
 
   // ImGuiの受付開始
-  imGuiManager_->Begin();
+  GetImGuiManager()->Begin();
 
   // シーンマネージャに現在のシーンを更新させる
   SceneManager::GetInstance()->Update();
@@ -228,7 +228,7 @@ void MyGame::Update() {
   ImGui::End();
 #endif
 
-  imGuiManager_->End();
+  GetImGuiManager()->End();
 }
 
 void MyGame::Draw() {
@@ -255,7 +255,7 @@ void MyGame::Draw() {
   SceneManager::GetInstance()->DrawForeground();
 
   // ImGuiの描画
-  imGuiManager_->Draw();
+  GetImGuiManager()->Draw();
 
   // 描画後処理
   DX12Context::GetInstance()->PostDraw();

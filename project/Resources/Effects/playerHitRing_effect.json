@@ -1,0 +1,166 @@
+{
+  "blendMode": 2,
+  "emitter": {
+    "count": 2,
+    "frequency": 0.20000000298023224,
+    "isEffectMode": true,
+    "isEmit": false,
+    "isLoop": false,
+    "transform": {
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "translate": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "fieldSettings": {
+    "acceleration": [
+      15.0,
+      0.0,
+      0.0
+    ],
+    "areaMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "areaMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "gravity": [
+      0.0,
+      -9.800000190734863,
+      0.0
+    ],
+    "isAccelerationFieldActive": false,
+    "isGravityFieldActive": false
+  },
+  "generateSettings": {
+    "colorMax": [
+      0.8999999761581421,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "colorMin": [
+      0.4000000059604645,
+      0.8999999761581421,
+      1.0,
+      1.0
+    ],
+    "fixedColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedLifeTime": 0.2800000011920929,
+    "fixedRotate": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixedScale": [
+      0.44999998807907104,
+      0.44999998807907104,
+      0.44999998807907104
+    ],
+    "fixedVelocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "isRandomColor": true,
+    "isRandomLifeTime": false,
+    "isRandomRotate": true,
+    "isRandomScale": false,
+    "isRandomVelocity": false,
+    "lifeTimeMax": 3.0,
+    "lifeTimeMin": 1.0,
+    "rotateMax": [
+      0.5,
+      3.140000104904175,
+      3.140000104904175
+    ],
+    "rotateMin": [
+      -0.5,
+      -3.140000104904175,
+      -3.140000104904175
+    ],
+    "scaleMax": [
+      0.05000000074505806,
+      1.5,
+      1.0
+    ],
+    "scaleMin": [
+      0.05000000074505806,
+      0.4000000059604645,
+      1.0
+    ],
+    "velocityMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "velocityMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ]
+  },
+  "groupName": "PlayerHitRing",
+  "ringSettings": {
+    "division": 24,
+    "endAngle": 360.0,
+    "endOuterRadius": 1.25,
+    "fadeEndAlpha": 0.0,
+    "fadeRange": 0.10000000149011612,
+    "fadeStartAlpha": 1.0,
+    "innerColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "innerRadius": 0.11999999731779099,
+    "isUvSwap": false,
+    "midOuterRadius": 0.8500000238418579,
+    "outerColor": [
+      0.20000000298023224,
+      0.8500000238418579,
+      1.0,
+      0.8999999761581421
+    ],
+    "startAngle": 0.0,
+    "startOuterRadius": 0.44999998807907104
+  },
+  "shapeType": 1,
+  "texture": "Particles/gradationLine.png",
+  "useBillboard": false,
+  "uvAnimationSettings": {
+    "isActive": true,
+    "isIndividual": true,
+    "rotateSpeed": 0.30000001192092896,
+    "scaleSpeed": [
+      2.5,
+      -1.5
+    ],
+    "scrollSpeed": [
+      1.7999999523162842,
+      0.0
+    ]
+  }
+}

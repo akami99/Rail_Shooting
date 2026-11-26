@@ -1,0 +1,141 @@
+{
+  "blendMode": 2,
+  "emitter": {
+    "count": 30,
+    "frequency": 0.4000000059604645,
+    "isEffectMode": true,
+    "isEmit": false,
+    "isLoop": false,
+    "transform": {
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "translate": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "fieldSettings": {
+    "acceleration": [
+      15.0,
+      0.0,
+      0.0
+    ],
+    "areaMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "areaMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "gravity": [
+      0.0,
+      -9.800000190734863,
+      0.0
+    ],
+    "isAccelerationFieldActive": false,
+    "isGravityFieldActive": true
+  },
+  "generateSettings": {
+    "colorMax": [
+      1.0,
+      1.0,
+      0.0,
+      1.0
+    ],
+    "colorMin": [
+      1.0,
+      0.4000000059604645,
+      0.0,
+      1.0
+    ],
+    "fixedColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedLifeTime": 1.0,
+    "fixedRotate": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixedScale": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedVelocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "isRandomColor": true,
+    "isRandomLifeTime": true,
+    "isRandomRotate": true,
+    "isRandomScale": true,
+    "isRandomVelocity": true,
+    "lifeTimeMax": 0.6000000238418579,
+    "lifeTimeMin": 0.30000001192092896,
+    "rotateMax": [
+      0.0,
+      0.0,
+      3.140000104904175
+    ],
+    "rotateMin": [
+      0.0,
+      0.0,
+      -3.140000104904175
+    ],
+    "scaleMax": [
+      0.20000000298023224,
+      0.20000000298023224,
+      0.20000000298023224
+    ],
+    "scaleMin": [
+      0.05000000074505806,
+      0.05000000074505806,
+      0.05000000074505806
+    ],
+    "velocityMax": [
+      3.0,
+      6.0,
+      3.0
+    ],
+    "velocityMin": [
+      -3.0,
+      1.0,
+      -3.0
+    ]
+  },
+  "groupName": "SparkGroup",
+  "shapeType": 0,
+  "texture": "white.png",
+  "useBillboard": false,
+  "uvAnimationSettings": {
+    "isActive": false,
+    "isIndividual": false,
+    "rotateSpeed": 0.0,
+    "scaleSpeed": [
+      0.0,
+      0.0
+    ],
+    "scrollSpeed": [
+      0.0,
+      0.0
+    ]
+  }
+}

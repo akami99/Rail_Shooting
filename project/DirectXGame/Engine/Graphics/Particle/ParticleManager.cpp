@@ -10,8 +10,11 @@
 #include "Texture/TextureManager.h"
 #include "Model/Model.h"
 
+#include <externals/nlohmann/json.hpp>
+
 #include <algorithm>
 #include <assert.h>
+#include <fstream>
 #include <numbers>
 
 #include "externals/DirectXTex/d3dx12.h"
@@ -427,26 +430,12 @@ void ParticleManager::EmitCustom(const std::string& name, const Vector3& transla
 
 // パーティクル生成関数
 Particle ParticleManager::MakeNewParticle(const Vector3& translate, const ParticleGenerateSettings& settings) {
-
-	// 乱数分布の定義 (エンジンは引数の randomEngine を使用)
-	std::uniform_real_distribution<float> distScaleX(settings.scaleMin.x, settings.scaleMax.x);
-	std::uniform_real_distribution<float> distScaleY(settings.scaleMin.y, settings.scaleMax.y);
-	std::uniform_real_distribution<float> distScaleZ(settings.scaleMin.z, settings.scaleMax.z);
-
-	std::uniform_real_distribution<float> distRotateX(settings.rotateMin.x, settings.rotateMax.x);
-	std::uniform_real_distribution<float> distRotateY(settings.rotateMin.y, settings.rotateMax.y);
-	std::uniform_real_distribution<float> distRotateZ(settings.rotateMin.z, settings.rotateMax.z);
-
-	std::uniform_real_distribution<float> distVelocityX(settings.velocityMin.x, settings.velocityMax.x);
-	std::uniform_real_distribution<float> distVelocityY(settings.velocityMin.y, settings.velocityMax.y);
-	std::uniform_real_distribution<float> distVelocityZ(settings.velocityMin.z, settings.velocityMax.z);
-
-	std::uniform_real_distribution<float> distLifeTime(settings.lifeTimeMin, settings.lifeTimeMax);
-
-	std::uniform_real_distribution<float> distColorR(settings.colorMin.x, settings.colorMax.x);
-	std::uniform_real_distribution<float> distColorG(settings.colorMin.y, settings.colorMax.y);
-	std::uniform_real_distribution<float> distColorB(settings.colorMin.z, settings.colorMax.z);
-	std::uniform_real_distribution<float> distColorA(settings.colorMin.w, settings.colorMax.w);
+	auto randRange = [this](float a, float b) {
+		if (a > b) {
+			std::swap(a, b);
+		}
+		return std::uniform_real_distribution<float>(a, b)(randomEngine_);
+	};
 
 	// パーティクルの初期化
 	Particle particle;
@@ -454,31 +443,46 @@ Particle ParticleManager::MakeNewParticle(const Vector3& translate, const Partic
 	// -------------------
 	// トランスフォーム
 	// -------------------
-	particle.transform.scale = settings.isRandomScale ? 
-		Vector3{ distScaleX(randomEngine_), distScaleY(randomEngine_), distScaleZ(randomEngine_) } : settings.fixedScale;
-	
-	particle.transform.rotate = settings.isRandomRotate ? 
-		Vector3{ distRotateX(randomEngine_), distRotateY(randomEngine_), distRotateZ(randomEngine_) } : settings.fixedRotate;
+	particle.transform.scale = settings.isRandomScale
+		? Vector3{ randRange(settings.scaleMin.x, settings.scaleMax.x),
+		           randRange(settings.scaleMin.y, settings.scaleMax.y),
+		           randRange(settings.scaleMin.z, settings.scaleMax.z) }
+		: settings.fixedScale;
+
+	particle.transform.rotate = settings.isRandomRotate
+		? Vector3{ randRange(settings.rotateMin.x, settings.rotateMax.x),
+		           randRange(settings.rotateMin.y, settings.rotateMax.y),
+		           randRange(settings.rotateMin.z, settings.rotateMax.z) }
+		: settings.fixedRotate;
 
 	particle.transform.translate = translate; // オフセットなしで基準位置に発生させる
 
 	// -------------------
 	// 速度
 	// -------------------
-	particle.velocity = settings.isRandomVelocity ? 
-		Vector3{ distVelocityX(randomEngine_), distVelocityY(randomEngine_), distVelocityZ(randomEngine_) } : settings.fixedVelocity;
+	particle.velocity = settings.isRandomVelocity
+		? Vector3{ randRange(settings.velocityMin.x, settings.velocityMax.x),
+		           randRange(settings.velocityMin.y, settings.velocityMax.y),
+		           randRange(settings.velocityMin.z, settings.velocityMax.z) }
+		: settings.fixedVelocity;
 
 	// -------------------
 	// 寿命と時間
 	// -------------------
-	particle.lifeTime = settings.isRandomLifeTime ? distLifeTime(randomEngine_) : settings.fixedLifeTime;
+	particle.lifeTime = settings.isRandomLifeTime
+		? randRange(settings.lifeTimeMin, settings.lifeTimeMax)
+		: settings.fixedLifeTime;
 	particle.currentTime = 0.0f;
 
 	// -------------------
 	// 色
 	// -------------------
-	particle.color = settings.isRandomColor ? 
-		Vector4{ distColorR(randomEngine_), distColorG(randomEngine_), distColorB(randomEngine_), distColorA(randomEngine_) } : settings.fixedColor;
+	particle.color = settings.isRandomColor
+		? Vector4{ randRange(settings.colorMin.x, settings.colorMax.x),
+		           randRange(settings.colorMin.y, settings.colorMax.y),
+		           randRange(settings.colorMin.z, settings.colorMax.z),
+		           randRange(settings.colorMin.w, settings.colorMax.w) }
+		: settings.fixedColor;
 
 	return particle;
 }
@@ -787,4 +791,192 @@ void ParticleManager::Draw(BlendMode::BlendState blendMode) {
 		// DX12Context::GetInstance()->GetCommandList()->DrawInstanced(6,
 		// group.instanceCount, 0, 0);
 	}
+}
+
+namespace {
+Vector2 FromJsonVec2(const nlohmann::json& j, const Vector2& fallback = { 0.0f, 0.0f }) {
+	if (j.is_array() && j.size() >= 2) {
+		return { j[0].get<float>(), j[1].get<float>() };
+	}
+	return fallback;
+}
+
+Vector3 FromJsonVec3(const nlohmann::json& j, const Vector3& fallback = { 0.0f, 0.0f, 0.0f }) {
+	if (j.is_array() && j.size() >= 3) {
+		return { j[0].get<float>(), j[1].get<float>(), j[2].get<float>() };
+	}
+	return fallback;
+}
+
+Vector4 FromJsonVec4(const nlohmann::json& j, const Vector4& fallback = { 1.0f, 1.0f, 1.0f, 1.0f }) {
+	if (j.is_array() && j.size() >= 4) {
+		return { j[0].get<float>(), j[1].get<float>(), j[2].get<float>(), j[3].get<float>() };
+	}
+	return fallback;
+}
+} // namespace
+
+bool ParticleManager::LoadEffectFromJson(
+	const std::string& groupName,
+	const std::string& filePath,
+	BlendMode::BlendState* outBlendMode,
+	bool* outUseBillboard) {
+	using json = nlohmann::json;
+
+	std::ifstream ifs(filePath);
+	if (!ifs.is_open()) {
+		return false;
+	}
+
+	json root;
+	try {
+		ifs >> root;
+	} catch (...) {
+		return false;
+	}
+
+	std::string texPath = root.value("texture", "Particles/circle.png");
+	TextureManager::GetInstance()->LoadTexture(texPath);
+
+	// グループが未登録なら生成、既存ならテクスチャを更新
+	if (GetEmitter(groupName) == nullptr) {
+		CreateParticleGroup(groupName, texPath);
+	} else {
+		SetGroupTexture(groupName, texPath);
+	}
+
+	if (outBlendMode && root.contains("blendMode")) {
+		int bm = root["blendMode"].get<int>();
+		if (bm >= 0 && bm < BlendMode::BlendState::kCountOfBlendMode) {
+			*outBlendMode = static_cast<BlendMode::BlendState>(bm);
+		}
+	}
+	if (outUseBillboard && root.contains("useBillboard")) {
+		*outUseBillboard = root["useBillboard"].get<bool>();
+	}
+
+	ParticleEmitter emitter;
+	if (root.contains("emitter")) {
+		const auto& je = root["emitter"];
+		if (je.contains("transform")) {
+			const auto& jt = je["transform"];
+			Transform t;
+			t.scale = FromJsonVec3(jt.value("scale", json::array()), { 1.0f, 1.0f, 1.0f });
+			t.rotate = FromJsonVec3(jt.value("rotate", json::array()), { 0.0f, 0.0f, 0.0f });
+			t.translate = FromJsonVec3(jt.value("translate", json::array()), { 0.0f, 0.0f, 0.0f });
+			emitter.SetTransform(t);
+		}
+		emitter.SetCount(je.value("count", 1u));
+		emitter.SetFrequency(je.value("frequency", 0.1f));
+		emitter.SetIsEmit(je.value("isEmit", false));
+		emitter.SetIsEffectMode(je.value("isEffectMode", false));
+		emitter.SetIsLoop(je.value("isLoop", false));
+	}
+
+	if (root.contains("generateSettings")) {
+		const auto& jg = root["generateSettings"];
+		ParticleGenerateSettings gs = emitter.GetGenerateSettings();
+		gs.isRandomScale = jg.value("isRandomScale", gs.isRandomScale);
+		gs.scaleMin = FromJsonVec3(jg.value("scaleMin", json::array()), gs.scaleMin);
+		gs.scaleMax = FromJsonVec3(jg.value("scaleMax", json::array()), gs.scaleMax);
+		gs.fixedScale = FromJsonVec3(jg.value("fixedScale", json::array()), gs.fixedScale);
+
+		gs.isRandomRotate = jg.value("isRandomRotate", gs.isRandomRotate);
+		gs.rotateMin = FromJsonVec3(jg.value("rotateMin", json::array()), gs.rotateMin);
+		gs.rotateMax = FromJsonVec3(jg.value("rotateMax", json::array()), gs.rotateMax);
+		gs.fixedRotate = FromJsonVec3(jg.value("fixedRotate", json::array()), gs.fixedRotate);
+
+		gs.isRandomVelocity = jg.value("isRandomVelocity", gs.isRandomVelocity);
+		gs.velocityMin = FromJsonVec3(jg.value("velocityMin", json::array()), gs.velocityMin);
+		gs.velocityMax = FromJsonVec3(jg.value("velocityMax", json::array()), gs.velocityMax);
+		gs.fixedVelocity = FromJsonVec3(jg.value("fixedVelocity", json::array()), gs.fixedVelocity);
+
+		gs.isRandomLifeTime = jg.value("isRandomLifeTime", gs.isRandomLifeTime);
+		gs.lifeTimeMin = jg.value("lifeTimeMin", gs.lifeTimeMin);
+		gs.lifeTimeMax = jg.value("lifeTimeMax", gs.lifeTimeMax);
+		gs.fixedLifeTime = jg.value("fixedLifeTime", gs.fixedLifeTime);
+
+		gs.isRandomColor = jg.value("isRandomColor", gs.isRandomColor);
+		gs.colorMin = FromJsonVec4(jg.value("colorMin", json::array()), gs.colorMin);
+		gs.colorMax = FromJsonVec4(jg.value("colorMax", json::array()), gs.colorMax);
+		gs.fixedColor = FromJsonVec4(jg.value("fixedColor", json::array()), gs.fixedColor);
+		emitter.SetGenerateSettings(gs);
+	}
+
+	if (root.contains("fieldSettings")) {
+		const auto& jf = root["fieldSettings"];
+		ParticleFieldSettings fsSettings = emitter.GetFieldSettings();
+		fsSettings.isAccelerationFieldActive = jf.value("isAccelerationFieldActive", false);
+		fsSettings.accelerationField.acceleration = FromJsonVec3(jf.value("acceleration", json::array()), fsSettings.accelerationField.acceleration);
+		fsSettings.accelerationField.area.min = FromJsonVec3(jf.value("areaMin", json::array()), fsSettings.accelerationField.area.min);
+		fsSettings.accelerationField.area.max = FromJsonVec3(jf.value("areaMax", json::array()), fsSettings.accelerationField.area.max);
+		fsSettings.isGravityFieldActive = jf.value("isGravityFieldActive", false);
+		fsSettings.gravity = FromJsonVec3(jf.value("gravity", json::array()), fsSettings.gravity);
+		emitter.SetFieldSettings(fsSettings);
+	}
+
+	if (root.contains("uvAnimationSettings")) {
+		const auto& ju = root["uvAnimationSettings"];
+		ParticleUVAnimationSettings uvas = emitter.GetUVAnimationSettings();
+		uvas.isActive = ju.value("isActive", false);
+		uvas.isIndividual = ju.value("isIndividual", false);
+		uvas.scrollSpeed = FromJsonVec2(ju.value("scrollSpeed", json::array()), uvas.scrollSpeed);
+		uvas.rotateSpeed = ju.value("rotateSpeed", 0.0f);
+		uvas.scaleSpeed = FromJsonVec2(ju.value("scaleSpeed", json::array()), uvas.scaleSpeed);
+		emitter.SetUVAnimationSettings(uvas);
+	}
+
+	int shapeTypeInt = root.value("shapeType", 0);
+	emitter.SetShapeType(static_cast<ParticleShapeType>(shapeTypeInt));
+
+	if (auto* rs = emitter.GetRingShape(); rs && root.contains("ringSettings")) {
+		const auto& jr = root["ringSettings"];
+		RingSettings s = rs->GetSettings();
+		s.innerRadius = jr.value("innerRadius", s.innerRadius);
+		s.startOuterRadius = jr.value("startOuterRadius", s.startOuterRadius);
+		s.midOuterRadius = jr.value("midOuterRadius", s.midOuterRadius);
+		s.endOuterRadius = jr.value("endOuterRadius", s.endOuterRadius);
+		s.startAngle = jr.value("startAngle", s.startAngle);
+		s.endAngle = jr.value("endAngle", s.endAngle);
+		s.division = jr.value("division", s.division);
+		s.isUvSwap = jr.value("isUvSwap", s.isUvSwap);
+		s.innerColor = FromJsonVec4(jr.value("innerColor", json::array()), s.innerColor);
+		s.outerColor = FromJsonVec4(jr.value("outerColor", json::array()), s.outerColor);
+		s.fadeStartAlpha = jr.value("fadeStartAlpha", s.fadeStartAlpha);
+		s.fadeEndAlpha = jr.value("fadeEndAlpha", s.fadeEndAlpha);
+		s.fadeRange = jr.value("fadeRange", s.fadeRange);
+		rs->SetSettings(s);
+	} else if (auto* cs = emitter.GetCylinderShape(); cs && root.contains("cylinderSettings")) {
+		const auto& jc = root["cylinderSettings"];
+		CylinderSettings s = cs->GetSettings();
+		s.height = jc.value("height", s.height);
+		s.topRadius = FromJsonVec2(jc.value("topRadius", json::array()), s.topRadius);
+		s.bottomRadius = FromJsonVec2(jc.value("bottomRadius", json::array()), s.bottomRadius);
+		s.startAngle = jc.value("startAngle", s.startAngle);
+		s.endAngle = jc.value("endAngle", s.endAngle);
+		s.division = jc.value("division", s.division);
+		s.verticalDivision = jc.value("verticalDivision", s.verticalDivision);
+		s.flipV = jc.value("flipV", s.flipV);
+		s.isUvSwap = jc.value("isUvSwap", s.isUvSwap);
+		s.topColor = FromJsonVec4(jc.value("topColor", json::array()), s.topColor);
+		s.bottomColor = FromJsonVec4(jc.value("bottomColor", json::array()), s.bottomColor);
+		s.fadeStartAlpha = jc.value("fadeStartAlpha", s.fadeStartAlpha);
+		s.fadeEndAlpha = jc.value("fadeEndAlpha", s.fadeEndAlpha);
+		s.fadeRange = jc.value("fadeRange", s.fadeRange);
+		s.alphaReference = jc.value("alphaReference", s.alphaReference);
+		cs->SetSettings(s);
+	} else if (auto* ps = emitter.GetPlaneShape(); ps && root.contains("planeSettings")) {
+		const auto& jp = root["planeSettings"];
+		PlaneSettings s = ps->GetSettings();
+		s.size = FromJsonVec2(jp.value("size", json::array()), s.size);
+		s.divisionX = jp.value("divisionX", s.divisionX);
+		s.divisionY = jp.value("divisionY", s.divisionY);
+		s.flipV = jp.value("flipV", s.flipV);
+		s.isUvSwap = jp.value("isUvSwap", s.isUvSwap);
+		s.color = FromJsonVec4(jp.value("color", json::array()), s.color);
+		ps->SetSettings(s);
+	}
+
+	SetEmitter(groupName, emitter);
+	return true;
 }

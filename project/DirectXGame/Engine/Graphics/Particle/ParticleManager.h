@@ -129,6 +129,12 @@ public: // メンバ関数
     void SetGroupTexture(const std::string& name, const std::string& textureFilePath);
     std::string GetGroupTexture(const std::string& name) const;
 
+    // JSONファイルからエフェクトを読み込み、グループとエミッターを設定する
+    bool LoadEffectFromJson(const std::string& groupName,
+                            const std::string& filePath,
+                            BlendMode::BlendState* outBlendMode = nullptr,
+                            bool* outUseBillboard = nullptr);
+
     // パーティクルのクリア処理
     void ClearParticles(const std::string& name);
     void ClearAllParticles();

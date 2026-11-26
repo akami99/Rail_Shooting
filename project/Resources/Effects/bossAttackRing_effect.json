@@ -1,0 +1,166 @@
+{
+  "blendMode": 2,
+  "emitter": {
+    "count": 6,
+    "frequency": 0.30000001192092896,
+    "isEffectMode": true,
+    "isEmit": false,
+    "isLoop": false,
+    "transform": {
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "translate": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "fieldSettings": {
+    "acceleration": [
+      15.0,
+      0.0,
+      0.0
+    ],
+    "areaMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "areaMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "gravity": [
+      0.0,
+      -9.800000190734863,
+      0.0
+    ],
+    "isAccelerationFieldActive": false,
+    "isGravityFieldActive": false
+  },
+  "generateSettings": {
+    "colorMax": [
+      1.0,
+      0.699999988079071,
+      0.10000000149011612,
+      1.0
+    ],
+    "colorMin": [
+      1.0,
+      0.20000000298023224,
+      0.0,
+      1.0
+    ],
+    "fixedColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedLifeTime": 0.550000011920929,
+    "fixedRotate": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixedScale": [
+      1.5,
+      1.5,
+      1.5
+    ],
+    "fixedVelocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "isRandomColor": true,
+    "isRandomLifeTime": false,
+    "isRandomRotate": true,
+    "isRandomScale": false,
+    "isRandomVelocity": false,
+    "lifeTimeMax": 3.0,
+    "lifeTimeMin": 1.0,
+    "rotateMax": [
+      1.5700000524520874,
+      3.140000104904175,
+      3.140000104904175
+    ],
+    "rotateMin": [
+      -1.5700000524520874,
+      -3.140000104904175,
+      -3.140000104904175
+    ],
+    "scaleMax": [
+      0.05000000074505806,
+      1.5,
+      1.0
+    ],
+    "scaleMin": [
+      0.05000000074505806,
+      0.4000000059604645,
+      1.0
+    ],
+    "velocityMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "velocityMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ]
+  },
+  "groupName": "BossAttackRing",
+  "ringSettings": {
+    "division": 32,
+    "endAngle": 360.0,
+    "endOuterRadius": 3.5,
+    "fadeEndAlpha": 0.0,
+    "fadeRange": 0.10000000149011612,
+    "fadeStartAlpha": 1.0,
+    "innerColor": [
+      1.0,
+      0.8999999761581421,
+      0.4000000059604645,
+      1.0
+    ],
+    "innerRadius": 0.20000000298023224,
+    "isUvSwap": false,
+    "midOuterRadius": 2.4000000953674316,
+    "outerColor": [
+      1.0,
+      0.15000000596046448,
+      0.0,
+      0.8999999761581421
+    ],
+    "startAngle": 0.0,
+    "startOuterRadius": 1.2000000476837158
+  },
+  "shapeType": 1,
+  "texture": "Particles/gradationLine.png",
+  "useBillboard": false,
+  "uvAnimationSettings": {
+    "isActive": true,
+    "isIndividual": true,
+    "rotateSpeed": 0.5,
+    "scaleSpeed": [
+      2.0,
+      -1.2000000476837158
+    ],
+    "scrollSpeed": [
+      2.5,
+      0.0
+    ]
+  }
+}

@@ -13,7 +13,7 @@
 #include "BlendMode.h"
 #include "LevelLoader.h"
 
-class GamePlayScene : public BaseScene {
+class DemoScene : public BaseScene {
 public:
     void Initialize() override;
     void Update() override;

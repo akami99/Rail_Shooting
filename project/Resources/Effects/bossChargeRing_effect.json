@@ -1,0 +1,166 @@
+{
+  "blendMode": 2,
+  "emitter": {
+    "count": 4,
+    "frequency": 0.30000001192092896,
+    "isEffectMode": true,
+    "isEmit": false,
+    "isLoop": false,
+    "transform": {
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "translate": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "fieldSettings": {
+    "acceleration": [
+      15.0,
+      0.0,
+      0.0
+    ],
+    "areaMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "areaMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "gravity": [
+      0.0,
+      -9.800000190734863,
+      0.0
+    ],
+    "isAccelerationFieldActive": false,
+    "isGravityFieldActive": false
+  },
+  "generateSettings": {
+    "colorMax": [
+      1.0,
+      0.44999998807907104,
+      0.10000000149011612,
+      1.0
+    ],
+    "colorMin": [
+      1.0,
+      0.15000000596046448,
+      0.30000001192092896,
+      1.0
+    ],
+    "fixedColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "fixedLifeTime": 0.44999998807907104,
+    "fixedRotate": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixedScale": [
+      1.2000000476837158,
+      1.2000000476837158,
+      1.2000000476837158
+    ],
+    "fixedVelocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "isRandomColor": true,
+    "isRandomLifeTime": false,
+    "isRandomRotate": true,
+    "isRandomScale": false,
+    "isRandomVelocity": false,
+    "lifeTimeMax": 3.0,
+    "lifeTimeMin": 1.0,
+    "rotateMax": [
+      0.4000000059604645,
+      3.140000104904175,
+      3.140000104904175
+    ],
+    "rotateMin": [
+      -0.4000000059604645,
+      -3.140000104904175,
+      -3.140000104904175
+    ],
+    "scaleMax": [
+      0.05000000074505806,
+      1.5,
+      1.0
+    ],
+    "scaleMin": [
+      0.05000000074505806,
+      0.4000000059604645,
+      1.0
+    ],
+    "velocityMax": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "velocityMin": [
+      -1.0,
+      -1.0,
+      -1.0
+    ]
+  },
+  "groupName": "BossChargeRing",
+  "ringSettings": {
+    "division": 32,
+    "endAngle": 360.0,
+    "endOuterRadius": 2.200000047683716,
+    "fadeEndAlpha": 0.0,
+    "fadeRange": 0.15000000596046448,
+    "fadeStartAlpha": 1.0,
+    "innerColor": [
+      1.0,
+      0.30000001192092896,
+      0.5,
+      1.0
+    ],
+    "innerRadius": 0.25,
+    "isUvSwap": false,
+    "midOuterRadius": 1.7999999523162842,
+    "outerColor": [
+      1.0,
+      0.05000000074505806,
+      0.10000000149011612,
+      0.8999999761581421
+    ],
+    "startAngle": 0.0,
+    "startOuterRadius": 1.399999976158142
+  },
+  "shapeType": 1,
+  "texture": "Particles/gradationLine.png",
+  "useBillboard": false,
+  "uvAnimationSettings": {
+    "isActive": true,
+    "isIndividual": true,
+    "rotateSpeed": 1.2000000476837158,
+    "scaleSpeed": [
+      -1.2000000476837158,
+      0.800000011920929
+    ],
+    "scrollSpeed": [
+      -2.0,
+      0.0
+    ]
+  }
+}
