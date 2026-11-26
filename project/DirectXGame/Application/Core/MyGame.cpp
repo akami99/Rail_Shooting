@@ -40,7 +40,7 @@ void MyGame::Initialize() {
   
   // デフォルトテクスチャのロード（未ロード時の代替用）
   TextureManager::GetInstance()->LoadTexture(
-      TextureManager::GetInstance()->defaultTexturePath_);
+      TextureManager::GetDefaultTexturePath());
 
   // ポストプロセスマネージャの初期化
   PostProcessManager::GetInstance()->Initialize();
@@ -95,7 +95,7 @@ void MyGame::Update() {
           "Mode", &mode,
           "Copy (None)\0GrayScale\0Sepia\0Vignette\0Smoothing\0Gaussian "
           "Blur\0Outline\0Radial Blur\0Dissolve\0Random\0HSV\0")) {
-    PostProcessManager::SetMode(mode);
+    PostProcessManager::GetInstance()->SetMode(mode);
   }
   if (mode == PostProcessManager::kModeVignette) {
     static float scale = 16.0f;
@@ -108,15 +108,15 @@ void MyGame::Update() {
       changed = true;
     }
     if (changed) {
-      PostProcessManager::SetVignetteParams(scale, exponent);
-      scale = PostProcessManager::GetVignetteScale();
-      exponent = PostProcessManager::GetVignetteExponent();
+      PostProcessManager::GetInstance()->SetVignetteParams(scale, exponent);
+      scale = PostProcessManager::GetInstance()->GetVignetteScale();
+      exponent = PostProcessManager::GetInstance()->GetVignetteExponent();
     }
   } else if (mode == PostProcessManager::kModeSmoothing) {
     static int kernelSize = 3;
     if (ImGui::SliderInt("Kernel Size", &kernelSize, PostProcessManager::kMinSmoothingKernelSize, PostProcessManager::kMaxSmoothingKernelSize)) {
-      PostProcessManager::SetSmoothingParams(kernelSize);
-      kernelSize = PostProcessManager::GetSmoothingKernelSize();
+      PostProcessManager::GetInstance()->SetSmoothingParams(kernelSize);
+      kernelSize = PostProcessManager::GetInstance()->GetSmoothingKernelSize();
     }
   } else if (mode == PostProcessManager::kModeGaussianBlur) {
     static int kernelSize = 3;
@@ -129,9 +129,9 @@ void MyGame::Update() {
       changed = true;
     }
     if (changed) {
-      PostProcessManager::SetGaussianBlurParams(kernelSize, sigma);
-      kernelSize = PostProcessManager::GetGaussianBlurKernelSize();
-      sigma = PostProcessManager::GetGaussianBlurSigma();
+      PostProcessManager::GetInstance()->SetGaussianBlurParams(kernelSize, sigma);
+      kernelSize = PostProcessManager::GetInstance()->GetGaussianBlurKernelSize();
+      sigma = PostProcessManager::GetInstance()->GetGaussianBlurSigma();
     }
   } else if (mode == PostProcessManager::kModeOutline) {
     static float depthEdgeMultiplier = 6.0f;
@@ -144,9 +144,9 @@ void MyGame::Update() {
       changed = true;
     }
     if (changed) {
-      PostProcessManager::SetOutlineParams(depthEdgeMultiplier, colorEdgeMultiplier);
-      depthEdgeMultiplier = PostProcessManager::GetOutlineDepthEdgeMultiplier();
-      colorEdgeMultiplier = PostProcessManager::GetOutlineColorEdgeMultiplier();
+      PostProcessManager::GetInstance()->SetOutlineParams(depthEdgeMultiplier, colorEdgeMultiplier);
+      depthEdgeMultiplier = PostProcessManager::GetInstance()->GetOutlineDepthEdgeMultiplier();
+      colorEdgeMultiplier = PostProcessManager::GetInstance()->GetOutlineColorEdgeMultiplier();
     }
   } else if (mode == PostProcessManager::kModeRadialBlur) {
     static float center[2] = { 0.5f, 0.5f };
@@ -163,11 +163,11 @@ void MyGame::Update() {
       changed = true;
     }
     if (changed) {
-      PostProcessManager::SetRadialBlurParams(center[0], center[1], blurWidth, sampleCount);
-      center[0] = PostProcessManager::GetRadialBlurCenterX();
-      center[1] = PostProcessManager::GetRadialBlurCenterY();
-      blurWidth = PostProcessManager::GetRadialBlurWidth();
-      sampleCount = PostProcessManager::GetRadialBlurSampleCount();
+      PostProcessManager::GetInstance()->SetRadialBlurParams(center[0], center[1], blurWidth, sampleCount);
+      center[0] = PostProcessManager::GetInstance()->GetRadialBlurCenterX();
+      center[1] = PostProcessManager::GetInstance()->GetRadialBlurCenterY();
+      blurWidth = PostProcessManager::GetInstance()->GetRadialBlurWidth();
+      sampleCount = PostProcessManager::GetInstance()->GetRadialBlurSampleCount();
     }
   } else if (mode == PostProcessManager::kModeDissolve) {
     static float edgeColor[3] = { 1.0f, 0.4f, 0.3f };
@@ -187,22 +187,22 @@ void MyGame::Update() {
       changed = true;
     }
     if (ImGui::Combo("Mask Texture", &maskIndex, maskNames, 2)) {
-      PostProcessManager::SetDissolveMaskTexture(maskPaths[maskIndex]);
+      PostProcessManager::GetInstance()->SetDissolveMaskTexture(maskPaths[maskIndex]);
     }
     if (changed) {
-      PostProcessManager::SetDissolveParams(edgeColor, threshold, edgeRange);
-      const float* col = PostProcessManager::GetDissolveEdgeColor();
+      PostProcessManager::GetInstance()->SetDissolveParams(edgeColor, threshold, edgeRange);
+      const float* col = PostProcessManager::GetInstance()->GetDissolveEdgeColor();
       edgeColor[0] = col[0];
       edgeColor[1] = col[1];
       edgeColor[2] = col[2];
-      threshold = PostProcessManager::GetDissolveThreshold();
-      edgeRange = PostProcessManager::GetDissolveEdgeRange();
+      threshold = PostProcessManager::GetInstance()->GetDissolveThreshold();
+      edgeRange = PostProcessManager::GetInstance()->GetDissolveEdgeRange();
     }
   } else if (mode == PostProcessManager::kModeRandom) {
     static float randomStrength = 0.0f;
     if (ImGui::SliderFloat("Random Strength", &randomStrength, PostProcessManager::kMinRandomStrength, PostProcessManager::kMaxRandomStrength)) {
-      PostProcessManager::SetRandomParams(randomStrength);
-      randomStrength = PostProcessManager::GetRandomStrength();
+      PostProcessManager::GetInstance()->SetRandomParams(randomStrength);
+      randomStrength = PostProcessManager::GetInstance()->GetRandomStrength();
     }
   } else if (mode == PostProcessManager::kModeHSV) {
     static float hue = 0.0f;
@@ -219,10 +219,10 @@ void MyGame::Update() {
       changed = true;
     }
     if (changed) {
-      PostProcessManager::SetHSVParams(hue, saturation, value);
-      hue = PostProcessManager::GetHSVHue();
-      saturation = PostProcessManager::GetHSVSaturation();
-      value = PostProcessManager::GetHSVValue();
+      PostProcessManager::GetInstance()->SetHSVParams(hue, saturation, value);
+      hue = PostProcessManager::GetInstance()->GetHSVHue();
+      saturation = PostProcessManager::GetInstance()->GetHSVSaturation();
+      value = PostProcessManager::GetInstance()->GetHSVValue();
     }
   }
   ImGui::End();

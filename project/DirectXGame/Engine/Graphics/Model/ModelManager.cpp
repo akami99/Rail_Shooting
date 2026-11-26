@@ -9,7 +9,6 @@
 #include <format>
 #include <utility>
 
-using namespace Logger;
 using namespace StringUtility;
 
 std::unique_ptr<ModelManager> ModelManager::instance_ = nullptr;
@@ -79,7 +78,7 @@ void ModelManager::LoadModel(const std::string &directoryPath,
   std::unique_ptr<Model> model = std::make_unique<Model>();
 
   model->Initialize(fullDirectoryPath, filePath);
-  Log("INFO: Loaded model at path: " + fullFilePath + "\n");
+  Logger::Log("INFO: Loaded model at path: " + fullFilePath + "\n");
 
   // --- 4. モデルをマップコンテナに格納 ---
   // std::unique_ptr はコピー禁止なので、std::move() によって所有権を移譲する
@@ -98,5 +97,5 @@ void ModelManager::CreateRing(const std::string& name, const std::string& textur
 
     // マップに格納
     models_.insert(std::make_pair(name, std::move(model)));
-    Log(std::format("INFO: Created ring primitive: {}\n", name));
+    Logger::Log(std::format("INFO: Created ring primitive: {}\n", name));
 }

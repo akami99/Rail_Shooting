@@ -54,16 +54,17 @@ private:
 
   // コールバッククラスの定義（AudioManagerの内部クラスとして定義）
   class InternalVoiceCallback : public IXAudio2VoiceCallback {
-  public:
-    std::atomic<bool> *finishedFlag; // 対応するPlayingVoiceの終了フラグ
+  private:
+    std::atomic<bool> *finishedFlag_; // 対応するPlayingVoiceの終了フラグ
 
+  public:
     // コンストラクタ
-    InternalVoiceCallback(std::atomic<bool> *flag) : finishedFlag(flag) {}
+    InternalVoiceCallback(std::atomic<bool> *flag) : finishedFlag_(flag) {}
 
     // 軽量なフラグ設定のみ
     void STDMETHODCALLTYPE OnBufferEnd(void *pBufferContext) override {
-      if (finishedFlag) {
-        finishedFlag->store(true);
+      if (finishedFlag_) {
+        finishedFlag_->store(true);
       }
     }
 
@@ -105,8 +106,8 @@ public:
   // ロードしたサウンドを名前で取得する
   // @param name 取得したいサウンドの名前
   // @return 見つかった場合は Sound
-  // オブジェクトへのポインタ、見つからなかった場合は nullptr
-  Sound *GetSound(const std::string &name);
+  // オブジェクトへのconstポインタ、見つからなかった場合は nullptr
+  const Sound *GetSound(const std::string &name) const;
 
   // 名前を指定してサウンドを再生する
   // @param name 再生したいサウンドの名前

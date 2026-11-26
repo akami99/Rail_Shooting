@@ -65,10 +65,21 @@ public:
       spotData_->direction = direction;
   }
 
-  // ImGui用ゲッター
-  DirectionalLight &GetDirectionalLightData() { return *directionalData_; }
-  PointLight &GetPointLightData() { return *pointData_; }
-  SpotLight &GetSpotLightData() { return *spotData_; }
+  // 構造体一括設定用セッター
+  void SetDirectionalLightData(const DirectionalLight &data) {
+    *directionalData_ = data;
+  }
+  void SetPointLightData(const PointLight &data) {
+    *pointData_ = data;
+  }
+  void SetSpotLightData(const SpotLight &data) {
+    *spotData_ = data;
+  }
+
+  // 読み取り専用ゲッター
+  const DirectionalLight &GetDirectionalLightData() const { return *directionalData_; }
+  const PointLight &GetPointLightData() const { return *pointData_; }
+  const SpotLight &GetSpotLightData() const { return *spotData_; }
 
 private:
     ~LightManager() = default;

@@ -42,6 +42,7 @@ private: // メンバ変数
 
 public: // シングルトンインスタンス取得
     static SrvManager* GetInstance();
+    static void Destroy();
 
 public: // メンバ関数
   explicit SrvManager(Token);

@@ -187,27 +187,27 @@ private:
     uint32_t depthSrvIndex_ = 0;
 
     // 遅延適用用 (Update から Draw への橋渡し)
-    static int modeNext_;
-    static float strengthNext_;
-    static float vignetteScaleNext_;
-    static float vignetteExponentNext_;
-    static int smoothingKernelSizeNext_;
-    static int gaussianBlurKernelSizeNext_;
-    static float gaussianBlurSigmaNext_;
-    static float outlineDepthEdgeMultiplierNext_;
-    static float outlineColorEdgeMultiplierNext_;
-    static float radialBlurCenterXNext_;
-    static float radialBlurCenterYNext_;
-    static float radialBlurWidthNext_;
-    static int radialBlurSampleCountNext_;
-    static float dissolveEdgeColorNext_[3];
-    static float dissolveThresholdNext_;
-    static float dissolveEdgeRangeNext_;
-    static std::string dissolveMaskPathNext_;
-    static float randomStrengthNext_;
-    static float hsvHueNext_;
-    static float hsvSaturationNext_;
-    static float hsvValueNext_;
+    int modeNext_ = 0;
+    float strengthNext_ = 1.0f;
+    float vignetteScaleNext_ = 16.0f;
+    float vignetteExponentNext_ = 0.8f;
+    int smoothingKernelSizeNext_ = 3;
+    int gaussianBlurKernelSizeNext_ = 3;
+    float gaussianBlurSigmaNext_ = 2.0f;
+    float outlineDepthEdgeMultiplierNext_ = 6.0f;
+    float outlineColorEdgeMultiplierNext_ = 1.0f;
+    float radialBlurCenterXNext_ = 0.5f;
+    float radialBlurCenterYNext_ = 0.5f;
+    float radialBlurWidthNext_ = 0.01f;
+    int radialBlurSampleCountNext_ = 10;
+    float dissolveEdgeColorNext_[3] = { 1.0f, 0.4f, 0.3f };
+    float dissolveThresholdNext_ = 0.0f;
+    float dissolveEdgeRangeNext_ = 0.02f;
+    std::string dissolveMaskPathNext_ = "masks/noise0.png";
+    float randomStrengthNext_ = 0.0f;
+    float hsvHueNext_ = 0.0f;
+    float hsvSaturationNext_ = 0.0f;
+    float hsvValueNext_ = 0.0f;
     int currentMode_ = kModeCopy;
 
     // パラメータ適用最適化用（変更時のみ定数バッファを更新するため）
@@ -260,26 +260,26 @@ public:
     /// <param name="deltaTime">経過時間</param>
     void Update(float deltaTime);
 
-    // --- 静的セッター (外部から呼び出す) ---
+    // --- セッター (外部から呼び出す) ---
 
     /// <summary>
     /// ポストエフェクトモードを設定する
     /// </summary>
     /// <param name="mode">ポストエフェクトモード</param>
-    static void SetMode(int mode)         { modeNext_ = mode; }
+    void SetMode(int mode)         { modeNext_ = mode; }
 
     /// <summary>
     /// カラーフィルタの強さを設定する
     /// </summary>
     /// <param name="s">強さ</param>
-    static void SetStrength(float s)      { strengthNext_ = s; }
+    void SetStrength(float s)      { strengthNext_ = s; }
 
     /// <summary>
     /// ビネット効果のパラメータを設定する
     /// </summary>
     /// <param name="scale">スケール</param>
     /// <param name="exponent">指数</param>
-    static void SetVignetteParams(float scale, float exponent) {
+    void SetVignetteParams(float scale, float exponent) {
         vignetteScaleNext_ = std::clamp(scale, kMinVignetteScale, kMaxVignetteScale);
         vignetteExponentNext_ = std::clamp(exponent, kMinVignetteExponent, kMaxVignetteExponent);
     }
@@ -288,7 +288,7 @@ public:
     /// 平滑化のパラメータを設定する（偶数の場合は奇数に自動補正されます）
     /// </summary>
     /// <param name="kernelSize">カーネルサイズ</param>
-    static void SetSmoothingParams(int kernelSize) {
+    void SetSmoothingParams(int kernelSize) {
         int clampedSize = std::clamp(kernelSize, kMinSmoothingKernelSize, kMaxSmoothingKernelSize);
         if (clampedSize % 2 == 0) {
             clampedSize += 1;
@@ -301,7 +301,7 @@ public:
     /// </summary>
     /// <param name="kernelSize">カーネルサイズ</param>
     /// <param name="sigma">シグマ</param>
-    static void SetGaussianBlurParams(int kernelSize, float sigma) {
+    void SetGaussianBlurParams(int kernelSize, float sigma) {
         int clampedSize = std::clamp(kernelSize, kMinGaussianBlurKernelSize, kMaxGaussianBlurKernelSize);
         if (clampedSize % 2 == 0) {
             clampedSize += 1;
@@ -315,7 +315,7 @@ public:
     /// </summary>
     /// <param name="depthEdgeMultiplier">深度エッジの倍数</param>
     /// <param name="colorEdgeMultiplier">色エッジの倍数</param>
-    static void SetOutlineParams(float depthEdgeMultiplier, float colorEdgeMultiplier) {
+    void SetOutlineParams(float depthEdgeMultiplier, float colorEdgeMultiplier) {
         outlineDepthEdgeMultiplierNext_ = std::clamp(depthEdgeMultiplier, kMinOutlineDepthEdgeMultiplier, kMaxOutlineDepthEdgeMultiplier);
         outlineColorEdgeMultiplierNext_ = std::clamp(colorEdgeMultiplier, kMinOutlineColorEdgeMultiplier, kMaxOutlineColorEdgeMultiplier);
     }
@@ -327,7 +327,7 @@ public:
     /// <param name="centerY">ぼかしの中心Y座標</param>
     /// <param name="width">ぼかしの幅</param>
     /// <param name="sampleCount">サンプル数</param>
-    static void SetRadialBlurParams(float centerX, float centerY, float width, int sampleCount) {
+    void SetRadialBlurParams(float centerX, float centerY, float width, int sampleCount) {
         radialBlurCenterXNext_ = std::clamp(centerX, kMinRadialBlurCenterX, kMaxRadialBlurCenterX);
         radialBlurCenterYNext_ = std::clamp(centerY, kMinRadialBlurCenterY, kMaxRadialBlurCenterY);
         radialBlurWidthNext_ = std::clamp(width, kMinRadialBlurWidth, kMaxRadialBlurWidth);
@@ -340,7 +340,7 @@ public:
     /// <param name="edgeColor">エッジの色</param>
     /// <param name="threshold">閾値</param>
     /// <param name="edgeRange">エッジの範囲</param>
-    static void SetDissolveParams(const float edgeColor[3], float threshold, float edgeRange) {
+    void SetDissolveParams(const float edgeColor[3], float threshold, float edgeRange) {
         dissolveEdgeColorNext_[0] = std::clamp(edgeColor[0], 0.0f, 1.0f);
         dissolveEdgeColorNext_[1] = std::clamp(edgeColor[1], 0.0f, 1.0f);
         dissolveEdgeColorNext_[2] = std::clamp(edgeColor[2], 0.0f, 1.0f);
@@ -352,7 +352,7 @@ public:
     /// 解体効果のマスクテクスチャを設定する
     /// </summary>
     /// <param name="maskPath">マスクテクスチャのパス</param>
-    static void SetDissolveMaskTexture(const std::string& maskPath) {
+    void SetDissolveMaskTexture(const std::string& maskPath) {
         dissolveMaskPathNext_ = maskPath;
     }
 
@@ -360,7 +360,7 @@ public:
     /// ランダム効果のパラメータを設定する
     /// </summary>
     /// <param name="strength">強さ</param>
-    static void SetRandomParams(float strength) {
+    void SetRandomParams(float strength) {
         randomStrengthNext_ = std::clamp(strength, kMinRandomStrength, kMaxRandomStrength);
     }
 
@@ -370,31 +370,31 @@ public:
     /// <param name="hue">色相</param>
     /// <param name="saturation">彩度</param>
     /// <param name="value">明度</param>
-    static void SetHSVParams(float hue, float saturation, float value) {
+    void SetHSVParams(float hue, float saturation, float value) {
         hsvHueNext_ = std::clamp(hue, kMinHSVHue, kMaxHSVHue);
         hsvSaturationNext_ = std::clamp(saturation, kMinHSVSaturation, kMaxHSVSaturation);
         hsvValueNext_ = std::clamp(value, kMinHSVValue, kMaxHSVValue);
     }
 
-    // --- パラメータ取得用静的ゲッター (双方向同期用) ---
-    static float GetVignetteScale() { return vignetteScaleNext_; }
-    static float GetVignetteExponent() { return vignetteExponentNext_; }
-    static int GetSmoothingKernelSize() { return smoothingKernelSizeNext_; }
-    static int GetGaussianBlurKernelSize() { return gaussianBlurKernelSizeNext_; }
-    static float GetGaussianBlurSigma() { return gaussianBlurSigmaNext_; }
-    static float GetOutlineDepthEdgeMultiplier() { return outlineDepthEdgeMultiplierNext_; }
-    static float GetOutlineColorEdgeMultiplier() { return outlineColorEdgeMultiplierNext_; }
-    static float GetRadialBlurCenterX() { return radialBlurCenterXNext_; }
-    static float GetRadialBlurCenterY() { return radialBlurCenterYNext_; }
-    static float GetRadialBlurWidth() { return radialBlurWidthNext_; }
-    static int GetRadialBlurSampleCount() { return radialBlurSampleCountNext_; }
-    static float GetDissolveThreshold() { return dissolveThresholdNext_; }
-    static float GetDissolveEdgeRange() { return dissolveEdgeRangeNext_; }
-    static const float* GetDissolveEdgeColor() { return dissolveEdgeColorNext_; }
-    static float GetRandomStrength() { return randomStrengthNext_; }
-    static float GetHSVHue() { return hsvHueNext_; }
-    static float GetHSVSaturation() { return hsvSaturationNext_; }
-    static float GetHSVValue() { return hsvValueNext_; }
+    // --- パラメータ取得用ゲッター (双方向同期用) ---
+    float GetVignetteScale() const { return vignetteScaleNext_; }
+    float GetVignetteExponent() const { return vignetteExponentNext_; }
+    int GetSmoothingKernelSize() const { return smoothingKernelSizeNext_; }
+    int GetGaussianBlurKernelSize() const { return gaussianBlurKernelSizeNext_; }
+    float GetGaussianBlurSigma() const { return gaussianBlurSigmaNext_; }
+    float GetOutlineDepthEdgeMultiplier() const { return outlineDepthEdgeMultiplierNext_; }
+    float GetOutlineColorEdgeMultiplier() const { return outlineColorEdgeMultiplierNext_; }
+    float GetRadialBlurCenterX() const { return radialBlurCenterXNext_; }
+    float GetRadialBlurCenterY() const { return radialBlurCenterYNext_; }
+    float GetRadialBlurWidth() const { return radialBlurWidthNext_; }
+    int GetRadialBlurSampleCount() const { return radialBlurSampleCountNext_; }
+    float GetDissolveThreshold() const { return dissolveThresholdNext_; }
+    float GetDissolveEdgeRange() const { return dissolveEdgeRangeNext_; }
+    const float* GetDissolveEdgeColor() const { return dissolveEdgeColorNext_; }
+    float GetRandomStrength() const { return randomStrengthNext_; }
+    float GetHSVHue() const { return hsvHueNext_; }
+    float GetHSVSaturation() const { return hsvSaturationNext_; }
+    float GetHSVValue() const { return hsvValueNext_; }
 
     /// <summary>
     /// 現在のポストエフェクトモードを取得する

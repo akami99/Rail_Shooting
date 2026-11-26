@@ -12,27 +12,6 @@
 
 // 静的メンバの実体化
 std::unique_ptr<PostProcessManager> PostProcessManager::instance_;
-int PostProcessManager::modeNext_ = 0;
-float PostProcessManager::strengthNext_ = 1.0f;
-float PostProcessManager::vignetteScaleNext_ = 16.0f;
-float PostProcessManager::vignetteExponentNext_ = 0.8f;
-int PostProcessManager::smoothingKernelSizeNext_ = 3;
-int PostProcessManager::gaussianBlurKernelSizeNext_ = 3;
-float PostProcessManager::gaussianBlurSigmaNext_ = 2.0f;
-float PostProcessManager::outlineDepthEdgeMultiplierNext_ = 6.0f;
-float PostProcessManager::outlineColorEdgeMultiplierNext_ = 1.0f;
-float PostProcessManager::radialBlurCenterXNext_ = 0.5f;
-float PostProcessManager::radialBlurCenterYNext_ = 0.5f;
-float PostProcessManager::radialBlurWidthNext_ = 0.01f;
-int PostProcessManager::radialBlurSampleCountNext_ = 10;
-float PostProcessManager::dissolveEdgeColorNext_[3] = { 1.0f, 0.4f, 0.3f };
-float PostProcessManager::dissolveThresholdNext_ = 0.0f;
-float PostProcessManager::dissolveEdgeRangeNext_ = 0.02f;
-std::string PostProcessManager::dissolveMaskPathNext_ = "masks/noise0.png";
-float PostProcessManager::randomStrengthNext_ = 0.0f;
-float PostProcessManager::hsvHueNext_ = 0.0f;
-float PostProcessManager::hsvSaturationNext_ = 0.0f;
-float PostProcessManager::hsvValueNext_ = 0.0f;
 
 PostProcessManager* PostProcessManager::GetInstance() {
     if (!instance_) {

@@ -6,7 +6,6 @@
 #include <cassert>
 
 using namespace Microsoft::WRL;
-using namespace Logger;
 
 // 静的メンバ変数の実体
 std::unique_ptr<PipelineManager> PipelineManager::instance_ = nullptr;

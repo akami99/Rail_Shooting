@@ -16,6 +16,10 @@ SrvManager* SrvManager::GetInstance() {
 	return instance_.get();
 }
 
+void SrvManager::Destroy() {
+	instance_.reset();
+}
+
 SrvManager::SrvManager(Token) {
 	// コンストラクタ
 }

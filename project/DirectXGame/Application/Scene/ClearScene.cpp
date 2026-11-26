@@ -61,8 +61,8 @@ void ClearScene::Initialize()
     retryBoardCurrentYaw_ = retryBoardRot_.y;
     isCovering_ = false;
     coverYOffset_ = 0.0f;
-    PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-    PostProcessManager::SetVignetteParams(0.0f, 5.0f);
+    PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+    PostProcessManager::GetInstance()->SetVignetteParams(0.0f, 5.0f);
 
     // カメラ生成（タイトルシーンと同様の視点）
     camera_ = std::make_unique<Camera>();
@@ -217,8 +217,8 @@ void ClearScene::Update()
         float easedT = t * t;
         float scale = 16.0f * (1.0f - easedT);
         float exponent = 0.8f + (5.0f - 0.8f) * easedT;
-        PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-        PostProcessManager::SetVignetteParams(scale, exponent);
+        PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+        PostProcessManager::GetInstance()->SetVignetteParams(scale, exponent);
 
         if (transitionOutTimer_ >= kTransitionOutDuration) {
             if (selectedAction_ == SelectAction::Retry) {
@@ -236,10 +236,10 @@ void ClearScene::Update()
         float scale = 16.0f * eased;
         float exponent = 5.0f + (0.8f - 5.0f) * eased;
         if (t >= 1.0f) {
-            PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+            PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
         } else {
-            PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-            PostProcessManager::SetVignetteParams(scale, exponent);
+            PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+            PostProcessManager::GetInstance()->SetVignetteParams(scale, exponent);
         }
     }
 

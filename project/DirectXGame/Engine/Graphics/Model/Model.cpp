@@ -529,7 +529,7 @@ void Model::LoadModelFile(const std::string &directoryPath,
     }
 
     if (modelData_.material.textureFilePath.empty()) {
-        modelData_.material.textureFilePath = TextureManager::GetInstance()->defaultTexturePath_;
+        modelData_.material.textureFilePath = TextureManager::GetDefaultTexturePath();
     }
 
     // --- ノードの解析 ---

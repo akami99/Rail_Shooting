@@ -4,7 +4,6 @@
 #include "Base/DX12Context.h"
 #include "Base/SrvManager.h"
 
-using namespace Logger;
 using namespace StringUtility;
 using namespace Microsoft::WRL;
 
@@ -147,7 +146,7 @@ void TextureManager::LoadTexture(const std::string &filePath) {
   }
   assert(SUCCEEDED(hr));
 
-  Log("INFO: Loaded texture at path: " + finalPath + "\n");
+  Logger::Log("INFO: Loaded texture at path: " + finalPath + "\n");
 
   // テクスチャデータを追加
   TextureData &textureData = textureDatas_[finalPath];

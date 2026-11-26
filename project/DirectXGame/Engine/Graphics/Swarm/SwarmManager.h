@@ -144,18 +144,22 @@ public:
 
     // 突撃以降距離の設定(0.0f にすると突撃しない)
     void SetAttackDistance(float dist) { settings_.attackDistance = dist; }
+    void SetMaxSpeed(float maxSpeed) { settings_.maxSpeed = maxSpeed; }
 
-    // パラメータ取得 (ImGui等での調整用)
-    Swarm::SwarmGlobalConstants& GetSettings() { return settings_; }
+    // パラメータ取得・設定
+    const Swarm::SwarmGlobalConstants& GetSettings() const { return settings_; }
+    void SetSettings(const Swarm::SwarmGlobalConstants& settings) { settings_ = settings; }
     uint32_t GetDroneCount() const { return droneCount_; }
-    float& GetDroneScale() { return droneScale_; }
     float GetDroneScale() const { return droneScale_; }
     void SetDroneScale(float scale) { droneScale_ = scale; }
-    float& GetCrashCollisionRadiusScale() { return crashCollisionRadiusScale_; }
     float GetCrashCollisionRadiusScale() const { return crashCollisionRadiusScale_; }
-    float& GetCrashGroundFriction() { return crashGroundFriction_; }
-    float& GetCrashBounciness() { return crashBounciness_; }
-    float& GetCrashPushStrength() { return crashPushStrength_; }
+    void SetCrashCollisionRadiusScale(float scale) { crashCollisionRadiusScale_ = scale; }
+    float GetCrashGroundFriction() const { return crashGroundFriction_; }
+    void SetCrashGroundFriction(float friction) { crashGroundFriction_ = friction; }
+    float GetCrashBounciness() const { return crashBounciness_; }
+    void SetCrashBounciness(float bounciness) { crashBounciness_ = bounciness; }
+    float GetCrashPushStrength() const { return crashPushStrength_; }
+    void SetCrashPushStrength(float strength) { crashPushStrength_ = strength; }
     const std::vector<Swarm::DroneData>& GetDronesData() const { return dronesShadow_; }
     uint32_t GetAliveDroneCount() const;
 

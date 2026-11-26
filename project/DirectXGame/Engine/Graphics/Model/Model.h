@@ -100,11 +100,6 @@ public: // メンバ関数
   uint32_t GetIndexCount() const { return static_cast<uint32_t>(modelData_.indices.size()); }
   const std::string& GetTextureFilePath() const { return modelData_.material.textureFilePath; }
 
-#ifdef USE_IMGUI
-  // 色の参照取得(ImGui用)
-  Vector4 &GetColorDebug() { return materialData_->color; }
-#endif // USE_IMGUI
-
 
   // setter
 

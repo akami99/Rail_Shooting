@@ -47,6 +47,10 @@ public:
 
 private:
     ~SceneManager() = default;
+    SceneManager(const SceneManager&) = delete;
+    SceneManager& operator=(const SceneManager&) = delete;
+    SceneManager(SceneManager&&) = delete;
+    SceneManager& operator=(SceneManager&&) = delete;
     static std::unique_ptr<SceneManager> instance_;
     friend std::default_delete<SceneManager>;
 

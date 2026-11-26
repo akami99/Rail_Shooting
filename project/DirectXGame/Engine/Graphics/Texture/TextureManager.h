@@ -17,8 +17,13 @@ public:
     Token() {}
   };
 
+private: // 静的定数
   // デフォルトテクスチャのパス
-  const std::string defaultTexturePath_ = "Resources/Textures/white.png";
+  static inline const std::string kDefaultTexturePath_ = "Resources/Textures/white.png";
+
+public:
+  // デフォルトテクスチャパスの取得
+  static const std::string& GetDefaultTexturePath() { return kDefaultTexturePath_; }
 
 private: // namespace省略のためのusing宣言
 #pragma region using宣言

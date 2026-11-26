@@ -1,38 +1,31 @@
 #include "ParticleEmitter.h"
 #include "ParticleManager.h"
 
-// 共通のコピー処理を行うヘルパー関数
-void CopyEmitterMembers(const ParticleEmitter& src, ParticleEmitter& dest) {
-	dest.transform = src.transform;
-	dest.count = src.count;
-	dest.frequency = src.frequency;
-	dest.frequencyTime = src.frequencyTime;
-	dest.isEmit = src.isEmit;
-	dest.isEffectMode = src.isEffectMode;
-	dest.isLoop = src.isLoop;
-	dest.isPlaying = src.isPlaying;
-	dest.generateSettings = src.generateSettings;
-	dest.fieldSettings = src.fieldSettings;
-	dest.uvAnimationSettings = src.uvAnimationSettings;
-
-	// shapeのディープコピー
-	if (src.shape) {
-		dest.shape = src.shape->clone();
-	}
-	else {
-		dest.shape = std::make_unique<BillboardShape>();
-	}
-}
-
 // コピーコンストラクタ: shape の clone() を呼んで複製（ディープコピー）
 ParticleEmitter::ParticleEmitter(const ParticleEmitter& other) {
-	CopyEmitterMembers(other, *this);
+	*this = other;
 }
 
 // コピー代入演算子
 ParticleEmitter& ParticleEmitter::operator=(const ParticleEmitter& other) {
 	if (this != &other) {
-		CopyEmitterMembers(other, *this);
+		transform_ = other.transform_;
+		count_ = other.count_;
+		frequency_ = other.frequency_;
+		frequencyTime_ = other.frequencyTime_;
+		isEmit_ = other.isEmit_;
+		isEffectMode_ = other.isEffectMode_;
+		isLoop_ = other.isLoop_;
+		isPlaying_ = other.isPlaying_;
+		generateSettings_ = other.generateSettings_;
+		fieldSettings_ = other.fieldSettings_;
+		uvAnimationSettings_ = other.uvAnimationSettings_;
+
+		if (other.shape_) {
+			shape_ = other.shape_->clone();
+		} else {
+			shape_ = std::make_unique<BillboardShape>();
+		}
 	}
 	return *this;
 }
@@ -44,16 +37,16 @@ void ParticleEmitter::SetShapeType(ParticleShapeType type) {
 
 	switch (type) {
 	case ParticleShapeType::Billboard:
-		shape = std::make_unique<BillboardShape>();
+		shape_ = std::make_unique<BillboardShape>();
 		break;
 	case ParticleShapeType::Ring:
-		shape = std::make_unique<RingShape>();
+		shape_ = std::make_unique<RingShape>();
 		break;
 	case ParticleShapeType::Cylinder:
-		shape = std::make_unique<CylinderShape>();
+		shape_ = std::make_unique<CylinderShape>();
 		break;
 	case ParticleShapeType::Plane:
-		shape = std::make_unique<PlaneShape>();
+		shape_ = std::make_unique<PlaneShape>();
 		break;
 	}
 }
@@ -62,7 +55,7 @@ void ParticleEmitter::Emit(const std::string& groupName) {
 	// エミッタの設定値に従って、ParticleManager::GetInstance()->Emit を呼び出す
 	ParticleManager::GetInstance()->Emit(
 		groupName,
-		this->transform.translate, // エミッタの現在位置
-		this->count                // 設定された個数
+		transform_.translate, // エミッタの現在位置
+		count_                // 設定された個数
 	);
 }

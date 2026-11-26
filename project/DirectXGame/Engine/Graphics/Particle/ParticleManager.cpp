@@ -18,7 +18,6 @@
 
 using namespace MathUtils;
 using namespace MathGenerators;
-using namespace Logger;
 using namespace BlendMode;
 
 std::unique_ptr<ParticleManager> ParticleManager::instance_ = nullptr;
@@ -56,7 +55,7 @@ void ParticleManager::SetEmitter(const std::string& name,
 	group.emitter = emitter;
 
 	// 3. (Optional) 頻度時刻をリセット（すぐに発生を開始させたい場合）
-	group.emitter.frequencyTime = 0.0f;
+	group.emitter.SetFrequencyTime(0.0f);
 }
 
 std::vector<std::string> ParticleManager::GetParticleGroupNames() const {
@@ -68,6 +67,14 @@ std::vector<std::string> ParticleManager::GetParticleGroupNames() const {
 }
 
 ParticleEmitter* ParticleManager::GetEmitter(const std::string& name) {
+	auto it = particleGroups_.find(name);
+	if (it != particleGroups_.end()) {
+		return &it->second.emitter;
+	}
+	return nullptr;
+}
+
+const ParticleEmitter* ParticleManager::GetEmitter(const std::string& name) const {
 	auto it = particleGroups_.find(name);
 	if (it != particleGroups_.end()) {
 		return &it->second.emitter;
@@ -282,7 +289,7 @@ void ParticleManager::CreateParticleGroup(const std::string& name,
 		group.defaultModel = model;
 		group.model = model;
 		group.materialData.textureFilePath = textureFilePath;
-		group.emitter.isEmit = false;
+		group.emitter.SetIsEmit(false);
 		TextureManager::GetInstance()->LoadTexture(textureFilePath);
 		return;
 	}
@@ -331,7 +338,7 @@ void ParticleManager::CreateParticleGroup(const std::string& name,
 		particleData[index].uvTransform = MakeIdentity4x4();
 	}
 	newGroup.instanceCount = 0;
-	newGroup.emitter.isEmit = false;
+	newGroup.emitter.SetIsEmit(false);
 
 	// 1. マテリアルデータ用のCBVリソースを生成
 	const UINT kCbvAlignedSize = 256;
@@ -391,7 +398,7 @@ void ParticleManager::Emit(const std::string& name, const Vector3& translate,
 	// 指定された個数だけパーティクルを生成
 	for (uint32_t i = 0; i < count; ++i) {
 		// MakeNewParticle で設定に基づいたランダムな初期値を持つパーティクルを生成
-		Particle newParticle = MakeNewParticle(translate, group.emitter.generateSettings);
+		Particle newParticle = MakeNewParticle(translate, group.emitter.GetGenerateSettings());
 
 		// グループ内のパーティクルリストに追加
 		group.particles.push_back(std::move(newParticle));
@@ -480,53 +487,47 @@ Particle ParticleManager::MakeNewParticle(const Vector3& translate, const Partic
 // Update ヘルパー: エミッターの時刻進行とパーティクル生成
 // ---------------------------------------------------------------------------
 void ParticleManager::UpdateGroupEmitter(ParticleGroup& group, const std::string& name, float deltaTime) {
-	if (group.emitter.isEffectMode) {
+	if (group.emitter.IsEffectMode()) {
 		// エフェクトモードの場合（独立した別枠の「パーティクル生成システム」）
 		bool hasActiveParticles = !group.particles.empty();
 
 		if (!hasActiveParticles) {
 			// パーティクルがない（消滅した＝アニメーション完了）
-			if (group.emitter.isPlaying) {
+			if (group.emitter.IsPlaying()) {
 				// 再生中だったものが消滅した場合
-				group.emitter.isPlaying = false;
+				group.emitter.SetIsPlaying(false);
 
-				if (group.emitter.isLoop) {
+				if (group.emitter.IsLoop()) {
 					// ループが有効なら、UV設定をリセットして最初から再再生
-					auto& uvas = group.emitter.uvAnimationSettings;
-					uvas.currentTranslate = { 0.0f, 0.0f };
-					uvas.currentRotate = 0.0f;
-					uvas.currentScale = { 1.0f, 1.0f };
+					group.emitter.ResetUVAnimationState();
 
 					// 再度発生
-					Emit(name, group.emitter.transform.translate, group.emitter.count);
-					group.emitter.isPlaying = true;
+					Emit(name, group.emitter.GetTranslate(), group.emitter.GetCount());
+					group.emitter.SetIsPlaying(true);
 				}
 			} else {
 				// 再生中でない（初期状態、または一度再生が終わってループ無効）
 				// isEmit がオンになった瞬間に最初の1回を再生開始する
-				if (group.emitter.isEmit) {
-					auto& uvas = group.emitter.uvAnimationSettings;
-					uvas.currentTranslate = { 0.0f, 0.0f };
-					uvas.currentRotate = 0.0f;
-					uvas.currentScale = { 1.0f, 1.0f };
+				if (group.emitter.IsEmit()) {
+					group.emitter.ResetUVAnimationState();
 
-					Emit(name, group.emitter.transform.translate, group.emitter.count);
-					group.emitter.isPlaying = true;
+					Emit(name, group.emitter.GetTranslate(), group.emitter.GetCount());
+					group.emitter.SetIsPlaying(true);
 				}
 			}
 		}
 	} else {
 		// 既存の frequency に基づく自動連続生成処理
-		if (group.emitter.isEmit) {
-			group.emitter.frequencyTime += deltaTime;
-			if (group.emitter.frequency > 0.0f &&
-				group.emitter.frequency <= group.emitter.frequencyTime) {
-				Emit(name, group.emitter.transform.translate, group.emitter.count);
-				group.emitter.frequencyTime -= group.emitter.frequency;
+		if (group.emitter.IsEmit()) {
+			group.emitter.AddFrequencyTime(deltaTime);
+			if (group.emitter.GetFrequency() > 0.0f &&
+				group.emitter.GetFrequency() <= group.emitter.GetFrequencyTime()) {
+				Emit(name, group.emitter.GetTranslate(), group.emitter.GetCount());
+				group.emitter.SetFrequencyTime(group.emitter.GetFrequencyTime() - group.emitter.GetFrequency());
 			}
 		} else {
 			// 自動発生が無効な場合は時刻をリセットし、再び有効になったときに一気に発生するのを防ぐ
-			group.emitter.frequencyTime = 0.0f;
+			group.emitter.SetFrequencyTime(0.0f);
 		}
 	}
 }
@@ -538,29 +539,26 @@ void ParticleManager::UpdateGroupMaterial(ParticleGroup& group, float deltaTime)
 	if (!group.materialMappedData) return;
 
 	// --- グローバル UV アニメーション ---
-	auto& uvas = group.emitter.uvAnimationSettings;
+	const auto& uvas = group.emitter.GetUVAnimationSettings();
 	if (uvas.isActive && !uvas.isIndividual) {
-		uvas.currentTranslate.x += uvas.scrollSpeed.x * deltaTime;
-		uvas.currentTranslate.y += uvas.scrollSpeed.y * deltaTime;
-		uvas.currentRotate      += uvas.rotateSpeed   * deltaTime;
-		uvas.currentScale.x     += uvas.scaleSpeed.x  * deltaTime;
-		uvas.currentScale.y     += uvas.scaleSpeed.y  * deltaTime;
+		group.emitter.AdvanceUVAnimation(deltaTime);
+		const auto& updatedUvas = group.emitter.GetUVAnimationSettings();
 
 		group.materialMappedData->uvTransform = MakeAffineMatrix(
-			Vector3{ uvas.currentScale.x, uvas.currentScale.y, 1.0f },
-			Vector3{ 0.0f, 0.0f, uvas.currentRotate },
-			Vector3{ uvas.currentTranslate.x, uvas.currentTranslate.y, 0.0f });
+			Vector3{ updatedUvas.currentScale.x, updatedUvas.currentScale.y, 1.0f },
+			Vector3{ 0.0f, 0.0f, updatedUvas.currentRotate },
+			Vector3{ updatedUvas.currentTranslate.x, updatedUvas.currentTranslate.y, 0.0f });
 	} else {
 		group.materialMappedData->uvTransform = MakeIdentity4x4();
 	}
 
 	// 形状に応じたマテリアル設定（isRing / isCylinder フラグ等）を委譲
-	if (group.emitter.shape) {
-		group.emitter.shape->ApplyMaterial(group.materialMappedData);
+	if (ParticleShape* shape = group.emitter.GetShape()) {
+		shape->ApplyMaterial(group.materialMappedData);
 
 		// 必要ならモデルを内部で再構築し、キャッシュされたモデルポインタを取得
 		// (テクスチャパスが変わっていなければ再構築は走らず、前回作成したモデルが返る)
-		Model* shapeModel = group.emitter.shape->GetOrBuildModel(group.materialData.textureFilePath);
+		Model* shapeModel = shape->GetOrBuildModel(group.materialData.textureFilePath);
 
 		// シェイプ固有のモデルがあればそれを使い、なければデフォルトのモデル（Billboard等）を使う
 		group.model = shapeModel ? shapeModel : group.defaultModel;
@@ -575,7 +573,7 @@ void ParticleManager::UpdateGroupMaterial(ParticleGroup& group, float deltaTime)
 // ---------------------------------------------------------------------------
 bool ParticleManager::UpdateParticle(Particle& particle, const ParticleGroup& group, float deltaTime) {
 	if (isUpdate_) {
-		const auto& fs = group.emitter.fieldSettings;
+		const auto& fs = group.emitter.GetFieldSettings();
 
 		// 加速フィールド
 		if (fs.isAccelerationFieldActive &&
@@ -592,10 +590,8 @@ bool ParticleManager::UpdateParticle(Particle& particle, const ParticleGroup& gr
 	particle.transform.translate += particle.velocity * deltaTime;
 
 	// 個別 UV アニメーション
-	if (isUpdate_ &&
-		group.emitter.uvAnimationSettings.isActive &&
-		group.emitter.uvAnimationSettings.isIndividual) {
-		const auto& uvas = group.emitter.uvAnimationSettings;
+	const auto& uvas = group.emitter.GetUVAnimationSettings();
+	if (isUpdate_ && uvas.isActive && uvas.isIndividual) {
 		particle.uvTranslate.x += uvas.scrollSpeed.x * deltaTime;
 		particle.uvTranslate.y += uvas.scrollSpeed.y * deltaTime;
 		particle.uvRotate      += uvas.rotateSpeed   * deltaTime;
@@ -639,7 +635,7 @@ void ParticleManager::WriteInstanceData(
 			Matrix4x4 rotateM = MakeRotateXYZMatrix(particle.transform.rotate);
 
 			Matrix4x4 billboardM;
-			if (group.emitter.shape && group.emitter.shape->NeedsBillboard() && useBillboard_) {
+			if (group.emitter.GetShape() && group.emitter.GetShape()->NeedsBillboard() && useBillboard_) {
 				billboardM = camera.GetWorldMatrix();
 				billboardM.m[3][0] = billboardM.m[3][1] = billboardM.m[3][2] = 0.0f;
 			} else {
@@ -653,7 +649,7 @@ void ParticleManager::WriteInstanceData(
 
 			// UV 変換行列
 			Matrix4x4 uvM;
-			const auto& uvas = group.emitter.uvAnimationSettings;
+			const auto& uvas = group.emitter.GetUVAnimationSettings();
 			if (uvas.isActive) {
 				if (uvas.isIndividual) {
 					uvM = MakeAffineMatrix(

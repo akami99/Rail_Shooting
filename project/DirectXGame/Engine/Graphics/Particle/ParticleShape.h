@@ -41,6 +41,13 @@ public:
     void MarkDirty() { isDirty_ = true; }
 
 protected:
+    bool NeedsRebuild(const std::string& texPath) const { return isDirty_ || lastTexPath_ != texPath; }
+    void MarkBuilt(const std::string& texPath) {
+        isDirty_ = false;
+        lastTexPath_ = texPath;
+    }
+
+private:
     bool isDirty_ = true;
     std::string lastTexPath_;
 };
@@ -65,7 +72,11 @@ public:
     RingShape();
     ~RingShape() override;
 
-    RingSettings settings;
+    const RingSettings& GetSettings() const { return settings_; }
+    void SetSettings(const RingSettings& newSettings) {
+        settings_ = newSettings;
+        MarkDirty();
+    }
 
     std::unique_ptr<ParticleShape> clone() const override;
     void ApplyMaterial(Material* mat) const override;
@@ -73,6 +84,7 @@ public:
     ParticleShapeType GetType() const override { return ParticleShapeType::Ring; }
 
 private:
+    RingSettings settings_;
     std::unique_ptr<Model> model_;
 };
 
@@ -84,7 +96,11 @@ public:
     CylinderShape();
     ~CylinderShape() override;
 
-    CylinderSettings settings;
+    const CylinderSettings& GetSettings() const { return settings_; }
+    void SetSettings(const CylinderSettings& newSettings) {
+        settings_ = newSettings;
+        MarkDirty();
+    }
 
     std::unique_ptr<ParticleShape> clone() const override;
     void ApplyMaterial(Material* mat) const override;
@@ -92,6 +108,7 @@ public:
     ParticleShapeType GetType() const override { return ParticleShapeType::Cylinder; }
 
 private:
+    CylinderSettings settings_;
     std::unique_ptr<Model> model_;
 };
 
@@ -103,7 +120,11 @@ public:
     PlaneShape();
     ~PlaneShape() override;
 
-    PlaneSettings settings;
+    const PlaneSettings& GetSettings() const { return settings_; }
+    void SetSettings(const PlaneSettings& newSettings) {
+        settings_ = newSettings;
+        MarkDirty();
+    }
 
     std::unique_ptr<ParticleShape> clone() const override;
     void ApplyMaterial(Material* mat) const override;
@@ -111,5 +132,6 @@ public:
     ParticleShapeType GetType() const override { return ParticleShapeType::Plane; }
 
 private:
+    PlaneSettings settings_;
     std::unique_ptr<Model> model_;
 };

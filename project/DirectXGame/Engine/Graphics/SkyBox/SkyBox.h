@@ -74,15 +74,15 @@ public:
     const std::string& GetTexturePath() const { return texturePath_; }
 
     // UVスケール（タイリング調整）
-    Vector2& GetUvScale() { return uvScale_; }
+    const Vector2& GetUvScale() const { return uvScale_; }
     void SetUvScale(const Vector2& uvScale) { uvScale_ = uvScale; }
 
     // ゲッター・セッター
-    Vector3& GetScale() { return scale_; }
+    const Vector3& GetScale() const { return scale_; }
     void SetScale(const Vector3& scale) { scale_ = scale; }
-    Vector3& GetRotate() { return rotate_; }
+    const Vector3& GetRotate() const { return rotate_; }
     void SetRotate(const Vector3& rotate) { rotate_ = rotate; }
-    Vector3& GetTranslate() { return translate_; }
+    const Vector3& GetTranslate() const { return translate_; }
     void SetTranslate(const Vector3& translate) { translate_ = translate; }
 private:
     void CreateVertexResource();   // 箱の頂点データ生成

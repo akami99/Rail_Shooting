@@ -149,51 +149,57 @@ void ShootingScene::Initialize() {
       {-0.060f, 2.320f, 0.000f} // translate
   };
   ParticleEmitter ringEmitter(ringEmitterTransform, 32, 0.400f);
-  ringEmitter.isEmit = false;
-  ringEmitter.isEffectMode = true;
-  ringEmitter.isLoop = false;
+  ringEmitter.SetIsEmit(false);
+  ringEmitter.SetIsEffectMode(true);
+  ringEmitter.SetIsLoop(false);
 
-  ringEmitter.generateSettings.isRandomScale = false;
-  ringEmitter.generateSettings.fixedScale = {1.000f, 2.000f, 4.000f};
+  {
+    ParticleGenerateSettings gs;
+    gs.isRandomScale = false;
+    gs.fixedScale = {1.000f, 2.000f, 4.000f};
+    gs.isRandomRotate = true;
+    gs.rotateMin = {0.000f, 0.000f, -3.142f};
+    gs.rotateMax = {0.000f, 0.000f, 3.142f};
+    gs.isRandomVelocity = false;
+    gs.fixedVelocity = {0.000f, -2.000f, 15.000f};
+    gs.isRandomLifeTime = false;
+    gs.fixedLifeTime = 1.000f;
+    gs.isRandomColor = true;
+    gs.colorMin = {0.0f, 0.0f, 0.0f, 1.0f};
+    gs.colorMax = {1.0f, 1.0f, 1.0f, 1.0f};
+    ringEmitter.SetGenerateSettings(gs);
 
-  ringEmitter.generateSettings.isRandomRotate = true;
-  ringEmitter.generateSettings.rotateMin = {0.000f, 0.000f, -3.142f};
-  ringEmitter.generateSettings.rotateMax = {0.000f, 0.000f, 3.142f};
+    ParticleFieldSettings fs;
+    fs.isAccelerationFieldActive = false;
+    fs.isGravityFieldActive = false;
+    ringEmitter.SetFieldSettings(fs);
 
-  ringEmitter.generateSettings.isRandomVelocity = false;
-  ringEmitter.generateSettings.fixedVelocity = {0.000f, -2.000f, 15.000f};
-
-  ringEmitter.generateSettings.isRandomLifeTime = false;
-  ringEmitter.generateSettings.fixedLifeTime = 1.000f;
-
-  ringEmitter.generateSettings.isRandomColor = true;
-  ringEmitter.generateSettings.colorMin = {0.0f, 0.0f, 0.0f, 1.0f};
-  ringEmitter.generateSettings.colorMax = {1.0f, 1.0f, 1.0f, 1.0f};
-
-  ringEmitter.fieldSettings.isAccelerationFieldActive = false;
-  ringEmitter.fieldSettings.isGravityFieldActive = false;
-
-  ringEmitter.uvAnimationSettings.isActive = true;
-  ringEmitter.uvAnimationSettings.isIndividual = true;
-  ringEmitter.uvAnimationSettings.scrollSpeed = {2.000f, 0.000f};
-  ringEmitter.uvAnimationSettings.rotateSpeed = 0.180f;
-  ringEmitter.uvAnimationSettings.scaleSpeed = {1.500f, -1.200f};
+    ParticleUVAnimationSettings uvas;
+    uvas.isActive = true;
+    uvas.isIndividual = true;
+    uvas.scrollSpeed = {2.000f, 0.000f};
+    uvas.rotateSpeed = 0.180f;
+    uvas.scaleSpeed = {1.500f, -1.200f};
+    ringEmitter.SetUVAnimationSettings(uvas);
+  }
 
   ringEmitter.SetShapeType(ParticleShapeType::Ring);
   if (auto *rs = ringEmitter.GetRingShape()) {
-    rs->settings.innerRadius = 0.010f;
-    rs->settings.startOuterRadius = 1.000f;
-    rs->settings.midOuterRadius = 1.200f;
-    rs->settings.endOuterRadius = 1.500f;
-    rs->settings.startAngle = 0.000f;
-    rs->settings.endAngle = 360.000f;
-    rs->settings.division = 32;
-    rs->settings.isUvSwap = false;
-    rs->settings.innerColor = {1.000f, 1.000f, 1.000f, 1.000f};
-    rs->settings.outerColor = {1.000f, 1.000f, 1.000f, 1.000f};
-    rs->settings.fadeStartAlpha = 1.000f;
-    rs->settings.fadeEndAlpha = 1.000f;
-    rs->settings.fadeRange = 0.000f;
+    RingSettings s = rs->GetSettings();
+    s.innerRadius = 0.010f;
+    s.startOuterRadius = 1.000f;
+    s.midOuterRadius = 1.200f;
+    s.endOuterRadius = 1.500f;
+    s.startAngle = 0.000f;
+    s.endAngle = 360.000f;
+    s.division = 32;
+    s.isUvSwap = false;
+    s.innerColor = {1.000f, 1.000f, 1.000f, 1.000f};
+    s.outerColor = {1.000f, 1.000f, 1.000f, 1.000f};
+    s.fadeStartAlpha = 1.000f;
+    s.fadeEndAlpha = 1.000f;
+    s.fadeRange = 0.000f;
+    rs->SetSettings(s);
   }
   ParticleManager::GetInstance()->SetEmitter(ringParticleGroupName_,
                                              ringEmitter);
@@ -209,44 +215,56 @@ void ShootingScene::Initialize() {
         {0.000f, 0.000f, 0.000f}  // translate
     };
     ParticleEmitter cylinderEmitter(cylinderTransform, 16, 0.400f);
-    cylinderEmitter.isEmit = false;
-    cylinderEmitter.isEffectMode = true;
-    cylinderEmitter.isLoop = false;
-    cylinderEmitter.generateSettings.isRandomScale = false;
-    cylinderEmitter.generateSettings.fixedScale = {0.500f, 2.000f, 0.500f};
-    cylinderEmitter.generateSettings.isRandomRotate = false;
-    cylinderEmitter.generateSettings.fixedRotate = {0.000f, 0.000f, 0.000f};
-    cylinderEmitter.generateSettings.isRandomVelocity = false;
-    cylinderEmitter.generateSettings.fixedVelocity = {0.000f, 3.000f, 0.000f};
-    cylinderEmitter.generateSettings.isRandomLifeTime = false;
-    cylinderEmitter.generateSettings.fixedLifeTime = 0.800f;
-    cylinderEmitter.generateSettings.isRandomColor = true;
-    cylinderEmitter.generateSettings.colorMin = {0.0f, 0.5f, 0.5f, 1.0f};
-    cylinderEmitter.generateSettings.colorMax = {0.5f, 1.0f, 1.0f, 1.0f};
-    cylinderEmitter.fieldSettings.isAccelerationFieldActive = false;
-    cylinderEmitter.fieldSettings.isGravityFieldActive = false;
-    cylinderEmitter.uvAnimationSettings.isActive = true;
-    cylinderEmitter.uvAnimationSettings.isIndividual = true;
-    cylinderEmitter.uvAnimationSettings.scrollSpeed = {0.000f, -2.000f};
-    cylinderEmitter.uvAnimationSettings.rotateSpeed = 0.000f;
-    cylinderEmitter.uvAnimationSettings.scaleSpeed = {0.500f, 1.500f};
+    cylinderEmitter.SetIsEmit(false);
+    cylinderEmitter.SetIsEffectMode(true);
+    cylinderEmitter.SetIsLoop(false);
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = false;
+      gs.fixedScale = {0.500f, 2.000f, 0.500f};
+      gs.isRandomRotate = false;
+      gs.fixedRotate = {0.000f, 0.000f, 0.000f};
+      gs.isRandomVelocity = false;
+      gs.fixedVelocity = {0.000f, 3.000f, 0.000f};
+      gs.isRandomLifeTime = false;
+      gs.fixedLifeTime = 0.800f;
+      gs.isRandomColor = true;
+      gs.colorMin = {0.0f, 0.5f, 0.5f, 1.0f};
+      gs.colorMax = {0.5f, 1.0f, 1.0f, 1.0f};
+      cylinderEmitter.SetGenerateSettings(gs);
+
+      ParticleFieldSettings fs;
+      fs.isAccelerationFieldActive = false;
+      fs.isGravityFieldActive = false;
+      cylinderEmitter.SetFieldSettings(fs);
+
+      ParticleUVAnimationSettings uvas;
+      uvas.isActive = true;
+      uvas.isIndividual = true;
+      uvas.scrollSpeed = {0.000f, -2.000f};
+      uvas.rotateSpeed = 0.000f;
+      uvas.scaleSpeed = {0.500f, 1.500f};
+      cylinderEmitter.SetUVAnimationSettings(uvas);
+    }
     cylinderEmitter.SetShapeType(ParticleShapeType::Cylinder);
     if (auto *cs = cylinderEmitter.GetCylinderShape()) {
-      cs->settings.height = 1.0f;
-      cs->settings.topRadius = {0.1f, 0.1f};
-      cs->settings.bottomRadius = {0.1f, 0.1f};
-      cs->settings.startAngle = 0.0f;
-      cs->settings.endAngle = 360.0f;
-      cs->settings.division = 32;
-      cs->settings.verticalDivision = 1;
-      cs->settings.flipV = false;
-      cs->settings.isUvSwap = false;
-      cs->settings.topColor = {1.0f, 1.0f, 1.0f, 1.0f};
-      cs->settings.bottomColor = {1.0f, 1.0f, 1.0f, 1.0f};
-      cs->settings.fadeStartAlpha = 1.000f;
-      cs->settings.fadeEndAlpha = 1.000f;
-      cs->settings.fadeRange = 0.000f;
-      cs->settings.alphaReference = 0.0f;
+      CylinderSettings s = cs->GetSettings();
+      s.height = 1.0f;
+      s.topRadius = {0.1f, 0.1f};
+      s.bottomRadius = {0.1f, 0.1f};
+      s.startAngle = 0.0f;
+      s.endAngle = 360.0f;
+      s.division = 32;
+      s.verticalDivision = 1;
+      s.flipV = false;
+      s.isUvSwap = false;
+      s.topColor = {1.0f, 1.0f, 1.0f, 1.0f};
+      s.bottomColor = {1.0f, 1.0f, 1.0f, 1.0f};
+      s.fadeStartAlpha = 1.000f;
+      s.fadeEndAlpha = 1.000f;
+      s.fadeRange = 0.000f;
+      s.alphaReference = 0.0f;
+      cs->SetSettings(s);
     }
     ParticleManager::GetInstance()->SetEmitter("CylinderGroup",
                                                cylinderEmitter);
@@ -262,28 +280,38 @@ void ShootingScene::Initialize() {
         {0.000f, 0.000f, 0.000f}  // translate
     };
     ParticleEmitter sparkEmitter(sparkTransform, 30, 0.400f);
-    sparkEmitter.isEmit = false;
-    sparkEmitter.isEffectMode = true;
-    sparkEmitter.isLoop = false;
-    sparkEmitter.generateSettings.isRandomScale = true;
-    sparkEmitter.generateSettings.scaleMin = {0.05f, 0.05f, 0.05f};
-    sparkEmitter.generateSettings.scaleMax = {0.20f, 0.20f, 0.20f};
-    sparkEmitter.generateSettings.isRandomRotate = true;
-    sparkEmitter.generateSettings.rotateMin = {0.0f, 0.0f, -3.14f};
-    sparkEmitter.generateSettings.rotateMax = {0.0f, 0.0f, 3.14f};
-    sparkEmitter.generateSettings.isRandomVelocity = true;
-    sparkEmitter.generateSettings.velocityMin = {-3.0f, 1.0f, -3.0f};
-    sparkEmitter.generateSettings.velocityMax = {3.0f, 6.0f, 3.0f};
-    sparkEmitter.generateSettings.isRandomLifeTime = true;
-    sparkEmitter.generateSettings.lifeTimeMin = 0.3f;
-    sparkEmitter.generateSettings.lifeTimeMax = 0.6f;
-    sparkEmitter.generateSettings.isRandomColor = true;
-    sparkEmitter.generateSettings.colorMin = {1.0f, 0.4f, 0.0f, 1.0f};
-    sparkEmitter.generateSettings.colorMax = {1.0f, 1.0f, 0.0f, 1.0f};
-    sparkEmitter.fieldSettings.isAccelerationFieldActive = false;
-    sparkEmitter.fieldSettings.isGravityFieldActive = true;
-    sparkEmitter.fieldSettings.gravity = {0.0f, -9.8f, 0.0f};
-    sparkEmitter.uvAnimationSettings.isActive = false;
+    sparkEmitter.SetIsEmit(false);
+    sparkEmitter.SetIsEffectMode(true);
+    sparkEmitter.SetIsLoop(false);
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = true;
+      gs.scaleMin = {0.05f, 0.05f, 0.05f};
+      gs.scaleMax = {0.20f, 0.20f, 0.20f};
+      gs.isRandomRotate = true;
+      gs.rotateMin = {0.0f, 0.0f, -3.14f};
+      gs.rotateMax = {0.0f, 0.0f, 3.14f};
+      gs.isRandomVelocity = true;
+      gs.velocityMin = {-3.0f, 1.0f, -3.0f};
+      gs.velocityMax = {3.0f, 6.0f, 3.0f};
+      gs.isRandomLifeTime = true;
+      gs.lifeTimeMin = 0.3f;
+      gs.lifeTimeMax = 0.6f;
+      gs.isRandomColor = true;
+      gs.colorMin = {1.0f, 0.4f, 0.0f, 1.0f};
+      gs.colorMax = {1.0f, 1.0f, 0.0f, 1.0f};
+      sparkEmitter.SetGenerateSettings(gs);
+
+      ParticleFieldSettings fs;
+      fs.isAccelerationFieldActive = false;
+      fs.isGravityFieldActive = true;
+      fs.gravity = {0.0f, -9.8f, 0.0f};
+      sparkEmitter.SetFieldSettings(fs);
+
+      ParticleUVAnimationSettings uvas;
+      uvas.isActive = false;
+      sparkEmitter.SetUVAnimationSettings(uvas);
+    }
     sparkEmitter.SetShapeType(ParticleShapeType::Billboard);
     ParticleManager::GetInstance()->SetEmitter("SparkGroup", sparkEmitter);
   }
@@ -298,45 +326,55 @@ void ShootingScene::Initialize() {
         {0.000f, 0.000f, 0.000f}  // translate
     };
     ParticleEmitter reloadCompleteEmitter(reloadCompleteTransform, 8, 0.400f);
-    reloadCompleteEmitter.isEmit = false;
-    reloadCompleteEmitter.isEffectMode = true;
-    reloadCompleteEmitter.isLoop = false;
-    reloadCompleteEmitter.generateSettings.isRandomScale = false;
-    reloadCompleteEmitter.generateSettings.fixedScale = {0.500f, 0.500f,
-                                                         1.000f};
-    reloadCompleteEmitter.generateSettings.isRandomRotate = true;
-    reloadCompleteEmitter.generateSettings.rotateMin = {0.0f, 0.0f, -3.14f};
-    reloadCompleteEmitter.generateSettings.rotateMax = {0.0f, 0.0f, 3.14f};
-    reloadCompleteEmitter.generateSettings.isRandomVelocity = false;
-    reloadCompleteEmitter.generateSettings.fixedVelocity = {0.000f, 0.000f,
-                                                            0.000f};
-    reloadCompleteEmitter.generateSettings.isRandomLifeTime = false;
-    reloadCompleteEmitter.generateSettings.fixedLifeTime = 0.600f;
-    reloadCompleteEmitter.generateSettings.isRandomColor = true;
-    reloadCompleteEmitter.generateSettings.colorMin = {0.0f, 0.8f, 0.2f, 1.0f};
-    reloadCompleteEmitter.generateSettings.colorMax = {0.5f, 1.0f, 0.5f, 1.0f};
-    reloadCompleteEmitter.fieldSettings.isAccelerationFieldActive = false;
-    reloadCompleteEmitter.fieldSettings.isGravityFieldActive = false;
-    reloadCompleteEmitter.uvAnimationSettings.isActive = true;
-    reloadCompleteEmitter.uvAnimationSettings.isIndividual = true;
-    reloadCompleteEmitter.uvAnimationSettings.scrollSpeed = {1.500f, 0.000f};
-    reloadCompleteEmitter.uvAnimationSettings.rotateSpeed = 0.100f;
-    reloadCompleteEmitter.uvAnimationSettings.scaleSpeed = {2.500f, -2.000f};
+    reloadCompleteEmitter.SetIsEmit(false);
+    reloadCompleteEmitter.SetIsEffectMode(true);
+    reloadCompleteEmitter.SetIsLoop(false);
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = false;
+      gs.fixedScale = {0.500f, 0.500f, 1.000f};
+      gs.isRandomRotate = true;
+      gs.rotateMin = {0.0f, 0.0f, -3.14f};
+      gs.rotateMax = {0.0f, 0.0f, 3.14f};
+      gs.isRandomVelocity = false;
+      gs.fixedVelocity = {0.000f, 0.000f, 0.000f};
+      gs.isRandomLifeTime = false;
+      gs.fixedLifeTime = 0.600f;
+      gs.isRandomColor = true;
+      gs.colorMin = {0.0f, 0.8f, 0.2f, 1.0f};
+      gs.colorMax = {0.5f, 1.0f, 0.5f, 1.0f};
+      reloadCompleteEmitter.SetGenerateSettings(gs);
+
+      ParticleFieldSettings fs;
+      fs.isAccelerationFieldActive = false;
+      fs.isGravityFieldActive = false;
+      reloadCompleteEmitter.SetFieldSettings(fs);
+
+      ParticleUVAnimationSettings uvas;
+      uvas.isActive = true;
+      uvas.isIndividual = true;
+      uvas.scrollSpeed = {1.500f, 0.000f};
+      uvas.rotateSpeed = 0.100f;
+      uvas.scaleSpeed = {2.500f, -2.000f};
+      reloadCompleteEmitter.SetUVAnimationSettings(uvas);
+    }
     reloadCompleteEmitter.SetShapeType(ParticleShapeType::Ring);
     if (auto *rs = reloadCompleteEmitter.GetRingShape()) {
-      rs->settings.innerRadius = 0.010f;
-      rs->settings.startOuterRadius = 0.500f;
-      rs->settings.midOuterRadius = 1.500f;
-      rs->settings.endOuterRadius = 3.000f;
-      rs->settings.startAngle = 0.000f;
-      rs->settings.endAngle = 360.000f;
-      rs->settings.division = 32;
-      rs->settings.isUvSwap = false;
-      rs->settings.innerColor = {1.000f, 1.000f, 1.000f, 1.000f};
-      rs->settings.outerColor = {1.000f, 1.000f, 1.000f, 1.000f};
-      rs->settings.fadeStartAlpha = 1.000f;
-      rs->settings.fadeEndAlpha = 1.000f;
-      rs->settings.fadeRange = 0.000f;
+      RingSettings s = rs->GetSettings();
+      s.innerRadius = 0.010f;
+      s.startOuterRadius = 0.500f;
+      s.midOuterRadius = 1.500f;
+      s.endOuterRadius = 3.000f;
+      s.startAngle = 0.000f;
+      s.endAngle = 360.000f;
+      s.division = 32;
+      s.isUvSwap = false;
+      s.innerColor = {1.000f, 1.000f, 1.000f, 1.000f};
+      s.outerColor = {1.000f, 1.000f, 1.000f, 1.000f};
+      s.fadeStartAlpha = 1.000f;
+      s.fadeEndAlpha = 1.000f;
+      s.fadeRange = 0.000f;
+      rs->SetSettings(s);
     }
     ParticleManager::GetInstance()->SetEmitter("ReloadCompleteGroup",
                                                reloadCompleteEmitter);
@@ -352,28 +390,38 @@ void ShootingScene::Initialize() {
         {0.000f, 0.000f, 0.000f}  // translate
     };
     ParticleEmitter ammoSparkEmitter(ammoSparkTransform, 10, 0.400f);
-    ammoSparkEmitter.isEmit = false;
-    ammoSparkEmitter.isEffectMode = true;
-    ammoSparkEmitter.isLoop = false;
-    ammoSparkEmitter.generateSettings.isRandomScale = true;
-    ammoSparkEmitter.generateSettings.scaleMin = {0.01f, 0.01f, 0.01f};
-    ammoSparkEmitter.generateSettings.scaleMax = {0.02f, 0.02f, 0.02f};
-    ammoSparkEmitter.generateSettings.isRandomRotate = true;
-    ammoSparkEmitter.generateSettings.rotateMin = {0.0f, 0.0f, -3.14f};
-    ammoSparkEmitter.generateSettings.rotateMax = {0.0f, 0.0f, 3.14f};
-    ammoSparkEmitter.generateSettings.isRandomVelocity = true;
-    ammoSparkEmitter.generateSettings.velocityMin = {-0.5f, 0.4f, 0.2f};
-    ammoSparkEmitter.generateSettings.velocityMax = {0.2f, 1.0f, 1.0f};
-    ammoSparkEmitter.generateSettings.isRandomLifeTime = true;
-    ammoSparkEmitter.generateSettings.lifeTimeMin = 0.15f;
-    ammoSparkEmitter.generateSettings.lifeTimeMax = 0.35f;
-    ammoSparkEmitter.generateSettings.isRandomColor = true;
-    ammoSparkEmitter.generateSettings.colorMin = {1.0f, 0.6f, 0.1f, 1.0f};
-    ammoSparkEmitter.generateSettings.colorMax = {1.0f, 0.8f, 0.2f, 1.0f};
-    ammoSparkEmitter.fieldSettings.isAccelerationFieldActive = false;
-    ammoSparkEmitter.fieldSettings.isGravityFieldActive = true;
-    ammoSparkEmitter.fieldSettings.gravity = {0.0f, -4.0f, 0.0f};
-    ammoSparkEmitter.uvAnimationSettings.isActive = false;
+    ammoSparkEmitter.SetIsEmit(false);
+    ammoSparkEmitter.SetIsEffectMode(true);
+    ammoSparkEmitter.SetIsLoop(false);
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = true;
+      gs.scaleMin = {0.01f, 0.01f, 0.01f};
+      gs.scaleMax = {0.02f, 0.02f, 0.02f};
+      gs.isRandomRotate = true;
+      gs.rotateMin = {0.0f, 0.0f, -3.14f};
+      gs.rotateMax = {0.0f, 0.0f, 3.14f};
+      gs.isRandomVelocity = true;
+      gs.velocityMin = {-0.5f, 0.4f, 0.2f};
+      gs.velocityMax = {0.2f, 1.0f, 1.0f};
+      gs.isRandomLifeTime = true;
+      gs.lifeTimeMin = 0.15f;
+      gs.lifeTimeMax = 0.35f;
+      gs.isRandomColor = true;
+      gs.colorMin = {1.0f, 0.6f, 0.1f, 1.0f};
+      gs.colorMax = {1.0f, 0.8f, 0.2f, 1.0f};
+      ammoSparkEmitter.SetGenerateSettings(gs);
+
+      ParticleFieldSettings fs;
+      fs.isAccelerationFieldActive = false;
+      fs.isGravityFieldActive = true;
+      fs.gravity = {0.0f, -4.0f, 0.0f};
+      ammoSparkEmitter.SetFieldSettings(fs);
+
+      ParticleUVAnimationSettings uvas;
+      uvas.isActive = false;
+      ammoSparkEmitter.SetUVAnimationSettings(uvas);
+    }
     ammoSparkEmitter.SetShapeType(ParticleShapeType::Billboard);
     ParticleManager::GetInstance()->SetEmitter("AmmoSparkGroup",
                                                ammoSparkEmitter);
@@ -384,36 +432,48 @@ void ShootingScene::Initialize() {
     ParticleManager::GetInstance()->CreateParticleGroup(groupName, "white.png");
     Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
     ParticleEmitter emitter(t, 1, 0.1f);
-    emitter.isEmit = false;
-    emitter.isEffectMode = false;
-    emitter.generateSettings.isRandomScale = false;
-    emitter.generateSettings.fixedScale = { 1.0f, 1.0f, 1.0f };
-    emitter.generateSettings.isRandomRotate = false;
-    emitter.generateSettings.fixedRotate = { 0.0f, 0.0f, 0.0f };
-    emitter.generateSettings.isRandomVelocity = false;
-    emitter.generateSettings.fixedVelocity = { 0.0f, 0.0f, 0.0f };
-    emitter.generateSettings.isRandomLifeTime = false;
-    emitter.generateSettings.fixedLifeTime = 0.3f;
-    emitter.generateSettings.isRandomColor = false;
-    emitter.generateSettings.fixedColor = topCol;
-    emitter.fieldSettings.isAccelerationFieldActive = false;
-    emitter.fieldSettings.isGravityFieldActive = false;
-    emitter.uvAnimationSettings.isActive = false;
+    emitter.SetIsEmit(false);
+    emitter.SetIsEffectMode(false);
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = false;
+      gs.fixedScale = { 1.0f, 1.0f, 1.0f };
+      gs.isRandomRotate = false;
+      gs.fixedRotate = { 0.0f, 0.0f, 0.0f };
+      gs.isRandomVelocity = false;
+      gs.fixedVelocity = { 0.0f, 0.0f, 0.0f };
+      gs.isRandomLifeTime = false;
+      gs.fixedLifeTime = 0.3f;
+      gs.isRandomColor = false;
+      gs.fixedColor = topCol;
+      emitter.SetGenerateSettings(gs);
+
+      ParticleFieldSettings fs;
+      fs.isAccelerationFieldActive = false;
+      fs.isGravityFieldActive = false;
+      emitter.SetFieldSettings(fs);
+
+      ParticleUVAnimationSettings uvas;
+      uvas.isActive = false;
+      emitter.SetUVAnimationSettings(uvas);
+    }
     emitter.SetShapeType(ParticleShapeType::Cylinder);
     if (auto* cs = emitter.GetCylinderShape()) {
-      cs->settings.height = height;
-      cs->settings.topRadius = { radius, radius };
-      cs->settings.bottomRadius = { radius, radius };
-      cs->settings.startAngle = 0.0f;
-      cs->settings.endAngle = 180.0f; // 半円状
-      cs->settings.division = 24;
-      cs->settings.verticalDivision = 1;
-      cs->settings.topColor = topCol;
-      cs->settings.bottomColor = btmCol;
-      cs->settings.fadeStartAlpha = 1.0f;
-      cs->settings.fadeEndAlpha = 1.0f;
-      cs->settings.fadeRange = 0.15f; // 両端フェード
-      cs->settings.alphaReference = 0.0f;
+      CylinderSettings s = cs->GetSettings();
+      s.height = height;
+      s.topRadius = { radius, radius };
+      s.bottomRadius = { radius, radius };
+      s.startAngle = 0.0f;
+      s.endAngle = 180.0f; // 半円状
+      s.division = 24;
+      s.verticalDivision = 1;
+      s.topColor = topCol;
+      s.bottomColor = btmCol;
+      s.fadeStartAlpha = 1.0f;
+      s.fadeEndAlpha = 1.0f;
+      s.fadeRange = 0.15f; // 両端フェード
+      s.alphaReference = 0.0f;
+      cs->SetSettings(s);
     }
     ParticleManager::GetInstance()->SetEmitter(groupName, emitter);
   };
@@ -427,47 +487,57 @@ void ShootingScene::Initialize() {
   {
     Transform t = { {1.0f, 1.0f, 1.0f}, {0.040f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
     ParticleEmitter emitter(t, 1, 0.400f);
-    emitter.isEmit = false;
-    emitter.isEffectMode = false;
-    emitter.isLoop = false;
+    emitter.SetIsEmit(false);
+    emitter.SetIsEffectMode(false);
+    emitter.SetIsLoop(false);
 
-    emitter.generateSettings.isRandomScale = false;
-    emitter.generateSettings.fixedScale = { 1.0f, 1.0f, 1.0f };
-    emitter.generateSettings.isRandomRotate = false;
-    emitter.generateSettings.fixedRotate = { -1.190f, 0.0f, 0.0f };
-    emitter.generateSettings.isRandomVelocity = false;
-    emitter.generateSettings.fixedVelocity = { 0.0f, 0.0f, 0.0f };
-    emitter.generateSettings.isRandomLifeTime = false;
-    emitter.generateSettings.fixedLifeTime = 1.0f;
-    emitter.generateSettings.isRandomColor = false;
-    emitter.generateSettings.fixedColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = false;
+      gs.fixedScale = { 1.0f, 1.0f, 1.0f };
+      gs.isRandomRotate = false;
+      gs.fixedRotate = { -1.190f, 0.0f, 0.0f };
+      gs.isRandomVelocity = false;
+      gs.fixedVelocity = { 0.0f, 0.0f, 0.0f };
+      gs.isRandomLifeTime = false;
+      gs.fixedLifeTime = 1.0f;
+      gs.isRandomColor = false;
+      gs.fixedColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+      emitter.SetGenerateSettings(gs);
 
-    emitter.fieldSettings.isAccelerationFieldActive = false;
-    emitter.fieldSettings.isGravityFieldActive = false;
+      ParticleFieldSettings fs;
+      fs.isAccelerationFieldActive = false;
+      fs.isGravityFieldActive = false;
+      emitter.SetFieldSettings(fs);
 
-    emitter.uvAnimationSettings.isActive = true;
-    emitter.uvAnimationSettings.isIndividual = false;
-    emitter.uvAnimationSettings.scrollSpeed = { 0.300f, 0.0f };
-    emitter.uvAnimationSettings.rotateSpeed = 0.0f;
-    emitter.uvAnimationSettings.scaleSpeed = { 0.0f, 0.0f };
+      ParticleUVAnimationSettings uvas;
+      uvas.isActive = true;
+      uvas.isIndividual = false;
+      uvas.scrollSpeed = { 0.300f, 0.0f };
+      uvas.rotateSpeed = 0.0f;
+      uvas.scaleSpeed = { 0.0f, 0.0f };
+      emitter.SetUVAnimationSettings(uvas);
+    }
 
     emitter.SetShapeType(ParticleShapeType::Cylinder);
     if (auto* cs = emitter.GetCylinderShape()) {
-      cs->settings.height = 1.0f;
-      cs->settings.topRadius = { 1.0f, 1.0f };
-      cs->settings.bottomRadius = { 0.0f, 0.0f };
-      cs->settings.startAngle = 0.0f;
-      cs->settings.endAngle = 360.0f;
-      cs->settings.division = 32;
-      cs->settings.verticalDivision = 1;
-      cs->settings.isUvSwap = false;
-      cs->settings.flipV = true;
-      cs->settings.topColor = { 1.0f, 1.0f, 1.0f, 1.0f };
-      cs->settings.bottomColor = { 1.0f, 1.0f, 1.0f, 1.0f };
-      cs->settings.fadeStartAlpha = 1.0f;
-      cs->settings.fadeEndAlpha = 1.0f;
-      cs->settings.fadeRange = 0.0f;
-      cs->settings.alphaReference = 0.300f;
+      CylinderSettings s = cs->GetSettings();
+      s.height = 1.0f;
+      s.topRadius = { 1.0f, 1.0f };
+      s.bottomRadius = { 0.0f, 0.0f };
+      s.startAngle = 0.0f;
+      s.endAngle = 360.0f;
+      s.division = 32;
+      s.verticalDivision = 1;
+      s.isUvSwap = false;
+      s.flipV = true;
+      s.topColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+      s.bottomColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+      s.fadeStartAlpha = 1.0f;
+      s.fadeEndAlpha = 1.0f;
+      s.fadeRange = 0.0f;
+      s.alphaReference = 0.300f;
+      cs->SetSettings(s);
     }
     ParticleManager::GetInstance()->SetEmitter("EnemyChargeRing", emitter);
   }
@@ -717,8 +787,8 @@ void ShootingScene::Initialize() {
   autoClearAttackTimer_ = 0.0f;
 
   // 入場演出開始時：画面全体を完全ブラックアウト（暗転）状態に設定
-  PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-  PostProcessManager::SetVignetteParams(0.0f, 5.0f);
+  PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+  PostProcessManager::GetInstance()->SetVignetteParams(0.0f, 5.0f);
 
   // -----------------------------------------------------------------
   // UIスプライトの初期化
@@ -1119,7 +1189,7 @@ void ShootingScene::Update() {
       isPaused_ = true;
       prevPostEffectMode_ = PostProcessManager::GetInstance()->GetCurrentMode();
       MyGame::SetPostEffectMode(PostProcessManager::kModeGaussianBlur);
-      PostProcessManager::SetGaussianBlurParams(7, 2.0f);
+      PostProcessManager::GetInstance()->SetGaussianBlurParams(7, 2.0f);
     } else {
       isPaused_ = false;
       MyGame::SetPostEffectMode(prevPostEffectMode_);
@@ -1139,7 +1209,7 @@ void ShootingScene::Update() {
   if (sIsDemoMode_) {
     if (Input::GetInstance()->IsKeyTriggered(DIK_SPACE)) {
       sIsDemoMode_ = false;
-      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
       SceneManager::GetInstance()->ChangeScene("TITLE");
       return;
     }
@@ -1148,7 +1218,7 @@ void ShootingScene::Update() {
 
   // Rキーでシューティングシーン遷移直後にリセット
   if (Input::GetInstance()->IsKeyTriggered(DIK_R)) {
-      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
       SceneManager::GetInstance()->ChangeScene("SHOOTING");
       return;
   }
@@ -1169,7 +1239,7 @@ void ShootingScene::Update() {
     if (skybox_) {
       skybox_->Update(mainViewIndex_, camera_.get());
     }
-    PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+    PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
     return;
   }
 #endif // USE_IMGUI
@@ -1232,7 +1302,7 @@ void ShootingScene::Update() {
     if (phaseTimer_ >= kIntroConstructDuration) {
       phase_ = Phase::IntroFastForward;
       phaseTimer_ = 0.0f;
-      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
       if (floorObject_) {
         floorObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
       }
@@ -1267,11 +1337,11 @@ void ShootingScene::Update() {
         float scale = 16.0f * openness;
         float exponent = 5.0f + (0.8f - 5.0f) * openness;
   
-        PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-      PostProcessManager::SetVignetteParams(scale, exponent);
+        PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+      PostProcessManager::GetInstance()->SetVignetteParams(scale, exponent);
       } else {
         // 瞬き完了後は通常描画（パススルー）
-        PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+        PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
       }
     }
 
@@ -1372,7 +1442,7 @@ void ShootingScene::Update() {
       if (swarmManager_) {
           swarmManager_->Update(kDeltaTime, swarmCenter, camera_.get(), nullptr);
       }
-      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
       return;
   }
 
@@ -1403,17 +1473,17 @@ void ShootingScene::Update() {
           if (phaseTimer_ >= kFastForwardDuration) {
               phase_ = Phase::IntroSwarmShowcase;
               phaseTimer_ = 0.0f;
-              PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+              PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
           } else {
               float t = phaseTimer_ / kFastForwardDuration;
               float ease = t * t;
               cameraProgress_ = ease * maxProgress_;
               camera_->SetTranslate(GetCameraRailPosition(cameraProgress_));
 
-              PostProcessManager::SetMode(PostProcessManager::kModeRadialBlur);
+              PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeRadialBlur);
               // 速度に合わせて width を変化させる
               float blurWidth = 0.04f * (1.0f - std::abs(t - 0.5f) * 2.0f);
-              PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, blurWidth, 12);
+              PostProcessManager::GetInstance()->SetRadialBlurParams(0.5f, 0.5f, blurWidth, 12);
           }
 
           // オブジェクトの更新
@@ -1505,7 +1575,7 @@ void ShootingScene::Update() {
                   swarmManager_->ClearDrones();
                   swarmManager_->SetAttackDistance(20.0f);
               }
-              PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+              PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
           } else {
               // スウォームを消去
               if (swarmManager_ && phaseTimer_ >= kRewindDuration / 2.0f) {
@@ -1517,10 +1587,10 @@ void ShootingScene::Update() {
               cameraProgress_ = ease * maxProgress_;
               camera_->SetTranslate(GetCameraRailPosition(cameraProgress_));
 
-              PostProcessManager::SetMode(PostProcessManager::kModeRadialBlur);
+              PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeRadialBlur);
               // 速度に合わせて width を変化させる
               float blurWidth = 0.04f * (1.0f - std::abs(t - 0.5f) * 2.0f);
-              PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, blurWidth, 12);
+              PostProcessManager::GetInstance()->SetRadialBlurParams(0.5f, 0.5f, blurWidth, 12);
           }
 
           // オブジェクトの更新
@@ -1733,8 +1803,8 @@ void ShootingScene::Update() {
       float scale = 16.0f * openness;
       float exponent = 0.8f + (5.0f - 0.8f) * closing;
 
-      PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-      PostProcessManager::SetVignetteParams(scale, exponent);
+      PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+      PostProcessManager::GetInstance()->SetVignetteParams(scale, exponent);
 
       // カメラおよび背景オブジェクトの更新
       camera_->Update();
@@ -1783,7 +1853,7 @@ void ShootingScene::Update() {
           }
       }
 
-      PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
+      PostProcessManager::GetInstance()->SetVignetteParams(vignetteScale_, vignetteExponent_);
       if (selectedOption_ == GameOverSelectOption::None) {
 
           if (gameOverTimer_ <= 0.0f) {
@@ -2082,14 +2152,14 @@ void ShootingScene::Update() {
       if (ambientSwarmManager_) {
         Vector3 ambientAnchor{};
         if (phaseTimer_ < 1.80f) {
-          ambientSwarmManager_->GetSettings().maxSpeed = 42.0f;
+          ambientSwarmManager_->SetMaxSpeed(42.0f);
           ambientAnchor = {
               basePos.x + forward.x * 16.0f,
               basePos.y + 17.5f,
               basePos.z + forward.z * 16.0f
           };
         } else {
-          ambientSwarmManager_->GetSettings().maxSpeed = 16.0f;
+          ambientSwarmManager_->SetMaxSpeed(16.0f);
           ambientAnchor = {
               basePos.x + forward.x * 26.0f,
               basePos.y + 16.5f,
@@ -2124,7 +2194,7 @@ void ShootingScene::Update() {
           swarmManager_->StartBossBattle(kSpawnSwarmCount, basePos, baseYaw, hasSpawnedBossEntrance_);
         }
         if (ambientSwarmManager_) {
-          ambientSwarmManager_->GetSettings().maxSpeed = 16.0f;
+          ambientSwarmManager_->SetMaxSpeed(16.0f);
         }
       }
     }
@@ -2202,7 +2272,7 @@ void ShootingScene::Update() {
           basePos.y + 18.0f,
           basePos.z - forward.z * 90.0f
       };
-      ambientSwarmManager_->GetSettings().maxSpeed = 48.0f;
+      ambientSwarmManager_->SetMaxSpeed(48.0f);
       ambientSwarmManager_->Update(kDeltaTime, rearAnchor, camera_.get(), nullptr);
       if (phaseTimer_ >= 1.3f) {
         float dt = std::clamp((phaseTimer_ - 1.3f) / 1.3f, 0.0f, 1.0f);
@@ -2230,8 +2300,8 @@ void ShootingScene::Update() {
       phaseTimer_ = 0.0f;
       vignetteScale_ = 16.0f;
       vignetteExponent_ = 0.8f;
-      PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-      PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
+      PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+      PostProcessManager::GetInstance()->SetVignetteParams(vignetteScale_, vignetteExponent_);
     }
     return;
   }
@@ -2262,12 +2332,12 @@ void ShootingScene::Update() {
 
     vignetteScale_ = 16.0f * openness;
     vignetteExponent_ = 0.8f + (5.0f - 0.8f) * (1.0f - openness);
-    PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-    PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
+    PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+    PostProcessManager::GetInstance()->SetVignetteParams(vignetteScale_, vignetteExponent_);
 
     if (phaseTimer_ >= kClearTransitionDuration) {
       // 暗転状態を維持したままClearSceneへ遷移する（1フレームの明るさ戻りを防止）
-      PostProcessManager::SetVignetteParams(0.0f, 5.0f);
+      PostProcessManager::GetInstance()->SetVignetteParams(0.0f, 5.0f);
       ClearScene::SetResultData(score_, gameTimer_);
       SceneManager::GetInstance()->ChangeScene("CLEAR");
       return;
@@ -2301,12 +2371,12 @@ void ShootingScene::Update() {
     if (kernel < 1)
       kernel = 1;
 
-    PostProcessManager::SetMode(PostProcessManager::kModeSmoothing);
-    PostProcessManager::SetSmoothingParams(kernel);
+    PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeSmoothing);
+    PostProcessManager::GetInstance()->SetSmoothingParams(kernel);
 
     if (phaseTimer_ >= kSmoothingOutDuration) {
       // 通常画面になったら完全に通常コピーモードへ戻す
-      PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+      PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
       phase_ = Phase::Playing;
     }
     // スムージング中もゲームは再開しているため、このまま下の通常ロジックを走らせる
@@ -2356,7 +2426,7 @@ void ShootingScene::Update() {
 
         if (auto *emitter = ParticleManager::GetInstance()->GetEmitter(
                 "ReloadCompleteGroup")) {
-          emitter->isPlaying = true;
+          emitter->SetIsPlaying(true);
         }
         ParticleManager::GetInstance()->Emit("ReloadCompleteGroup", spawnPos,
                                              8);
@@ -2741,7 +2811,7 @@ void ShootingScene::Update() {
           // ランチャー弾（爆発弾）はカバー時でも演出発生＆爆風貫通ダメージ(2)（※予兆のある必中弾のみ）
           radialBlurStrength_ = 0.04f;
           radialBlurTimer_ = kRadialBlurDuration;
-          PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
+          PostProcessManager::GetInstance()->SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
           cameraShakeIntensity_ = 0.30f;
           cameraShakeDuration_ = 0.35f;
           cameraShakeTimer_ = 0.35f;
@@ -2771,7 +2841,7 @@ void ShootingScene::Update() {
           if (p->IsExplosive() && playerHp_ > kDirectDamage) {
             radialBlurStrength_ = 0.05f;
             radialBlurTimer_ = kRadialBlurDuration;
-            PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
+            PostProcessManager::GetInstance()->SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
             cameraShakeIntensity_ = 0.45f;
             cameraShakeDuration_ = 0.45f;
             cameraShakeTimer_ = 0.45f;
@@ -2785,7 +2855,7 @@ void ShootingScene::Update() {
           if (p->IsJamming()) {
             randomNoiseStrength_ = 0.7f;
             randomNoiseTimer_ = 5.0f;
-            PostProcessManager::SetRandomParams(randomNoiseStrength_);
+            PostProcessManager::GetInstance()->SetRandomParams(randomNoiseStrength_);
             p->Kill();
             continue; // ライフ減少を行わずに次へ
           }
@@ -2822,7 +2892,7 @@ void ShootingScene::Update() {
           if (p->IsExplosive() && !isInvincible && playerHp_ > kDirectDamage) {
             radialBlurStrength_ = 0.05f; // 被弾時
             radialBlurTimer_ = kRadialBlurDuration;
-            PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
+            PostProcessManager::GetInstance()->SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
             cameraShakeIntensity_ = 0.45f;
             cameraShakeDuration_ = 0.45f;
             cameraShakeTimer_ = 0.45f;
@@ -2837,7 +2907,7 @@ void ShootingScene::Update() {
             if (!isInvincible) {
               randomNoiseStrength_ = 0.7f;
               randomNoiseTimer_ = 5.0f; // 5秒
-              PostProcessManager::SetRandomParams(randomNoiseStrength_);
+              PostProcessManager::GetInstance()->SetRandomParams(randomNoiseStrength_);
             }
             p->Kill();
             continue; // ライフ減少を行わずに次へ
@@ -2902,7 +2972,7 @@ void ShootingScene::Update() {
       MyGame::SetPostEffectMode(PostProcessManager::kModeRadialBlur);
       float t = radialBlurTimer_ / kRadialBlurDuration;
       float currentStrength = radialBlurStrength_ * (t * t);
-      PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, currentStrength, 12);
+      PostProcessManager::GetInstance()->SetRadialBlurParams(0.5f, 0.5f, currentStrength, 12);
     }
   }
 
@@ -2925,7 +2995,7 @@ void ShootingScene::Update() {
         float t = randomNoiseTimer_ / 5.0f; // 5秒のジャミングノイズ比率
         if (t > 1.0f) t = 1.0f;
         float easeT = t * t; // イージング（時間の2乗）
-        PostProcessManager::SetRandomParams(randomNoiseStrength_ * easeT);
+        PostProcessManager::GetInstance()->SetRandomParams(randomNoiseStrength_ * easeT);
       }
     }
   }
@@ -3061,7 +3131,7 @@ void ShootingScene::Update() {
 
     if (auto *emitter =
             ParticleManager::GetInstance()->GetEmitter("AmmoSparkGroup")) {
-      emitter->isPlaying = true;
+      emitter->SetIsPlaying(true);
     }
     ParticleManager::GetInstance()->Emit("AmmoSparkGroup", spawnPos, 1);
 
@@ -3146,14 +3216,14 @@ void ShootingScene::Update() {
       if (isDestroyed) {
         // 爆発弾の破壊エフェクト
         if (auto *emitter = ParticleManager::GetInstance()->GetEmitter("SparkGroup")) {
-          emitter->isPlaying = true;
+          emitter->SetIsPlaying(true);
         }
         ParticleManager::GetInstance()->Emit("SparkGroup", pPos, 24);
         score_ += 5; // 迎撃スコア
       } else {
         // 被弾火花エフェクト
         if (auto *emitter = ParticleManager::GetInstance()->GetEmitter("AmmoSparkGroup")) {
-          emitter->isPlaying = true;
+          emitter->SetIsPlaying(true);
         }
         ParticleManager::GetInstance()->Emit("AmmoSparkGroup", pPos, 6);
       }
@@ -3165,7 +3235,7 @@ void ShootingScene::Update() {
       if (hitEnemy->hp > 0) {
         // まだ耐久力が残っている場合：被弾火花を出して生存継続（頭上HPゲージが表示される）
         if (auto *emitter = ParticleManager::GetInstance()->GetEmitter("AmmoSparkGroup")) {
-          emitter->isPlaying = true;
+          emitter->SetIsPlaying(true);
         }
         ParticleManager::GetInstance()->Emit("AmmoSparkGroup", enemyPos, 10);
       } else {
@@ -3209,7 +3279,7 @@ void ShootingScene::Update() {
         const std::string effectName = "CylinderGroup";
         if (auto *emitter =
                 ParticleManager::GetInstance()->GetEmitter(effectName)) {
-          emitter->isPlaying = true;
+          emitter->SetIsPlaying(true);
         }
         ParticleManager::GetInstance()->Emit(effectName, enemyPos, 32);
       }
@@ -3244,7 +3314,7 @@ void ShootingScene::Update() {
                                                  "ReloadCompleteGroup"};
     for (const auto &name : clearWaitEffects) {
       if (auto *emitter = ParticleManager::GetInstance()->GetEmitter(name)) {
-        if (emitter->isPlaying) {
+        if (emitter->IsPlaying()) {
           isEffectFinished = false;
           break;
         }
@@ -3322,17 +3392,17 @@ void ShootingScene::Update() {
     for (const auto& pos : swarmEvents.hitPositions) {
       EmitPlayerHitEffect(pos);
       if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("AmmoSparkGroup")) {
-        emitter->isPlaying = true;
+        emitter->SetIsPlaying(true);
       }
       ParticleManager::GetInstance()->Emit("AmmoSparkGroup", pos, 10);
     }
     for (const auto& pos : swarmEvents.destroyedPositions) {
       if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("SparkGroup")) {
-        emitter->isPlaying = true;
+        emitter->SetIsPlaying(true);
       }
       ParticleManager::GetInstance()->Emit("SparkGroup", pos, 24);
       if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("CylinderGroup")) {
-        emitter->isPlaying = true;
+        emitter->SetIsPlaying(true);
       }
       ParticleManager::GetInstance()->Emit("CylinderGroup", pos, 8);
     }
@@ -3346,7 +3416,7 @@ void ShootingScene::Update() {
     if (swarmEvents.playerGroupBlastHits > 0 && !isForceInvincible) {
       radialBlurStrength_ = 0.04f;
       radialBlurTimer_ = kRadialBlurDuration;
-      PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
+      PostProcessManager::GetInstance()->SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
       cameraShakeIntensity_ = 0.30f;
       cameraShakeDuration_ = 0.35f;
       cameraShakeTimer_ = 0.35f;
@@ -3363,7 +3433,7 @@ void ShootingScene::Update() {
     if (swarmEvents.playerDirectHits > 0 && !isForceInvincible) {
       radialBlurStrength_ = 0.05f;
       radialBlurTimer_ = kRadialBlurDuration;
-      PostProcessManager::SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
+      PostProcessManager::GetInstance()->SetRadialBlurParams(0.5f, 0.5f, radialBlurStrength_, 12);
       cameraShakeIntensity_ = 0.45f;
       cameraShakeDuration_ = 0.45f;
       cameraShakeTimer_ = 0.45f;
@@ -4103,7 +4173,7 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
         if (swarmManager_) {
           swarmManager_->StartBossBattle(kSpawnSwarmCount, basePos, baseYaw);
         }
-        PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+        PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
       }
       ImGui::Separator();
     }
@@ -4221,8 +4291,8 @@ void ShootingScene::UpdateImGui_GlobalSettings() {
       ParticleManager::GetInstance()->ClearAllParticles();
       // スムージングを最大限（31）適用してリスタート
       smoothingKernel_ = 31.0f;
-      PostProcessManager::SetMode(PostProcessManager::kModeSmoothing);
-      PostProcessManager::SetSmoothingParams(
+      PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeSmoothing);
+      PostProcessManager::GetInstance()->SetSmoothingParams(
           static_cast<int>(smoothingKernel_));
       phase_ = Phase::RestartSmoothing;
       phaseTimer_ = 0.0f;
@@ -4398,18 +4468,27 @@ void ShootingScene::UpdateImGui_Object3d() {
       }
       ImGui::Text("[%zu] Dist: %.1f, HP: %d/%d, Active: %s, Dead: %s", i, enemy.distance,
                   enemy.hp, enemy.maxHp, enemy.isActive ? "Yes" : "No", enemy.isDead ? "Yes" : "No");
-      ImGui::DragFloat3(("Enemy " + std::to_string(i) + " Position").c_str(),
-                        &enemy.object->GetTransformDebug().translate.x, 0.1f);
-      ImGui::DragFloat3(("Enemy " + std::to_string(i) + " Rotation").c_str(),
-                        &enemy.object->GetTransformDebug().rotate.x, 0.01f);
-      ImGui::DragFloat3(("Enemy " + std::to_string(i) + " Scale").c_str(),
-                        &enemy.object->GetTransformDebug().scale.x, 0.1f);
+      Vector3 enemyPos = enemy.object->GetTranslate();
+      if (ImGui::DragFloat3(("Enemy " + std::to_string(i) + " Position").c_str(),
+                            &enemyPos.x, 0.1f)) {
+        enemy.object->SetTranslate(enemyPos);
+      }
+      Vector3 enemyRot = enemy.object->GetRotation();
+      if (ImGui::DragFloat3(("Enemy " + std::to_string(i) + " Rotation").c_str(),
+                            &enemyRot.x, 0.01f)) {
+        enemy.object->SetRotation(enemyRot);
+      }
+      Vector3 enemyScale = enemy.object->GetScale();
+      if (ImGui::DragFloat3(("Enemy " + std::to_string(i) + " Scale").c_str(),
+                            &enemyScale.x, 0.1f)) {
+        enemy.object->SetScale(enemyScale);
+      }
     }
     ImGui::TreePop();
   }
   ImGui::Separator();
   if (swarmManager_ && ImGui::TreeNode("Swarm System")) {
-    auto& settings = swarmManager_->GetSettings();
+    auto settings = swarmManager_->GetSettings();
     ImGui::Text("Active: %s", swarmManager_->IsActive() ? "YES" : "NO");
     ImGui::Text("Alive / Total: %u / %u", swarmManager_->GetAliveDroneCount(), swarmManager_->GetDroneCount());
     if (swarmManager_->IsBossMode()) {
@@ -4435,17 +4514,24 @@ void ShootingScene::UpdateImGui_Object3d() {
       swarmBattleTimer_ = 0.0f;
     }
 
-    ImGui::SliderFloat("Drone Model Scale", &swarmManager_->GetDroneScale(), 0.2f, 5.0f, "%.2f");
-    ImGui::SliderFloat("Max Speed", &settings.maxSpeed, 1.0f, 40.0f, "%.1f");
-    ImGui::SliderFloat("Charge Speed", &settings.ChargeSpeed, 5.0f, 60.0f, "%.1f");
-    ImGui::SliderFloat("Attack Distance", &settings.attackDistance, 5.0f, 60.0f, "%.1f");
+    float droneScale = swarmManager_->GetDroneScale();
+    if (ImGui::SliderFloat("Drone Model Scale", &droneScale, 0.2f, 5.0f, "%.2f")) {
+      swarmManager_->SetDroneScale(droneScale);
+    }
+    bool settingsChanged = false;
+    settingsChanged |= ImGui::SliderFloat("Max Speed", &settings.maxSpeed, 1.0f, 40.0f, "%.1f");
+    settingsChanged |= ImGui::SliderFloat("Charge Speed", &settings.ChargeSpeed, 5.0f, 60.0f, "%.1f");
+    settingsChanged |= ImGui::SliderFloat("Attack Distance", &settings.attackDistance, 5.0f, 60.0f, "%.1f");
     ImGui::Separator();
-    ImGui::SliderFloat("Neighbor Radius", &settings.neighborRadius, 2.0f, 30.0f, "%.1f");
-    ImGui::SliderFloat("Separation Dist", &settings.separationDist, 0.5f, 10.0f, "%.1f");
-    ImGui::SliderFloat("Separation Weight", &settings.separationWeight, 0.0f, 10.0f, "%.2f");
-    ImGui::SliderFloat("Alignment Weight", &settings.alignmentWeight, 0.0f, 5.0f, "%.2f");
-    ImGui::SliderFloat("Cohesion Weight", &settings.cohesionWeight, 0.0f, 5.0f, "%.2f");
-    ImGui::SliderFloat("Target Weight", &settings.targetWeight, 0.0f, 5.0f, "%.2f");
+    settingsChanged |= ImGui::SliderFloat("Neighbor Radius", &settings.neighborRadius, 2.0f, 30.0f, "%.1f");
+    settingsChanged |= ImGui::SliderFloat("Separation Dist", &settings.separationDist, 0.5f, 10.0f, "%.1f");
+    settingsChanged |= ImGui::SliderFloat("Separation Weight", &settings.separationWeight, 0.0f, 10.0f, "%.2f");
+    settingsChanged |= ImGui::SliderFloat("Alignment Weight", &settings.alignmentWeight, 0.0f, 5.0f, "%.2f");
+    settingsChanged |= ImGui::SliderFloat("Cohesion Weight", &settings.cohesionWeight, 0.0f, 5.0f, "%.2f");
+    settingsChanged |= ImGui::SliderFloat("Target Weight", &settings.targetWeight, 0.0f, 5.0f, "%.2f");
+    if (settingsChanged) {
+      swarmManager_->SetSettings(settings);
+    }
     ImGui::Separator();
     int maxRespawn = static_cast<int>(swarmManager_->GetMaxRespawnCount());
     if (ImGui::DragInt("Max Respawn Count", &maxRespawn, 10, 0, 5000)) {
@@ -4486,14 +4572,23 @@ void ShootingScene::UpdateImGui_Object3d() {
       Vector3 pos = p->GetPosition();
       ImGui::Text("[%zu] Pos: (%.2f, %.2f, %.2f), Dead: %s", i, pos.x, pos.y,
                   pos.z, p->IsDead() ? "Yes" : "No");
-      ImGui::DragFloat3(
-          ("Projectile " + std::to_string(i) + " Position").c_str(),
-          &p->GetObjectDebug().GetTransformDebug().translate.x, 0.1f);
-      ImGui::DragFloat3(
-          ("Projectile " + std::to_string(i) + " Rotation").c_str(),
-          &p->GetObjectDebug().GetTransformDebug().rotate.x, 0.01f);
-      ImGui::DragFloat3(("Projectile " + std::to_string(i) + " Scale").c_str(),
-                        &p->GetObjectDebug().GetTransformDebug().scale.x, 0.1f);
+      Vector3 projPos = p->GetObjectDebug().GetTranslate();
+      if (ImGui::DragFloat3(
+              ("Projectile " + std::to_string(i) + " Position").c_str(),
+              &projPos.x, 0.1f)) {
+        p->GetObjectDebug().SetTranslate(projPos);
+      }
+      Vector3 projRot = p->GetObjectDebug().GetRotation();
+      if (ImGui::DragFloat3(
+              ("Projectile " + std::to_string(i) + " Rotation").c_str(),
+              &projRot.x, 0.01f)) {
+        p->GetObjectDebug().SetRotation(projRot);
+      }
+      Vector3 projScale = p->GetObjectDebug().GetScale();
+      if (ImGui::DragFloat3(("Projectile " + std::to_string(i) + " Scale").c_str(),
+                            &projScale.x, 0.1f)) {
+        p->GetObjectDebug().SetScale(projScale);
+      }
       ImGui::DragFloat(("Projectile " + std::to_string(i) + " Speed").c_str(),
                        &speed_, 0.1f);
     }
@@ -4503,12 +4598,18 @@ void ShootingScene::UpdateImGui_Object3d() {
   // 地形オブジェクトのパラメータを調整
   if (ImGui::TreeNode("Terrain Objects")) {
     if (floorObject_ && ImGui::TreeNode("Floor Object")) {
-      ImGui::DragFloat3("translate",
-                        &floorObject_->GetTransformDebug().translate.x, 0.1f);
-      ImGui::DragFloat3("rotate", &floorObject_->GetTransformDebug().rotate.x,
-                        0.01f);
-      ImGui::DragFloat3("scale", &floorObject_->GetTransformDebug().scale.x,
-                        0.1f);
+      Vector3 floorPos = floorObject_->GetTranslate();
+      if (ImGui::DragFloat3("translate", &floorPos.x, 0.1f)) {
+        floorObject_->SetTranslate(floorPos);
+      }
+      Vector3 floorRot = floorObject_->GetRotation();
+      if (ImGui::DragFloat3("rotate", &floorRot.x, 0.01f)) {
+        floorObject_->SetRotation(floorRot);
+      }
+      Vector3 floorScale = floorObject_->GetScale();
+      if (ImGui::DragFloat3("scale", &floorScale.x, 0.1f)) {
+        floorObject_->SetScale(floorScale);
+      }
       ImGui::DragFloat2("UV Scale", &floorSettings_.uvScale.x, 0.1f);
       if (floorObject_) {
           floorObject_->SetUvScale(floorSettings_.uvScale);
@@ -4516,21 +4617,33 @@ void ShootingScene::UpdateImGui_Object3d() {
       ImGui::TreePop();
     }
     if (escalatorObject_ && ImGui::TreeNode("Escalator Object")) {
-      ImGui::DragFloat3("translate",
-                        &escalatorObject_->GetTransformDebug().translate.x, 0.1f);
-      ImGui::DragFloat3("rotate", &escalatorObject_->GetTransformDebug().rotate.x,
-                        0.01f);
-      ImGui::DragFloat3("scale", &escalatorObject_->GetTransformDebug().scale.x,
-                        0.1f);
+      Vector3 escPos = escalatorObject_->GetTranslate();
+      if (ImGui::DragFloat3("translate", &escPos.x, 0.1f)) {
+        escalatorObject_->SetTranslate(escPos);
+      }
+      Vector3 escRot = escalatorObject_->GetRotation();
+      if (ImGui::DragFloat3("rotate", &escRot.x, 0.01f)) {
+        escalatorObject_->SetRotation(escRot);
+      }
+      Vector3 escScale = escalatorObject_->GetScale();
+      if (ImGui::DragFloat3("scale", &escScale.x, 0.1f)) {
+        escalatorObject_->SetScale(escScale);
+      }
       ImGui::TreePop();
     }
     if (hillObject_ && ImGui::TreeNode("Hill Object")) {
-      ImGui::DragFloat3("translate",
-                        &hillObject_->GetTransformDebug().translate.x, 0.1f);
-      ImGui::DragFloat3("rotate", &hillObject_->GetTransformDebug().rotate.x,
-                        0.01f);
-      ImGui::DragFloat3("scale", &hillObject_->GetTransformDebug().scale.x,
-                        0.1f);
+      Vector3 hillPos = hillObject_->GetTranslate();
+      if (ImGui::DragFloat3("translate", &hillPos.x, 0.1f)) {
+        hillObject_->SetTranslate(hillPos);
+      }
+      Vector3 hillRot = hillObject_->GetRotation();
+      if (ImGui::DragFloat3("rotate", &hillRot.x, 0.01f)) {
+        hillObject_->SetRotation(hillRot);
+      }
+      Vector3 hillScale = hillObject_->GetScale();
+      if (ImGui::DragFloat3("scale", &hillScale.x, 0.1f)) {
+        hillObject_->SetScale(hillScale);
+      }
       ImGui::TreePop();
     }
     ImGui::TreePop();
@@ -4543,9 +4656,15 @@ void ShootingScene::UpdateImGui_Skybox() {
   if (ImGui::TreeNode("Skybox")) {
     ImGui::Checkbox("Show Skybox", &isShowSkybox_);
     if (skybox_) {
-      ImGui::DragFloat3("scale", &skybox_->GetScale().x, 0.1f);
-      ImGui::DragFloat3("rotate", &skybox_->GetRotate().x, 0.01f);
-      ImGui::DragFloat3("translate", &skybox_->GetTranslate().x, 0.1f);
+      Vector3 skyboxScale = skybox_->GetScale();
+      Vector3 skyboxRotation = skybox_->GetRotate();
+      Vector3 skyboxPosition = skybox_->GetTranslate();
+      ImGui::DragFloat3("scale", &skyboxScale.x, 0.1f);
+      ImGui::DragFloat3("rotate", &skyboxRotation.x, 0.01f);
+      ImGui::DragFloat3("translate", &skyboxPosition.x, 0.1f);
+      skybox_->SetScale(skyboxScale);
+      skybox_->SetRotate(skyboxRotation);
+      skybox_->SetTranslate(skyboxPosition);
 
       // シェーダーモード切り替え (CubeMap / Tile)
       const char* modes[] = { "CubeMap (skybox.dds)", "Tile (2D Tiling)" };
@@ -4766,22 +4885,36 @@ void ShootingScene::UpdateImGui_SwarmCollisionDebug() {
     ImGui::Separator();
 
     if (swarmManager_) {
-      float& droneScale = swarmManager_->GetDroneScale();
-      float& colRadiusScale = swarmManager_->GetCrashCollisionRadiusScale();
-      ImGui::SliderFloat("Drone Model Scale", &droneScale, 0.05f, 1.5f, "%.3f");
+      float droneScale = swarmManager_->GetDroneScale();
+      float colRadiusScale = swarmManager_->GetCrashCollisionRadiusScale();
+      if (ImGui::SliderFloat("Drone Model Scale", &droneScale, 0.05f, 1.5f, "%.3f")) {
+        swarmManager_->SetDroneScale(droneScale);
+      }
       if (ImGui::Button("Set Boss Scale (0.32)")) {
         droneScale = 0.32f;
+        swarmManager_->SetDroneScale(droneScale);
       }
-      ImGui::SliderFloat("Collision Radius Scale", &colRadiusScale, 0.5f, 5.0f, "%.2f");
+      if (ImGui::SliderFloat("Collision Radius Scale", &colRadiusScale, 0.5f, 5.0f, "%.2f")) {
+        swarmManager_->SetCrashCollisionRadiusScale(colRadiusScale);
+      }
 
       float colRadius = droneScale * colRadiusScale;
       ImGui::Text("Collision Radius: %.3f m (Diameter: %.3f m)", colRadius, colRadius * 2.0f);
 
       ImGui::Separator();
       ImGui::Text("Crashing Physics Params");
-      ImGui::SliderFloat("Ground Friction", &swarmManager_->GetCrashGroundFriction(), 0.50f, 0.98f, "%.2f");
-      ImGui::SliderFloat("Bounciness", &swarmManager_->GetCrashBounciness(), 0.0f, 0.8f, "%.2f");
-      ImGui::SliderFloat("Push Strength", &swarmManager_->GetCrashPushStrength(), 0.05f, 1.0f, "%.2f");
+      float groundFriction = swarmManager_->GetCrashGroundFriction();
+      if (ImGui::SliderFloat("Ground Friction", &groundFriction, 0.50f, 0.98f, "%.2f")) {
+        swarmManager_->SetCrashGroundFriction(groundFriction);
+      }
+      float bounciness = swarmManager_->GetCrashBounciness();
+      if (ImGui::SliderFloat("Bounciness", &bounciness, 0.0f, 0.8f, "%.2f")) {
+        swarmManager_->SetCrashBounciness(bounciness);
+      }
+      float pushStrength = swarmManager_->GetCrashPushStrength();
+      if (ImGui::SliderFloat("Push Strength", &pushStrength, 0.05f, 1.0f, "%.2f")) {
+        swarmManager_->SetCrashPushStrength(pushStrength);
+      }
 
       // カメラ前方にドローンとコリジョン球ワイヤーを配置して行列更新
       Vector3 camPos = camera_->GetTranslate();
@@ -5208,7 +5341,7 @@ void ShootingScene::Finalize() {
   ammoGetEffectTimer_ = 0.0f;
   ParticleManager::GetInstance()->ClearAllParticles();
   if (phase_ != Phase::ClearVignette && phase_ != Phase::ReturnToTitleVignette) {
-    PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+    PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
   }
 }
 
@@ -5413,8 +5546,8 @@ void ShootingScene::JumpToSection(int index) {
 
   // スムージング演出をリスタート用に設定
   smoothingKernel_ = 31.0f;
-  PostProcessManager::SetMode(PostProcessManager::kModeSmoothing);
-  PostProcessManager::SetSmoothingParams(static_cast<int>(smoothingKernel_));
+  PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeSmoothing);
+  PostProcessManager::GetInstance()->SetSmoothingParams(static_cast<int>(smoothingKernel_));
   phase_ = Phase::RestartSmoothing;
   phaseTimer_ = 0.0f;
 }
@@ -5454,7 +5587,7 @@ void ShootingScene::StartAutoClear() {
   if (hillObject_) {
     hillObject_->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
   }
-  PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+  PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
   MyGame::SetPostEffectMode(PostProcessManager::kModeCopy);
 
   // まだボス戦に入っていない場合は、スタート演出用スウォームを消去しボス戦開始位置へ進める
@@ -5482,7 +5615,7 @@ void ShootingScene::StartAutoClear() {
     };
     for (const auto &name : clearWaitEffects) {
       if (auto *emitter = ParticleManager::GetInstance()->GetEmitter(name)) {
-        emitter->isPlaying = false;
+        emitter->SetIsPlaying(false);
       }
     }
 
@@ -5648,7 +5781,7 @@ void ShootingScene::StartGameOver(DeathReason reason) {
     damageEffectStrength_ = 0.0f;
     MyGame::SetPostEffectMode(PostProcessManager::kModeVignette);
     MyGame::SetPostEffectStrength(1.0f);
-    PostProcessManager::SetVignetteParams(vignetteScale_, vignetteExponent_);
+    PostProcessManager::GetInstance()->SetVignetteParams(vignetteScale_, vignetteExponent_);
 
     // 20秒タイマーのセット
     gameOverTimer_ = 20.0f;
@@ -6201,7 +6334,7 @@ void ShootingScene::StartBossIntro() {
     };
     ambientSwarmManager_->SetDroneScale(0.24f);
     ambientSwarmManager_->SetAttackDistance(0.0f);
-    ambientSwarmManager_->GetSettings().maxSpeed = 42.0f;
+    ambientSwarmManager_->SetMaxSpeed(42.0f);
     ambientSwarmManager_->SpawnDrones(kAmbientSwarmCount, rearSpawnPos, 28.0f);
   }
 }
@@ -6255,44 +6388,52 @@ void ShootingScene::InitializeCustomEffects() {
   {
     Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
     ParticleEmitter emitter(t, 2, 0.2f);
-    emitter.isEmit = false;
-    emitter.isEffectMode = true;
-    emitter.isLoop = false;
+    emitter.SetIsEmit(false);
+    emitter.SetIsEffectMode(true);
+    emitter.SetIsLoop(false);
 
-    emitter.generateSettings.isRandomScale = false;
-    emitter.generateSettings.fixedScale = { 0.45f, 0.45f, 0.45f };
-    emitter.generateSettings.isRandomRotate = true;
-    emitter.generateSettings.rotateMin = { -0.5f, -3.14f, -3.14f };
-    emitter.generateSettings.rotateMax = { 0.5f, 3.14f, 3.14f };
-    emitter.generateSettings.isRandomVelocity = false;
-    emitter.generateSettings.fixedVelocity = { 0.0f, 0.0f, 0.0f };
-    emitter.generateSettings.isRandomLifeTime = false;
-    emitter.generateSettings.fixedLifeTime = 0.28f;
-    emitter.generateSettings.isRandomColor = true;
-    emitter.generateSettings.colorMin = { 0.4f, 0.9f, 1.0f, 1.0f };
-    emitter.generateSettings.colorMax = { 0.9f, 1.0f, 1.0f, 1.0f };
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = false;
+      gs.fixedScale = { 0.45f, 0.45f, 0.45f };
+      gs.isRandomRotate = true;
+      gs.rotateMin = { -0.5f, -3.14f, -3.14f };
+      gs.rotateMax = { 0.5f, 3.14f, 3.14f };
+      gs.isRandomVelocity = false;
+      gs.fixedVelocity = { 0.0f, 0.0f, 0.0f };
+      gs.isRandomLifeTime = false;
+      gs.fixedLifeTime = 0.28f;
+      gs.isRandomColor = true;
+      gs.colorMin = { 0.4f, 0.9f, 1.0f, 1.0f };
+      gs.colorMax = { 0.9f, 1.0f, 1.0f, 1.0f };
+      emitter.SetGenerateSettings(gs);
 
-    emitter.uvAnimationSettings.isActive = true;
-    emitter.uvAnimationSettings.isIndividual = true;
-    emitter.uvAnimationSettings.scrollSpeed = { 1.8f, 0.0f };
-    emitter.uvAnimationSettings.rotateSpeed = 0.3f;
-    emitter.uvAnimationSettings.scaleSpeed = { 2.5f, -1.5f };
+      ParticleUVAnimationSettings uvas;
+      uvas.isActive = true;
+      uvas.isIndividual = true;
+      uvas.scrollSpeed = { 1.8f, 0.0f };
+      uvas.rotateSpeed = 0.3f;
+      uvas.scaleSpeed = { 2.5f, -1.5f };
+      emitter.SetUVAnimationSettings(uvas);
+    }
 
     emitter.SetShapeType(ParticleShapeType::Ring);
     if (auto* rs = emitter.GetRingShape()) {
-      rs->settings.innerRadius = 0.12f;
-      rs->settings.startOuterRadius = 0.45f;
-      rs->settings.midOuterRadius = 0.85f;
-      rs->settings.endOuterRadius = 1.25f;
-      rs->settings.startAngle = 0.0f;
-      rs->settings.endAngle = 360.0f;
-      rs->settings.division = 24;
-      rs->settings.isUvSwap = false;
-      rs->settings.innerColor = { 1.0f, 1.0f, 1.0f, 1.0f };
-      rs->settings.outerColor = { 0.2f, 0.85f, 1.0f, 0.9f };
-      rs->settings.fadeStartAlpha = 1.0f;
-      rs->settings.fadeEndAlpha = 0.0f;
-      rs->settings.fadeRange = 0.1f;
+      RingSettings s = rs->GetSettings();
+      s.innerRadius = 0.12f;
+      s.startOuterRadius = 0.45f;
+      s.midOuterRadius = 0.85f;
+      s.endOuterRadius = 1.25f;
+      s.startAngle = 0.0f;
+      s.endAngle = 360.0f;
+      s.division = 24;
+      s.isUvSwap = false;
+      s.innerColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+      s.outerColor = { 0.2f, 0.85f, 1.0f, 0.9f };
+      s.fadeStartAlpha = 1.0f;
+      s.fadeEndAlpha = 0.0f;
+      s.fadeRange = 0.1f;
+      rs->SetSettings(s);
     }
     ParticleManager::GetInstance()->SetEmitter("PlayerHitRing", emitter);
   }
@@ -6302,28 +6443,34 @@ void ShootingScene::InitializeCustomEffects() {
   {
     Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
     ParticleEmitter emitter(t, 12, 0.2f);
-    emitter.isEmit = false;
-    emitter.isEffectMode = true;
-    emitter.isLoop = false;
+    emitter.SetIsEmit(false);
+    emitter.SetIsEffectMode(true);
+    emitter.SetIsLoop(false);
 
-    emitter.generateSettings.isRandomScale = true;
-    emitter.generateSettings.scaleMin = { 0.04f, 0.14f, 0.04f };
-    emitter.generateSettings.scaleMax = { 0.08f, 0.30f, 0.08f };
-    emitter.generateSettings.isRandomRotate = true;
-    emitter.generateSettings.rotateMin = { -3.14f, -3.14f, -3.14f };
-    emitter.generateSettings.rotateMax = { 3.14f, 3.14f, 3.14f };
-    emitter.generateSettings.isRandomVelocity = true;
-    emitter.generateSettings.velocityMin = { -4.5f, 1.0f, -4.5f };
-    emitter.generateSettings.velocityMax = { 4.5f, 6.5f, 4.5f };
-    emitter.generateSettings.isRandomLifeTime = true;
-    emitter.generateSettings.lifeTimeMin = 0.18f;
-    emitter.generateSettings.lifeTimeMax = 0.38f;
-    emitter.generateSettings.isRandomColor = true;
-    emitter.generateSettings.colorMin = { 0.6f, 0.95f, 1.0f, 1.0f };
-    emitter.generateSettings.colorMax = { 1.0f, 0.85f, 0.3f, 1.0f };
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = true;
+      gs.scaleMin = { 0.04f, 0.14f, 0.04f };
+      gs.scaleMax = { 0.08f, 0.30f, 0.08f };
+      gs.isRandomRotate = true;
+      gs.rotateMin = { -3.14f, -3.14f, -3.14f };
+      gs.rotateMax = { 3.14f, 3.14f, 3.14f };
+      gs.isRandomVelocity = true;
+      gs.velocityMin = { -4.5f, 1.0f, -4.5f };
+      gs.velocityMax = { 4.5f, 6.5f, 4.5f };
+      gs.isRandomLifeTime = true;
+      gs.lifeTimeMin = 0.18f;
+      gs.lifeTimeMax = 0.38f;
+      gs.isRandomColor = true;
+      gs.colorMin = { 0.6f, 0.95f, 1.0f, 1.0f };
+      gs.colorMax = { 1.0f, 0.85f, 0.3f, 1.0f };
+      emitter.SetGenerateSettings(gs);
 
-    emitter.fieldSettings.isGravityFieldActive = true;
-    emitter.fieldSettings.gravity = { 0.0f, -15.0f, 0.0f };
+      ParticleFieldSettings fs;
+      fs.isGravityFieldActive = true;
+      fs.gravity = { 0.0f, -15.0f, 0.0f };
+      emitter.SetFieldSettings(fs);
+    }
 
     emitter.SetShapeType(ParticleShapeType::Plane);
     ParticleManager::GetInstance()->SetEmitter("PlayerHitSpark", emitter);
@@ -6337,41 +6484,49 @@ void ShootingScene::InitializeCustomEffects() {
   {
     Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
     ParticleEmitter emitter(t, 4, 0.3f);
-    emitter.isEmit = false;
-    emitter.isEffectMode = true;
-    emitter.isLoop = false;
+    emitter.SetIsEmit(false);
+    emitter.SetIsEffectMode(true);
+    emitter.SetIsLoop(false);
 
-    emitter.generateSettings.isRandomScale = false;
-    emitter.generateSettings.fixedScale = { 1.2f, 1.2f, 1.2f };
-    emitter.generateSettings.isRandomRotate = true;
-    emitter.generateSettings.rotateMin = { -0.4f, -3.14f, -3.14f };
-    emitter.generateSettings.rotateMax = { 0.4f, 3.14f, 3.14f };
-    emitter.generateSettings.isRandomVelocity = false;
-    emitter.generateSettings.fixedVelocity = { 0.0f, 0.0f, 0.0f };
-    emitter.generateSettings.isRandomLifeTime = false;
-    emitter.generateSettings.fixedLifeTime = 0.45f;
-    emitter.generateSettings.isRandomColor = true;
-    emitter.generateSettings.colorMin = { 1.0f, 0.15f, 0.3f, 1.0f };
-    emitter.generateSettings.colorMax = { 1.0f, 0.45f, 0.1f, 1.0f };
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = false;
+      gs.fixedScale = { 1.2f, 1.2f, 1.2f };
+      gs.isRandomRotate = true;
+      gs.rotateMin = { -0.4f, -3.14f, -3.14f };
+      gs.rotateMax = { 0.4f, 3.14f, 3.14f };
+      gs.isRandomVelocity = false;
+      gs.fixedVelocity = { 0.0f, 0.0f, 0.0f };
+      gs.isRandomLifeTime = false;
+      gs.fixedLifeTime = 0.45f;
+      gs.isRandomColor = true;
+      gs.colorMin = { 1.0f, 0.15f, 0.3f, 1.0f };
+      gs.colorMax = { 1.0f, 0.45f, 0.1f, 1.0f };
+      emitter.SetGenerateSettings(gs);
 
-    emitter.uvAnimationSettings.isActive = true;
-    emitter.uvAnimationSettings.isIndividual = true;
-    emitter.uvAnimationSettings.scrollSpeed = { -2.0f, 0.0f };
-    emitter.uvAnimationSettings.rotateSpeed = 1.2f;
-    emitter.uvAnimationSettings.scaleSpeed = { -1.2f, 0.8f };
+      ParticleUVAnimationSettings uvas;
+      uvas.isActive = true;
+      uvas.isIndividual = true;
+      uvas.scrollSpeed = { -2.0f, 0.0f };
+      uvas.rotateSpeed = 1.2f;
+      uvas.scaleSpeed = { -1.2f, 0.8f };
+      emitter.SetUVAnimationSettings(uvas);
+    }
 
     emitter.SetShapeType(ParticleShapeType::Ring);
     if (auto* rs = emitter.GetRingShape()) {
-      rs->settings.innerRadius = 0.25f;
-      rs->settings.startOuterRadius = 1.4f;
-      rs->settings.midOuterRadius = 1.8f;
-      rs->settings.endOuterRadius = 2.2f;
-      rs->settings.division = 32;
-      rs->settings.innerColor = { 1.0f, 0.3f, 0.5f, 1.0f };
-      rs->settings.outerColor = { 1.0f, 0.05f, 0.1f, 0.9f };
-      rs->settings.fadeStartAlpha = 1.0f;
-      rs->settings.fadeEndAlpha = 0.0f;
-      rs->settings.fadeRange = 0.15f;
+      RingSettings s = rs->GetSettings();
+      s.innerRadius = 0.25f;
+      s.startOuterRadius = 1.4f;
+      s.midOuterRadius = 1.8f;
+      s.endOuterRadius = 2.2f;
+      s.division = 32;
+      s.innerColor = { 1.0f, 0.3f, 0.5f, 1.0f };
+      s.outerColor = { 1.0f, 0.05f, 0.1f, 0.9f };
+      s.fadeStartAlpha = 1.0f;
+      s.fadeEndAlpha = 0.0f;
+      s.fadeRange = 0.15f;
+      rs->SetSettings(s);
     }
     ParticleManager::GetInstance()->SetEmitter("BossChargeRing", emitter);
   }
@@ -6381,41 +6536,49 @@ void ShootingScene::InitializeCustomEffects() {
   {
     Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
     ParticleEmitter emitter(t, 6, 0.3f);
-    emitter.isEmit = false;
-    emitter.isEffectMode = true;
-    emitter.isLoop = false;
+    emitter.SetIsEmit(false);
+    emitter.SetIsEffectMode(true);
+    emitter.SetIsLoop(false);
 
-    emitter.generateSettings.isRandomScale = false;
-    emitter.generateSettings.fixedScale = { 1.5f, 1.5f, 1.5f };
-    emitter.generateSettings.isRandomRotate = true;
-    emitter.generateSettings.rotateMin = { -1.57f, -3.14f, -3.14f };
-    emitter.generateSettings.rotateMax = { 1.57f, 3.14f, 3.14f };
-    emitter.generateSettings.isRandomVelocity = false;
-    emitter.generateSettings.fixedVelocity = { 0.0f, 0.0f, 0.0f };
-    emitter.generateSettings.isRandomLifeTime = false;
-    emitter.generateSettings.fixedLifeTime = 0.55f;
-    emitter.generateSettings.isRandomColor = true;
-    emitter.generateSettings.colorMin = { 1.0f, 0.2f, 0.0f, 1.0f };
-    emitter.generateSettings.colorMax = { 1.0f, 0.7f, 0.1f, 1.0f };
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = false;
+      gs.fixedScale = { 1.5f, 1.5f, 1.5f };
+      gs.isRandomRotate = true;
+      gs.rotateMin = { -1.57f, -3.14f, -3.14f };
+      gs.rotateMax = { 1.57f, 3.14f, 3.14f };
+      gs.isRandomVelocity = false;
+      gs.fixedVelocity = { 0.0f, 0.0f, 0.0f };
+      gs.isRandomLifeTime = false;
+      gs.fixedLifeTime = 0.55f;
+      gs.isRandomColor = true;
+      gs.colorMin = { 1.0f, 0.2f, 0.0f, 1.0f };
+      gs.colorMax = { 1.0f, 0.7f, 0.1f, 1.0f };
+      emitter.SetGenerateSettings(gs);
 
-    emitter.uvAnimationSettings.isActive = true;
-    emitter.uvAnimationSettings.isIndividual = true;
-    emitter.uvAnimationSettings.scrollSpeed = { 2.5f, 0.0f };
-    emitter.uvAnimationSettings.rotateSpeed = 0.5f;
-    emitter.uvAnimationSettings.scaleSpeed = { 2.0f, -1.2f };
+      ParticleUVAnimationSettings uvas;
+      uvas.isActive = true;
+      uvas.isIndividual = true;
+      uvas.scrollSpeed = { 2.5f, 0.0f };
+      uvas.rotateSpeed = 0.5f;
+      uvas.scaleSpeed = { 2.0f, -1.2f };
+      emitter.SetUVAnimationSettings(uvas);
+    }
 
     emitter.SetShapeType(ParticleShapeType::Ring);
     if (auto* rs = emitter.GetRingShape()) {
-      rs->settings.innerRadius = 0.2f;
-      rs->settings.startOuterRadius = 1.2f;
-      rs->settings.midOuterRadius = 2.4f;
-      rs->settings.endOuterRadius = 3.5f;
-      rs->settings.division = 32;
-      rs->settings.innerColor = { 1.0f, 0.9f, 0.4f, 1.0f };
-      rs->settings.outerColor = { 1.0f, 0.15f, 0.0f, 0.9f };
-      rs->settings.fadeStartAlpha = 1.0f;
-      rs->settings.fadeEndAlpha = 0.0f;
-      rs->settings.fadeRange = 0.1f;
+      RingSettings s = rs->GetSettings();
+      s.innerRadius = 0.2f;
+      s.startOuterRadius = 1.2f;
+      s.midOuterRadius = 2.4f;
+      s.endOuterRadius = 3.5f;
+      s.division = 32;
+      s.innerColor = { 1.0f, 0.9f, 0.4f, 1.0f };
+      s.outerColor = { 1.0f, 0.15f, 0.0f, 0.9f };
+      s.fadeStartAlpha = 1.0f;
+      s.fadeEndAlpha = 0.0f;
+      s.fadeRange = 0.1f;
+      rs->SetSettings(s);
     }
     ParticleManager::GetInstance()->SetEmitter("BossAttackRing", emitter);
   }
@@ -6425,40 +6588,48 @@ void ShootingScene::InitializeCustomEffects() {
   {
     Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
     ParticleEmitter emitter(t, 4, 0.3f);
-    emitter.isEmit = false;
-    emitter.isEffectMode = true;
-    emitter.isLoop = false;
+    emitter.SetIsEmit(false);
+    emitter.SetIsEffectMode(true);
+    emitter.SetIsLoop(false);
 
-    emitter.generateSettings.isRandomScale = false;
-    emitter.generateSettings.fixedScale = { 1.0f, 2.2f, 1.0f };
-    emitter.generateSettings.isRandomRotate = true;
-    emitter.generateSettings.rotateMin = { -0.3f, -3.14f, -0.3f };
-    emitter.generateSettings.rotateMax = { 0.3f, 3.14f, 0.3f };
-    emitter.generateSettings.isRandomVelocity = false;
-    emitter.generateSettings.fixedVelocity = { 0.0f, 2.5f, 0.0f };
-    emitter.generateSettings.isRandomLifeTime = false;
-    emitter.generateSettings.fixedLifeTime = 0.50f;
-    emitter.generateSettings.isRandomColor = true;
-    emitter.generateSettings.colorMin = { 1.0f, 0.25f, 0.0f, 1.0f };
-    emitter.generateSettings.colorMax = { 1.0f, 0.65f, 0.1f, 1.0f };
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = false;
+      gs.fixedScale = { 1.0f, 2.2f, 1.0f };
+      gs.isRandomRotate = true;
+      gs.rotateMin = { -0.3f, -3.14f, -0.3f };
+      gs.rotateMax = { 0.3f, 3.14f, 0.3f };
+      gs.isRandomVelocity = false;
+      gs.fixedVelocity = { 0.0f, 2.5f, 0.0f };
+      gs.isRandomLifeTime = false;
+      gs.fixedLifeTime = 0.50f;
+      gs.isRandomColor = true;
+      gs.colorMin = { 1.0f, 0.25f, 0.0f, 1.0f };
+      gs.colorMax = { 1.0f, 0.65f, 0.1f, 1.0f };
+      emitter.SetGenerateSettings(gs);
 
-    emitter.uvAnimationSettings.isActive = true;
-    emitter.uvAnimationSettings.isIndividual = true;
-    emitter.uvAnimationSettings.scrollSpeed = { 0.0f, -2.5f };
-    emitter.uvAnimationSettings.rotateSpeed = 0.8f;
-    emitter.uvAnimationSettings.scaleSpeed = { 1.2f, 1.0f };
+      ParticleUVAnimationSettings uvas;
+      uvas.isActive = true;
+      uvas.isIndividual = true;
+      uvas.scrollSpeed = { 0.0f, -2.5f };
+      uvas.rotateSpeed = 0.8f;
+      uvas.scaleSpeed = { 1.2f, 1.0f };
+      emitter.SetUVAnimationSettings(uvas);
+    }
 
     emitter.SetShapeType(ParticleShapeType::Cylinder);
     if (auto* cs = emitter.GetCylinderShape()) {
-      cs->settings.height = 1.6f;
-      cs->settings.topRadius = { 2.2f, 2.2f };
-      cs->settings.bottomRadius = { 0.3f, 0.3f };
-      cs->settings.division = 32;
-      cs->settings.verticalDivision = 1;
-      cs->settings.flipV = true;
-      cs->settings.topColor = { 1.0f, 0.2f, 0.0f, 0.0f };
-      cs->settings.bottomColor = { 1.0f, 0.85f, 0.3f, 1.0f };
-      cs->settings.alphaReference = 0.05f;
+      CylinderSettings s = cs->GetSettings();
+      s.height = 1.6f;
+      s.topRadius = { 2.2f, 2.2f };
+      s.bottomRadius = { 0.3f, 0.3f };
+      s.division = 32;
+      s.verticalDivision = 1;
+      s.flipV = true;
+      s.topColor = { 1.0f, 0.2f, 0.0f, 0.0f };
+      s.bottomColor = { 1.0f, 0.85f, 0.3f, 1.0f };
+      s.alphaReference = 0.05f;
+      cs->SetSettings(s);
     }
     ParticleManager::GetInstance()->SetEmitter("BossAttackCylinder", emitter);
   }
@@ -6468,28 +6639,34 @@ void ShootingScene::InitializeCustomEffects() {
   {
     Transform t = { {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
     ParticleEmitter emitter(t, 28, 0.3f);
-    emitter.isEmit = false;
-    emitter.isEffectMode = true;
-    emitter.isLoop = false;
+    emitter.SetIsEmit(false);
+    emitter.SetIsEffectMode(true);
+    emitter.SetIsLoop(false);
 
-    emitter.generateSettings.isRandomScale = true;
-    emitter.generateSettings.scaleMin = { 0.08f, 0.08f, 0.08f };
-    emitter.generateSettings.scaleMax = { 0.25f, 0.25f, 0.25f };
-    emitter.generateSettings.isRandomRotate = true;
-    emitter.generateSettings.rotateMin = { 0.0f, 0.0f, -3.14f };
-    emitter.generateSettings.rotateMax = { 0.0f, 0.0f, 3.14f };
-    emitter.generateSettings.isRandomVelocity = true;
-    emitter.generateSettings.velocityMin = { -7.0f, 1.5f, -7.0f };
-    emitter.generateSettings.velocityMax = { 7.0f, 9.0f, 7.0f };
-    emitter.generateSettings.isRandomLifeTime = true;
-    emitter.generateSettings.lifeTimeMin = 0.35f;
-    emitter.generateSettings.lifeTimeMax = 0.75f;
-    emitter.generateSettings.isRandomColor = true;
-    emitter.generateSettings.colorMin = { 1.0f, 0.2f, 0.0f, 1.0f };
-    emitter.generateSettings.colorMax = { 1.0f, 0.9f, 0.2f, 1.0f };
+    {
+      ParticleGenerateSettings gs;
+      gs.isRandomScale = true;
+      gs.scaleMin = { 0.08f, 0.08f, 0.08f };
+      gs.scaleMax = { 0.25f, 0.25f, 0.25f };
+      gs.isRandomRotate = true;
+      gs.rotateMin = { 0.0f, 0.0f, -3.14f };
+      gs.rotateMax = { 0.0f, 0.0f, 3.14f };
+      gs.isRandomVelocity = true;
+      gs.velocityMin = { -7.0f, 1.5f, -7.0f };
+      gs.velocityMax = { 7.0f, 9.0f, 7.0f };
+      gs.isRandomLifeTime = true;
+      gs.lifeTimeMin = 0.35f;
+      gs.lifeTimeMax = 0.75f;
+      gs.isRandomColor = true;
+      gs.colorMin = { 1.0f, 0.2f, 0.0f, 1.0f };
+      gs.colorMax = { 1.0f, 0.9f, 0.2f, 1.0f };
+      emitter.SetGenerateSettings(gs);
 
-    emitter.fieldSettings.isGravityFieldActive = true;
-    emitter.fieldSettings.gravity = { 0.0f, -12.0f, 0.0f };
+      ParticleFieldSettings fs;
+      fs.isGravityFieldActive = true;
+      fs.gravity = { 0.0f, -12.0f, 0.0f };
+      emitter.SetFieldSettings(fs);
+    }
 
     emitter.SetShapeType(ParticleShapeType::Billboard);
     ParticleManager::GetInstance()->SetEmitter("BossAttackSpark", emitter);
@@ -6498,33 +6675,33 @@ void ShootingScene::InitializeCustomEffects() {
 
 void ShootingScene::EmitPlayerHitEffect(const Vector3& hitPos) {
   if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("PlayerHitRing")) {
-    emitter->isPlaying = true;
-    ParticleManager::GetInstance()->Emit("PlayerHitRing", hitPos, emitter->count);
+    emitter->SetIsPlaying(true);
+    ParticleManager::GetInstance()->Emit("PlayerHitRing", hitPos, emitter->GetCount());
   }
   if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("PlayerHitSpark")) {
-    emitter->isPlaying = true;
-    ParticleManager::GetInstance()->Emit("PlayerHitSpark", hitPos, emitter->count);
+    emitter->SetIsPlaying(true);
+    ParticleManager::GetInstance()->Emit("PlayerHitSpark", hitPos, emitter->GetCount());
   }
 }
 
 void ShootingScene::EmitBossChargeEffect(const Vector3& pos) {
   if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("BossChargeRing")) {
-    emitter->isPlaying = true;
-    ParticleManager::GetInstance()->Emit("BossChargeRing", pos, emitter->count);
+    emitter->SetIsPlaying(true);
+    ParticleManager::GetInstance()->Emit("BossChargeRing", pos, emitter->GetCount());
   }
 }
 
 void ShootingScene::EmitBossAttackEffect(const Vector3& pos) {
   if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("BossAttackRing")) {
-    emitter->isPlaying = true;
-    ParticleManager::GetInstance()->Emit("BossAttackRing", pos, emitter->count);
+    emitter->SetIsPlaying(true);
+    ParticleManager::GetInstance()->Emit("BossAttackRing", pos, emitter->GetCount());
   }
   if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("BossAttackCylinder")) {
-    emitter->isPlaying = true;
-    ParticleManager::GetInstance()->Emit("BossAttackCylinder", pos, emitter->count);
+    emitter->SetIsPlaying(true);
+    ParticleManager::GetInstance()->Emit("BossAttackCylinder", pos, emitter->GetCount());
   }
   if (auto* emitter = ParticleManager::GetInstance()->GetEmitter("BossAttackSpark")) {
-    emitter->isPlaying = true;
-    ParticleManager::GetInstance()->Emit("BossAttackSpark", pos, emitter->count);
+    emitter->SetIsPlaying(true);
+    ParticleManager::GetInstance()->Emit("BossAttackSpark", pos, emitter->GetCount());
   }
 }

@@ -10,7 +10,7 @@
 class ImGuiManager {
 public:
   // 初期化
-  static void Initialize();
+  void Initialize();
   // 終了
   void Finalize();
 

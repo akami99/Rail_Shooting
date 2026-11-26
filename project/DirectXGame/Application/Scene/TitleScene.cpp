@@ -60,8 +60,8 @@ void TitleScene::Initialize() {
   demoCursorPos_ = lastRecordedMousePos_;
 
   // 入場演出開始時：画面全体を完全ブラックアウト（暗転）状態に設定
-  PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-  PostProcessManager::SetVignetteParams(0.0f, 5.0f);
+  PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+  PostProcessManager::GetInstance()->SetVignetteParams(0.0f, 5.0f);
 
   // カメラ生成
   camera_ = std::make_unique<Camera>(); // メモリ確保と同時にスマートポインタ化
@@ -211,25 +211,29 @@ void TitleScene::Initialize() {
     ParticleManager::GetInstance()->CreateParticleGroup(groupName, "white.png");
     Transform t = {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}};
     ParticleEmitter emitter(t, 1, 0.1f);
-    emitter.isEmit = false;
-    emitter.isEffectMode = false;
-    emitter.generateSettings.fixedLifeTime = 0.3f;
-    emitter.generateSettings.fixedColor = {0.9f, 0.95f, 1.0f, 0.85f};
+    emitter.SetIsEmit(false);
+    emitter.SetIsEffectMode(false);
+    ParticleGenerateSettings gs;
+    gs.fixedLifeTime = 0.3f;
+    gs.fixedColor = {0.9f, 0.95f, 1.0f, 0.85f};
+    emitter.SetGenerateSettings(gs);
     emitter.SetShapeType(ParticleShapeType::Cylinder);
     if (auto *cs = emitter.GetCylinderShape()) {
-      cs->settings.height = 0.12f;
-      cs->settings.topRadius = {0.45f, 0.45f};
-      cs->settings.bottomRadius = {0.45f, 0.45f};
-      cs->settings.startAngle = 0.0f;
-      cs->settings.endAngle = 180.0f; // 半円状
-      cs->settings.division = 24;
-      cs->settings.verticalDivision = 1;
-      cs->settings.topColor = {0.9f, 0.95f, 1.0f, 0.85f};
-      cs->settings.bottomColor = {0.8f, 0.9f, 1.0f, 0.7f};
-      cs->settings.fadeStartAlpha = 1.0f;
-      cs->settings.fadeEndAlpha = 1.0f;
-      cs->settings.fadeRange = 0.15f; // 両端フェード
-      cs->settings.alphaReference = 0.0f;
+      CylinderSettings csSettings;
+      csSettings.height = 0.12f;
+      csSettings.topRadius = { 0.45f, 0.45f };
+      csSettings.bottomRadius = { 0.45f, 0.45f };
+      csSettings.startAngle = 0.0f;
+      csSettings.endAngle = 180.0f; // 半円状
+      csSettings.division = 24;
+      csSettings.verticalDivision = 1;
+      csSettings.topColor = { 0.9f, 0.95f, 1.0f, 0.85f };
+      csSettings.bottomColor = { 0.8f, 0.9f, 1.0f, 0.7f };
+      csSettings.fadeStartAlpha = 1.0f;
+      csSettings.fadeEndAlpha = 1.0f;
+      csSettings.fadeRange = 0.15f; // 両端フェード
+      csSettings.alphaReference = 0.0f;
+      cs->SetSettings(csSettings);
     }
     ParticleManager::GetInstance()->SetEmitter(groupName, emitter);
   }
@@ -761,7 +765,7 @@ void TitleScene::UpdateIntroBlink() {
     if (introTimer_ >= kIntroBlinkDuration) {
         phase_ = Phase::Main;
         introTimer_ = 0.0f;
-        PostProcessManager::SetMode(PostProcessManager::kModeCopy);
+        PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
         return;
     }
 
@@ -788,8 +792,8 @@ void TitleScene::UpdateIntroBlink() {
     // ビネットパラメータの適用
     float scale = 16.0f * openness;
     float exponent = 5.0f + (0.8f - 5.0f) * openness;
-    PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-    PostProcessManager::SetVignetteParams(scale, exponent);
+    PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+    PostProcessManager::GetInstance()->SetVignetteParams(scale, exponent);
 }
 
 void TitleScene::StartTransitionOut() {
@@ -828,8 +832,8 @@ void TitleScene::UpdateTransitionOut(){
         float easedT = vt * vt;
         float scale = 16.0f * (1.0f - easedT);
         float exponent = 0.8f + (5.0f - 0.8f) * easedT;
-        PostProcessManager::SetMode(PostProcessManager::kModeVignette);
-        PostProcessManager::SetVignetteParams(scale, exponent);
+        PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeVignette);
+        PostProcessManager::GetInstance()->SetVignetteParams(scale, exponent);
     }
 
     // シューティングシーン遷移

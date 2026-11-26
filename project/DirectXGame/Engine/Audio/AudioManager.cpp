@@ -153,14 +153,14 @@ bool AudioManager::LoadSound(const std::string &name,
 }
 
 // ロードしたサウンドを名前で取得する
-Sound *AudioManager::GetSound(const std::string &name) {
+const Sound *AudioManager::GetSound(const std::string &name) const {
   auto it = sounds.find(name);
   return (it != sounds.end()) ? &(it->second) : nullptr;
 }
 
 // 名前を指定してサウンドを再生する
 void AudioManager::PlaySound(const std::string &name) {
-  Sound *sound = GetSound(name);
+  const Sound *sound = GetSound(name);
   if (!sound) {
     return;
   }

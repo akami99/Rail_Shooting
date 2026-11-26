@@ -153,7 +153,7 @@ Vector3 EffectEditor::CalculateCameraFrontPos(const Camera* camera, float distan
 }
 
 bool EffectEditor::SaveEffectToJson(const std::string& groupName, const std::string& filePath) const {
-	ParticleEmitter* emitter = ParticleManager::GetInstance()->GetEmitter(groupName);
+	const ParticleEmitter* emitter = ParticleManager::GetInstance()->GetEmitter(groupName);
 	if (!emitter) {
 		return false;
 	}
@@ -164,20 +164,21 @@ bool EffectEditor::SaveEffectToJson(const std::string& groupName, const std::str
 	root["blendMode"] = static_cast<int>(blendMode_);
 	root["useBillboard"] = useBillboard_;
 
+	const Transform& emitterTransform = emitter->GetTransform();
 	root["emitter"] = {
 		{ "transform", {
-			{ "scale", ToJson(emitter->transform.scale) },
-			{ "rotate", ToJson(emitter->transform.rotate) },
-			{ "translate", ToJson(emitter->transform.translate) }
+			{ "scale", ToJson(emitterTransform.scale) },
+			{ "rotate", ToJson(emitterTransform.rotate) },
+			{ "translate", ToJson(emitterTransform.translate) }
 		}},
-		{ "count", emitter->count },
-		{ "frequency", emitter->frequency },
-		{ "isEmit", emitter->isEmit },
-		{ "isEffectMode", emitter->isEffectMode },
-		{ "isLoop", emitter->isLoop }
+		{ "count", emitter->GetCount() },
+		{ "frequency", emitter->GetFrequency() },
+		{ "isEmit", emitter->IsEmit() },
+		{ "isEffectMode", emitter->IsEffectMode() },
+		{ "isLoop", emitter->IsLoop() }
 	};
 
-	const auto& gs = emitter->generateSettings;
+	const auto& gs = emitter->GetGenerateSettings();
 	root["generateSettings"] = {
 		{ "isRandomScale", gs.isRandomScale },
 		{ "scaleMin", ToJson(gs.scaleMin) },
@@ -201,7 +202,7 @@ bool EffectEditor::SaveEffectToJson(const std::string& groupName, const std::str
 		{ "fixedColor", ToJson(gs.fixedColor) }
 	};
 
-	const auto& fsSettings = emitter->fieldSettings;
+	const auto& fsSettings = emitter->GetFieldSettings();
 	root["fieldSettings"] = {
 		{ "isAccelerationFieldActive", fsSettings.isAccelerationFieldActive },
 		{ "acceleration", ToJson(fsSettings.accelerationField.acceleration) },
@@ -211,7 +212,7 @@ bool EffectEditor::SaveEffectToJson(const std::string& groupName, const std::str
 		{ "gravity", ToJson(fsSettings.gravity) }
 	};
 
-	const auto& uvas = emitter->uvAnimationSettings;
+	const auto& uvas = emitter->GetUVAnimationSettings();
 	root["uvAnimationSettings"] = {
 		{ "isActive", uvas.isActive },
 		{ "isIndividual", uvas.isIndividual },
@@ -221,8 +222,8 @@ bool EffectEditor::SaveEffectToJson(const std::string& groupName, const std::str
 	};
 
 	root["shapeType"] = static_cast<int>(emitter->GetShapeType());
-	if (auto* rs = emitter->GetRingShape()) {
-		const auto& s = rs->settings;
+	if (const auto* rs = emitter->GetRingShape()) {
+		const auto& s = rs->GetSettings();
 		root["ringSettings"] = {
 			{ "innerRadius", s.innerRadius },
 			{ "startOuterRadius", s.startOuterRadius },
@@ -238,8 +239,8 @@ bool EffectEditor::SaveEffectToJson(const std::string& groupName, const std::str
 			{ "fadeEndAlpha", s.fadeEndAlpha },
 			{ "fadeRange", s.fadeRange }
 		};
-	} else if (auto* cs = emitter->GetCylinderShape()) {
-		const auto& s = cs->settings;
+	} else if (const auto* cs = emitter->GetCylinderShape()) {
+		const auto& s = cs->GetSettings();
 		root["cylinderSettings"] = {
 			{ "height", s.height },
 			{ "topRadius", ToJson(s.topRadius) },
@@ -257,8 +258,8 @@ bool EffectEditor::SaveEffectToJson(const std::string& groupName, const std::str
 			{ "fadeRange", s.fadeRange },
 			{ "alphaReference", s.alphaReference }
 		};
-	} else if (auto* ps = emitter->GetPlaneShape()) {
-		const auto& s = ps->settings;
+	} else if (const auto* ps = emitter->GetPlaneShape()) {
+		const auto& s = ps->GetSettings();
 		root["planeSettings"] = {
 			{ "size", ToJson(s.size) },
 			{ "divisionX", s.divisionX },
@@ -320,20 +321,22 @@ bool EffectEditor::LoadEffectFromJson(const std::string& groupName, const std::s
 		const auto& je = root["emitter"];
 		if (je.contains("transform")) {
 			const auto& jt = je["transform"];
-			emitter.transform.scale = FromJsonVec3(jt.value("scale", json::array()), { 1.0f, 1.0f, 1.0f });
-			emitter.transform.rotate = FromJsonVec3(jt.value("rotate", json::array()), { 0.0f, 0.0f, 0.0f });
-			emitter.transform.translate = FromJsonVec3(jt.value("translate", json::array()), { 0.0f, 0.0f, 0.0f });
+			Transform t;
+			t.scale = FromJsonVec3(jt.value("scale", json::array()), { 1.0f, 1.0f, 1.0f });
+			t.rotate = FromJsonVec3(jt.value("rotate", json::array()), { 0.0f, 0.0f, 0.0f });
+			t.translate = FromJsonVec3(jt.value("translate", json::array()), { 0.0f, 0.0f, 0.0f });
+			emitter.SetTransform(t);
 		}
-		emitter.count = je.value("count", 1u);
-		emitter.frequency = je.value("frequency", 0.1f);
-		emitter.isEmit = je.value("isEmit", false);
-		emitter.isEffectMode = je.value("isEffectMode", false);
-		emitter.isLoop = je.value("isLoop", false);
+		emitter.SetCount(je.value("count", 1u));
+		emitter.SetFrequency(je.value("frequency", 0.1f));
+		emitter.SetIsEmit(je.value("isEmit", false));
+		emitter.SetIsEffectMode(je.value("isEffectMode", false));
+		emitter.SetIsLoop(je.value("isLoop", false));
 	}
 
 	if (root.contains("generateSettings")) {
 		const auto& jg = root["generateSettings"];
-		auto& gs = emitter.generateSettings;
+		ParticleGenerateSettings gs = emitter.GetGenerateSettings();
 		gs.isRandomScale = jg.value("isRandomScale", gs.isRandomScale);
 		gs.scaleMin = FromJsonVec3(jg.value("scaleMin", json::array()), gs.scaleMin);
 		gs.scaleMax = FromJsonVec3(jg.value("scaleMax", json::array()), gs.scaleMax);
@@ -358,27 +361,30 @@ bool EffectEditor::LoadEffectFromJson(const std::string& groupName, const std::s
 		gs.colorMin = FromJsonVec4(jg.value("colorMin", json::array()), gs.colorMin);
 		gs.colorMax = FromJsonVec4(jg.value("colorMax", json::array()), gs.colorMax);
 		gs.fixedColor = FromJsonVec4(jg.value("fixedColor", json::array()), gs.fixedColor);
+		emitter.SetGenerateSettings(gs);
 	}
 
 	if (root.contains("fieldSettings")) {
 		const auto& jf = root["fieldSettings"];
-		auto& fsSettings = emitter.fieldSettings;
+		ParticleFieldSettings fsSettings = emitter.GetFieldSettings();
 		fsSettings.isAccelerationFieldActive = jf.value("isAccelerationFieldActive", false);
 		fsSettings.accelerationField.acceleration = FromJsonVec3(jf.value("acceleration", json::array()), fsSettings.accelerationField.acceleration);
 		fsSettings.accelerationField.area.min = FromJsonVec3(jf.value("areaMin", json::array()), fsSettings.accelerationField.area.min);
 		fsSettings.accelerationField.area.max = FromJsonVec3(jf.value("areaMax", json::array()), fsSettings.accelerationField.area.max);
 		fsSettings.isGravityFieldActive = jf.value("isGravityFieldActive", false);
 		fsSettings.gravity = FromJsonVec3(jf.value("gravity", json::array()), fsSettings.gravity);
+		emitter.SetFieldSettings(fsSettings);
 	}
 
 	if (root.contains("uvAnimationSettings")) {
 		const auto& ju = root["uvAnimationSettings"];
-		auto& uvas = emitter.uvAnimationSettings;
+		ParticleUVAnimationSettings uvas = emitter.GetUVAnimationSettings();
 		uvas.isActive = ju.value("isActive", false);
 		uvas.isIndividual = ju.value("isIndividual", false);
 		uvas.scrollSpeed = FromJsonVec2(ju.value("scrollSpeed", json::array()), uvas.scrollSpeed);
 		uvas.rotateSpeed = ju.value("rotateSpeed", 0.0f);
 		uvas.scaleSpeed = FromJsonVec2(ju.value("scaleSpeed", json::array()), uvas.scaleSpeed);
+		emitter.SetUVAnimationSettings(uvas);
 	}
 
 	int shapeTypeInt = root.value("shapeType", 0);
@@ -386,7 +392,7 @@ bool EffectEditor::LoadEffectFromJson(const std::string& groupName, const std::s
 
 	if (auto* rs = emitter.GetRingShape(); rs && root.contains("ringSettings")) {
 		const auto& jr = root["ringSettings"];
-		auto& s = rs->settings;
+		RingSettings s = rs->GetSettings();
 		s.innerRadius = jr.value("innerRadius", s.innerRadius);
 		s.startOuterRadius = jr.value("startOuterRadius", s.startOuterRadius);
 		s.midOuterRadius = jr.value("midOuterRadius", s.midOuterRadius);
@@ -400,10 +406,10 @@ bool EffectEditor::LoadEffectFromJson(const std::string& groupName, const std::s
 		s.fadeStartAlpha = jr.value("fadeStartAlpha", s.fadeStartAlpha);
 		s.fadeEndAlpha = jr.value("fadeEndAlpha", s.fadeEndAlpha);
 		s.fadeRange = jr.value("fadeRange", s.fadeRange);
-		rs->MarkDirty();
+		rs->SetSettings(s);
 	} else if (auto* cs = emitter.GetCylinderShape(); cs && root.contains("cylinderSettings")) {
 		const auto& jc = root["cylinderSettings"];
-		auto& s = cs->settings;
+		CylinderSettings s = cs->GetSettings();
 		s.height = jc.value("height", s.height);
 		s.topRadius = FromJsonVec2(jc.value("topRadius", json::array()), s.topRadius);
 		s.bottomRadius = FromJsonVec2(jc.value("bottomRadius", json::array()), s.bottomRadius);
@@ -419,17 +425,17 @@ bool EffectEditor::LoadEffectFromJson(const std::string& groupName, const std::s
 		s.fadeEndAlpha = jc.value("fadeEndAlpha", s.fadeEndAlpha);
 		s.fadeRange = jc.value("fadeRange", s.fadeRange);
 		s.alphaReference = jc.value("alphaReference", s.alphaReference);
-		cs->MarkDirty();
+		cs->SetSettings(s);
 	} else if (auto* ps = emitter.GetPlaneShape(); ps && root.contains("planeSettings")) {
 		const auto& jp = root["planeSettings"];
-		auto& s = ps->settings;
+		PlaneSettings s = ps->GetSettings();
 		s.size = FromJsonVec2(jp.value("size", json::array()), s.size);
 		s.divisionX = jp.value("divisionX", s.divisionX);
 		s.divisionY = jp.value("divisionY", s.divisionY);
 		s.flipV = jp.value("flipV", s.flipV);
 		s.isUvSwap = jp.value("isUvSwap", s.isUvSwap);
 		s.color = FromJsonVec4(jp.value("color", json::array()), s.color);
-		ps->MarkDirty();
+		ps->SetSettings(s);
 	}
 
 	ParticleManager::GetInstance()->SetEmitter(groupName, emitter);
@@ -437,7 +443,7 @@ bool EffectEditor::LoadEffectFromJson(const std::string& groupName, const std::s
 }
 
 std::string EffectEditor::GenerateCppCode(const std::string& groupName, const std::string& varPrefix) const {
-	ParticleEmitter* emitter = ParticleManager::GetInstance()->GetEmitter(groupName);
+	const ParticleEmitter* emitter = ParticleManager::GetInstance()->GetEmitter(groupName);
 	if (!emitter) {
 		return "// Emitter not found: " + groupName;
 	}
@@ -448,84 +454,88 @@ std::string EffectEditor::GenerateCppCode(const std::string& groupName, const st
 	std::string transformVar = prefix + "Transform";
 
 	// C++コード生成
+	const Transform& emitterTransform = emitter->GetTransform();
 	std::ostringstream oss;
 	oss << "// --- " << groupName << " ---\n";
 	oss << "TextureManager::GetInstance()->LoadTexture(\"" << texPath << "\");\n";
 	oss << "ParticleManager::GetInstance()->CreateParticleGroup(\"" << groupName << "\", \"" << texPath << "\");\n";
 	oss << "{\n";
 	oss << "  Transform " << transformVar << " = {\n";
-	oss << "      " << FmtVec3(emitter->transform.scale) << ", // scale\n";
-	oss << "      " << FmtVec3(emitter->transform.rotate) << ", // rotate\n";
-	oss << "      " << FmtVec3(emitter->transform.translate) << " // translate\n";
+	oss << "      " << FmtVec3(emitterTransform.scale) << ", // scale\n";
+	oss << "      " << FmtVec3(emitterTransform.rotate) << ", // rotate\n";
+	oss << "      " << FmtVec3(emitterTransform.translate) << " // translate\n";
 	oss << "  };\n";
-	oss << "  ParticleEmitter " << emitterVar << "(" << transformVar << ", " << emitter->count << ", " << FmtFloat(emitter->frequency) << ");\n";
-	oss << "  " << emitterVar << ".isEmit = " << BoolStr(emitter->isEmit) << ";\n";
-	oss << "  " << emitterVar << ".isEffectMode = " << BoolStr(emitter->isEffectMode) << ";\n";
-	oss << "  " << emitterVar << ".isLoop = " << BoolStr(emitter->isLoop) << ";\n\n";
+	oss << "  ParticleEmitter " << emitterVar << "(" << transformVar << ", " << emitter->GetCount() << ", " << FmtFloat(emitter->GetFrequency()) << ");\n";
+	oss << "  " << emitterVar << ".SetIsEmit(" << BoolStr(emitter->IsEmit()) << ");\n";
+	oss << "  " << emitterVar << ".SetIsEffectMode(" << BoolStr(emitter->IsEffectMode()) << ");\n";
+	oss << "  " << emitterVar << ".SetIsLoop(" << BoolStr(emitter->IsLoop()) << ");\n\n";
 
-	const auto& gs = emitter->generateSettings;
-	oss << "  " << emitterVar << ".generateSettings.isRandomScale = " << BoolStr(gs.isRandomScale) << ";\n";
+	const auto& gs = emitter->GetGenerateSettings();
+	oss << "  ParticleGenerateSettings gs;\n";
+	oss << "  gs.isRandomScale = " << BoolStr(gs.isRandomScale) << ";\n";
 	if (gs.isRandomScale) {
-		oss << "  " << emitterVar << ".generateSettings.scaleMin = " << FmtVec3(gs.scaleMin) << ";\n";
-		oss << "  " << emitterVar << ".generateSettings.scaleMax = " << FmtVec3(gs.scaleMax) << ";\n";
+		oss << "  gs.scaleMin = " << FmtVec3(gs.scaleMin) << ";\n";
+		oss << "  gs.scaleMax = " << FmtVec3(gs.scaleMax) << ";\n";
 	} else {
-		oss << "  " << emitterVar << ".generateSettings.fixedScale = " << FmtVec3(gs.fixedScale) << ";\n";
+		oss << "  gs.fixedScale = " << FmtVec3(gs.fixedScale) << ";\n";
 	}
 
-	oss << "  " << emitterVar << ".generateSettings.isRandomRotate = " << BoolStr(gs.isRandomRotate) << ";\n";
+	oss << "  gs.isRandomRotate = " << BoolStr(gs.isRandomRotate) << ";\n";
 	if (gs.isRandomRotate) {
-		oss << "  " << emitterVar << ".generateSettings.rotateMin = " << FmtVec3(gs.rotateMin) << ";\n";
-		oss << "  " << emitterVar << ".generateSettings.rotateMax = " << FmtVec3(gs.rotateMax) << ";\n";
+		oss << "  gs.rotateMin = " << FmtVec3(gs.rotateMin) << ";\n";
+		oss << "  gs.rotateMax = " << FmtVec3(gs.rotateMax) << ";\n";
 	} else {
-		oss << "  " << emitterVar << ".generateSettings.fixedRotate = " << FmtVec3(gs.fixedRotate) << ";\n";
+		oss << "  gs.fixedRotate = " << FmtVec3(gs.fixedRotate) << ";\n";
 	}
 
-	oss << "  " << emitterVar << ".generateSettings.isRandomVelocity = " << BoolStr(gs.isRandomVelocity) << ";\n";
+	oss << "  gs.isRandomVelocity = " << BoolStr(gs.isRandomVelocity) << ";\n";
 	if (gs.isRandomVelocity) {
-		oss << "  " << emitterVar << ".generateSettings.velocityMin = " << FmtVec3(gs.velocityMin) << ";\n";
-		oss << "  " << emitterVar << ".generateSettings.velocityMax = " << FmtVec3(gs.velocityMax) << ";\n";
+		oss << "  gs.velocityMin = " << FmtVec3(gs.velocityMin) << ";\n";
+		oss << "  gs.velocityMax = " << FmtVec3(gs.velocityMax) << ";\n";
 	} else {
-		oss << "  " << emitterVar << ".generateSettings.fixedVelocity = " << FmtVec3(gs.fixedVelocity) << ";\n";
+		oss << "  gs.fixedVelocity = " << FmtVec3(gs.fixedVelocity) << ";\n";
 	}
 
-	oss << "  " << emitterVar << ".generateSettings.isRandomLifeTime = " << BoolStr(gs.isRandomLifeTime) << ";\n";
+	oss << "  gs.isRandomLifeTime = " << BoolStr(gs.isRandomLifeTime) << ";\n";
 	if (gs.isRandomLifeTime) {
-		oss << "  " << emitterVar << ".generateSettings.lifeTimeMin = " << FmtFloat(gs.lifeTimeMin) << ";\n";
-		oss << "  " << emitterVar << ".generateSettings.lifeTimeMax = " << FmtFloat(gs.lifeTimeMax) << ";\n";
+		oss << "  gs.lifeTimeMin = " << FmtFloat(gs.lifeTimeMin) << ";\n";
+		oss << "  gs.lifeTimeMax = " << FmtFloat(gs.lifeTimeMax) << ";\n";
 	} else {
-		oss << "  " << emitterVar << ".generateSettings.fixedLifeTime = " << FmtFloat(gs.fixedLifeTime) << ";\n";
+		oss << "  gs.fixedLifeTime = " << FmtFloat(gs.fixedLifeTime) << ";\n";
 	}
 
-	oss << "  " << emitterVar << ".generateSettings.isRandomColor = " << BoolStr(gs.isRandomColor) << ";\n";
+	oss << "  gs.isRandomColor = " << BoolStr(gs.isRandomColor) << ";\n";
 	if (gs.isRandomColor) {
-		oss << "  " << emitterVar << ".generateSettings.colorMin = " << FmtVec4(gs.colorMin) << ";\n";
-		oss << "  " << emitterVar << ".generateSettings.colorMax = " << FmtVec4(gs.colorMax) << ";\n";
+		oss << "  gs.colorMin = " << FmtVec4(gs.colorMin) << ";\n";
+		oss << "  gs.colorMax = " << FmtVec4(gs.colorMax) << ";\n";
 	} else {
-		oss << "  " << emitterVar << ".generateSettings.fixedColor = " << FmtVec4(gs.fixedColor) << ";\n";
+		oss << "  gs.fixedColor = " << FmtVec4(gs.fixedColor) << ";\n";
 	}
-	oss << "\n";
+	oss << "  " << emitterVar << ".SetGenerateSettings(gs);\n\n";
 
-	const auto& fsSettings = emitter->fieldSettings;
-	oss << "  " << emitterVar << ".fieldSettings.isAccelerationFieldActive = " << BoolStr(fsSettings.isAccelerationFieldActive) << ";\n";
+	const auto& fsSettings = emitter->GetFieldSettings();
+	oss << "  ParticleFieldSettings fs;\n";
+	oss << "  fs.isAccelerationFieldActive = " << BoolStr(fsSettings.isAccelerationFieldActive) << ";\n";
 	if (fsSettings.isAccelerationFieldActive) {
-		oss << "  " << emitterVar << ".fieldSettings.accelerationField.acceleration = " << FmtVec3(fsSettings.accelerationField.acceleration) << ";\n";
-		oss << "  " << emitterVar << ".fieldSettings.accelerationField.area = {" << FmtVec3(fsSettings.accelerationField.area.min) << ", " << FmtVec3(fsSettings.accelerationField.area.max) << "};\n";
+		oss << "  fs.accelerationField.acceleration = " << FmtVec3(fsSettings.accelerationField.acceleration) << ";\n";
+		oss << "  fs.accelerationField.area = {" << FmtVec3(fsSettings.accelerationField.area.min) << ", " << FmtVec3(fsSettings.accelerationField.area.max) << "};\n";
 	}
-	oss << "  " << emitterVar << ".fieldSettings.isGravityFieldActive = " << BoolStr(fsSettings.isGravityFieldActive) << ";\n";
+	oss << "  fs.isGravityFieldActive = " << BoolStr(fsSettings.isGravityFieldActive) << ";\n";
 	if (fsSettings.isGravityFieldActive) {
-		oss << "  " << emitterVar << ".fieldSettings.gravity = " << FmtVec3(fsSettings.gravity) << ";\n";
+		oss << "  fs.gravity = " << FmtVec3(fsSettings.gravity) << ";\n";
 	}
-	oss << "\n";
+	oss << "  " << emitterVar << ".SetFieldSettings(fs);\n\n";
 
-	const auto& uvas = emitter->uvAnimationSettings;
-	oss << "  " << emitterVar << ".uvAnimationSettings.isActive = " << BoolStr(uvas.isActive) << ";\n";
+	const auto& uvas = emitter->GetUVAnimationSettings();
+	oss << "  ParticleUVAnimationSettings uvas;\n";
+	oss << "  uvas.isActive = " << BoolStr(uvas.isActive) << ";\n";
 	if (uvas.isActive) {
-		oss << "  " << emitterVar << ".uvAnimationSettings.isIndividual = " << BoolStr(uvas.isIndividual) << ";\n";
-		oss << "  " << emitterVar << ".uvAnimationSettings.scrollSpeed = " << FmtVec2(uvas.scrollSpeed) << ";\n";
-		oss << "  " << emitterVar << ".uvAnimationSettings.rotateSpeed = " << FmtFloat(uvas.rotateSpeed) << ";\n";
-		oss << "  " << emitterVar << ".uvAnimationSettings.scaleSpeed = " << FmtVec2(uvas.scaleSpeed) << ";\n";
+		oss << "  uvas.isIndividual = " << BoolStr(uvas.isIndividual) << ";\n";
+		oss << "  uvas.scrollSpeed = " << FmtVec2(uvas.scrollSpeed) << ";\n";
+		oss << "  uvas.rotateSpeed = " << FmtFloat(uvas.rotateSpeed) << ";\n";
+		oss << "  uvas.scaleSpeed = " << FmtVec2(uvas.scaleSpeed) << ";\n";
 	}
-	oss << "\n";
+	oss << "  " << emitterVar << ".SetUVAnimationSettings(uvas);\n\n";
 
 	switch (emitter->GetShapeType()) {
 	case ParticleShapeType::Billboard:
@@ -533,59 +543,65 @@ std::string EffectEditor::GenerateCppCode(const std::string& groupName, const st
 		break;
 	case ParticleShapeType::Ring:
 		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Ring);\n";
-		if (auto* rs = emitter->GetRingShape()) {
-			const auto& s = rs->settings;
+		if (const auto* rs = emitter->GetRingShape()) {
+			const auto& s = rs->GetSettings();
 			oss << "  if (auto *rs = " << emitterVar << ".GetRingShape()) {\n";
-			oss << "    rs->settings.innerRadius = " << FmtFloat(s.innerRadius) << ";\n";
-			oss << "    rs->settings.startOuterRadius = " << FmtFloat(s.startOuterRadius) << ";\n";
-			oss << "    rs->settings.midOuterRadius = " << FmtFloat(s.midOuterRadius) << ";\n";
-			oss << "    rs->settings.endOuterRadius = " << FmtFloat(s.endOuterRadius) << ";\n";
-			oss << "    rs->settings.startAngle = " << FmtFloat(s.startAngle) << ";\n";
-			oss << "    rs->settings.endAngle = " << FmtFloat(s.endAngle) << ";\n";
-			oss << "    rs->settings.division = " << s.division << ";\n";
-			oss << "    rs->settings.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
-			oss << "    rs->settings.innerColor = " << FmtVec4(s.innerColor) << ";\n";
-			oss << "    rs->settings.outerColor = " << FmtVec4(s.outerColor) << ";\n";
-			oss << "    rs->settings.fadeStartAlpha = " << FmtFloat(s.fadeStartAlpha) << ";\n";
-			oss << "    rs->settings.fadeEndAlpha = " << FmtFloat(s.fadeEndAlpha) << ";\n";
-			oss << "    rs->settings.fadeRange = " << FmtFloat(s.fadeRange) << ";\n";
+			oss << "    RingSettings s;\n";
+			oss << "    s.innerRadius = " << FmtFloat(s.innerRadius) << ";\n";
+			oss << "    s.startOuterRadius = " << FmtFloat(s.startOuterRadius) << ";\n";
+			oss << "    s.midOuterRadius = " << FmtFloat(s.midOuterRadius) << ";\n";
+			oss << "    s.endOuterRadius = " << FmtFloat(s.endOuterRadius) << ";\n";
+			oss << "    s.startAngle = " << FmtFloat(s.startAngle) << ";\n";
+			oss << "    s.endAngle = " << FmtFloat(s.endAngle) << ";\n";
+			oss << "    s.division = " << s.division << ";\n";
+			oss << "    s.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
+			oss << "    s.innerColor = " << FmtVec4(s.innerColor) << ";\n";
+			oss << "    s.outerColor = " << FmtVec4(s.outerColor) << ";\n";
+			oss << "    s.fadeStartAlpha = " << FmtFloat(s.fadeStartAlpha) << ";\n";
+			oss << "    s.fadeEndAlpha = " << FmtFloat(s.fadeEndAlpha) << ";\n";
+			oss << "    s.fadeRange = " << FmtFloat(s.fadeRange) << ";\n";
+			oss << "    rs->SetSettings(s);\n";
 			oss << "  }\n";
 		}
 		break;
 	case ParticleShapeType::Cylinder:
 		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Cylinder);\n";
-		if (auto* cs = emitter->GetCylinderShape()) {
-			const auto& s = cs->settings;
+		if (const auto* cs = emitter->GetCylinderShape()) {
+			const auto& s = cs->GetSettings();
 			oss << "  if (auto *cs = " << emitterVar << ".GetCylinderShape()) {\n";
-			oss << "    cs->settings.height = " << FmtFloat(s.height) << ";\n";
-			oss << "    cs->settings.topRadius = " << FmtVec2(s.topRadius) << ";\n";
-			oss << "    cs->settings.bottomRadius = " << FmtVec2(s.bottomRadius) << ";\n";
-			oss << "    cs->settings.startAngle = " << FmtFloat(s.startAngle) << ";\n";
-			oss << "    cs->settings.endAngle = " << FmtFloat(s.endAngle) << ";\n";
-			oss << "    cs->settings.division = " << s.division << ";\n";
-			oss << "    cs->settings.verticalDivision = " << s.verticalDivision << ";\n";
-			oss << "    cs->settings.flipV = " << BoolStr(s.flipV) << ";\n";
-			oss << "    cs->settings.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
-			oss << "    cs->settings.topColor = " << FmtVec4(s.topColor) << ";\n";
-			oss << "    cs->settings.bottomColor = " << FmtVec4(s.bottomColor) << ";\n";
-			oss << "    cs->settings.fadeStartAlpha = " << FmtFloat(s.fadeStartAlpha) << ";\n";
-			oss << "    cs->settings.fadeEndAlpha = " << FmtFloat(s.fadeEndAlpha) << ";\n";
-			oss << "    cs->settings.fadeRange = " << FmtFloat(s.fadeRange) << ";\n";
-			oss << "    cs->settings.alphaReference = " << FmtFloat(s.alphaReference) << ";\n";
+			oss << "    CylinderSettings s;\n";
+			oss << "    s.height = " << FmtFloat(s.height) << ";\n";
+			oss << "    s.topRadius = " << FmtVec2(s.topRadius) << ";\n";
+			oss << "    s.bottomRadius = " << FmtVec2(s.bottomRadius) << ";\n";
+			oss << "    s.startAngle = " << FmtFloat(s.startAngle) << ";\n";
+			oss << "    s.endAngle = " << FmtFloat(s.endAngle) << ";\n";
+			oss << "    s.division = " << s.division << ";\n";
+			oss << "    s.verticalDivision = " << s.verticalDivision << ";\n";
+			oss << "    s.flipV = " << BoolStr(s.flipV) << ";\n";
+			oss << "    s.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
+			oss << "    s.topColor = " << FmtVec4(s.topColor) << ";\n";
+			oss << "    s.bottomColor = " << FmtVec4(s.bottomColor) << ";\n";
+			oss << "    s.fadeStartAlpha = " << FmtFloat(s.fadeStartAlpha) << ";\n";
+			oss << "    s.fadeEndAlpha = " << FmtFloat(s.fadeEndAlpha) << ";\n";
+			oss << "    s.fadeRange = " << FmtFloat(s.fadeRange) << ";\n";
+			oss << "    s.alphaReference = " << FmtFloat(s.alphaReference) << ";\n";
+			oss << "    cs->SetSettings(s);\n";
 			oss << "  }\n";
 		}
 		break;
 	case ParticleShapeType::Plane:
 		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Plane);\n";
-		if (auto* ps = emitter->GetPlaneShape()) {
-			const auto& s = ps->settings;
+		if (const auto* ps = emitter->GetPlaneShape()) {
+			const auto& s = ps->GetSettings();
 			oss << "  if (auto *ps = " << emitterVar << ".GetPlaneShape()) {\n";
-			oss << "    ps->settings.size = " << FmtVec2(s.size) << ";\n";
-			oss << "    ps->settings.divisionX = " << s.divisionX << ";\n";
-			oss << "    ps->settings.divisionY = " << s.divisionY << ";\n";
-			oss << "    ps->settings.flipV = " << BoolStr(s.flipV) << ";\n";
-			oss << "    ps->settings.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
-			oss << "    ps->settings.color = " << FmtVec4(s.color) << ";\n";
+			oss << "    PlaneSettings s;\n";
+			oss << "    s.size = " << FmtVec2(s.size) << ";\n";
+			oss << "    s.divisionX = " << s.divisionX << ";\n";
+			oss << "    s.divisionY = " << s.divisionY << ";\n";
+			oss << "    s.flipV = " << BoolStr(s.flipV) << ";\n";
+			oss << "    s.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
+			oss << "    s.color = " << FmtVec4(s.color) << ";\n";
+			oss << "    ps->SetSettings(s);\n";
 			oss << "  }\n";
 		}
 		break;
@@ -694,8 +710,8 @@ void EffectEditor::DrawGroupSelectorSection() {
 				if (ParticleManager::GetInstance()->GetEmitter(newName) == nullptr) {
 					ParticleManager::GetInstance()->CreateParticleGroup(newName, texPath);
 					ParticleEmitter defaultEmitter;
-					defaultEmitter.isEmit = false;
-					defaultEmitter.isEffectMode = true;
+					defaultEmitter.SetIsEmit(false);
+					defaultEmitter.SetIsEffectMode(true);
 					ParticleManager::GetInstance()->SetEmitter(newName, defaultEmitter);
 				}
 				selectedGroupName_ = newName;
@@ -728,16 +744,16 @@ void EffectEditor::DrawPreviewControlSection(const Camera* camera, const std::st
 		ImGui::DragFloat("Camera Front Dist", &cameraEmitDistance_, 0.1f, 0.5f, 50.0f);
 
 		if (ImGui::Button("Emit at Emitter Pos")) {
-			ParticleManager::GetInstance()->Emit(groupName, emitter->transform.translate, emitter->count);
+			ParticleManager::GetInstance()->Emit(groupName, emitter->GetTranslate(), emitter->GetCount());
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Emit in Front of Camera")) {
 			Vector3 pos = CalculateCameraFrontPos(camera, cameraEmitDistance_);
-			ParticleManager::GetInstance()->Emit(groupName, pos, emitter->count);
+			ParticleManager::GetInstance()->Emit(groupName, pos, emitter->GetCount());
 		}
 
 		if (ImGui::Button("Move Emitter to Camera Front")) {
-			emitter->transform.translate = CalculateCameraFrontPos(camera, cameraEmitDistance_);
+			emitter->SetTranslate(CalculateCameraFrontPos(camera, cameraEmitDistance_));
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Clear Group")) {
@@ -768,13 +784,16 @@ void EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, Part
 	};
 
 	if (ImGui::CollapsingHeader("Emitter & Animation Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::DragFloat3("Translate", &emitter->transform.translate.x, 0.01f);
-		ImGui::DragFloat3("Rotate", &emitter->transform.rotate.x, 0.01f);
-		ImGui::DragFloat3("Scale", &emitter->transform.scale.x, 0.01f);
+		Vector3 translate = emitter->GetTranslate();
+		if (ImGui::DragFloat3("Translate", &translate.x, 0.01f)) { emitter->SetTranslate(translate); }
+		Vector3 rotate = emitter->GetRotate();
+		if (ImGui::DragFloat3("Rotate", &rotate.x, 0.01f)) { emitter->SetRotate(rotate); }
+		Vector3 scale = emitter->GetScale();
+		if (ImGui::DragFloat3("Scale", &scale.x, 0.01f)) { emitter->SetScale(scale); }
 
-		int count = static_cast<int>(emitter->count);
+		int count = static_cast<int>(emitter->GetCount());
 		if (ImGui::DragInt("Count", &count, 1, 1, 100)) {
-			emitter->count = static_cast<uint32_t>(count);
+			emitter->SetCount(static_cast<uint32_t>(count));
 		}
 
 		// テクスチャ選択
@@ -795,87 +814,109 @@ void EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, Part
 			ImGui::EndCombo();
 		}
 
-		ImGui::Checkbox("Enable Auto Emit", &emitter->isEmit);
-		ImGui::DragFloat("Frequency", &emitter->frequency, 0.01f, 0.01f, 10.0f);
+		bool isEmit = emitter->IsEmit();
+		if (ImGui::Checkbox("Enable Auto Emit", &isEmit)) { emitter->SetIsEmit(isEmit); }
+		float frequency = emitter->GetFrequency();
+		if (ImGui::DragFloat("Frequency", &frequency, 0.01f, 0.01f, 10.0f)) { emitter->SetFrequency(frequency); }
 
-		ImGui::Checkbox("Effect Mode (Single/Loop)", &emitter->isEffectMode);
-		if (emitter->isEffectMode) {
-			ImGui::Checkbox("Loop Effect", &emitter->isLoop);
-			ImGui::Text("Playing State: %s", emitter->isPlaying ? "Playing" : "Stopped");
+		bool isEffectMode = emitter->IsEffectMode();
+		if (ImGui::Checkbox("Effect Mode (Single/Loop)", &isEffectMode)) { emitter->SetIsEffectMode(isEffectMode); }
+		if (emitter->IsEffectMode()) {
+			bool isLoop = emitter->IsLoop();
+			if (ImGui::Checkbox("Loop Effect", &isLoop)) { emitter->SetIsLoop(isLoop); }
+			ImGui::Text("Playing State: %s", emitter->IsPlaying() ? "Playing" : "Stopped");
 		}
 
 		// Generate Settings
 		if (ImGui::TreeNode("Generate Settings")) {
-			auto& gs = emitter->generateSettings;
-			ImGui::Checkbox("Random Scale", &gs.isRandomScale);
+			ParticleGenerateSettings gs = emitter->GetGenerateSettings();
+			bool changed = false;
+			changed |= ImGui::Checkbox("Random Scale", &gs.isRandomScale);
 			if (gs.isRandomScale) {
 				DragFloat3MinMax("Scale Min", "Scale Max", &gs.scaleMin, &gs.scaleMax);
+				changed = true;
 			} else {
-				ImGui::DragFloat3("Fixed Scale", &gs.fixedScale.x, 0.01f);
+				changed |= ImGui::DragFloat3("Fixed Scale", &gs.fixedScale.x, 0.01f);
 			}
 
-			ImGui::Checkbox("Random Rotate", &gs.isRandomRotate);
+			changed |= ImGui::Checkbox("Random Rotate", &gs.isRandomRotate);
 			if (gs.isRandomRotate) {
 				DragFloat3MinMax("Rotate Min", "Rotate Max", &gs.rotateMin, &gs.rotateMax);
+				changed = true;
 			} else {
-				ImGui::DragFloat3("Fixed Rotate", &gs.fixedRotate.x, 0.01f);
+				changed |= ImGui::DragFloat3("Fixed Rotate", &gs.fixedRotate.x, 0.01f);
 			}
 
-			ImGui::Checkbox("Random Velocity", &gs.isRandomVelocity);
+			changed |= ImGui::Checkbox("Random Velocity", &gs.isRandomVelocity);
 			if (gs.isRandomVelocity) {
 				DragFloat3MinMax("Velocity Min", "Velocity Max", &gs.velocityMin, &gs.velocityMax);
+				changed = true;
 			} else {
-				ImGui::DragFloat3("Fixed Velocity", &gs.fixedVelocity.x, 0.01f);
+				changed |= ImGui::DragFloat3("Fixed Velocity", &gs.fixedVelocity.x, 0.01f);
 			}
 
-			ImGui::Checkbox("Random LifeTime", &gs.isRandomLifeTime);
+			changed |= ImGui::Checkbox("Random LifeTime", &gs.isRandomLifeTime);
 			if (gs.isRandomLifeTime) {
 				DragFloatMinMax("LifeTime Min", "LifeTime Max", &gs.lifeTimeMin, &gs.lifeTimeMax);
+				changed = true;
 			} else {
-				ImGui::DragFloat("Fixed LifeTime", &gs.fixedLifeTime, 0.01f, 0.01f, 60.0f);
+				changed |= ImGui::DragFloat("Fixed LifeTime", &gs.fixedLifeTime, 0.01f, 0.01f, 60.0f);
 			}
 
-			ImGui::Checkbox("Random Color", &gs.isRandomColor);
+			changed |= ImGui::Checkbox("Random Color", &gs.isRandomColor);
 			if (gs.isRandomColor) {
-				ImGui::ColorEdit4("Color Min", &gs.colorMin.x);
-				ImGui::ColorEdit4("Color Max", &gs.colorMax.x);
+				changed |= ImGui::ColorEdit4("Color Min", &gs.colorMin.x);
+				changed |= ImGui::ColorEdit4("Color Max", &gs.colorMax.x);
 			} else {
-				ImGui::ColorEdit4("Fixed Color", &gs.fixedColor.x);
+				changed |= ImGui::ColorEdit4("Fixed Color", &gs.fixedColor.x);
+			}
+			if (changed) {
+				emitter->SetGenerateSettings(gs);
 			}
 			ImGui::TreePop();
 		}
 
 		// Field Settings
 		if (ImGui::TreeNode("Field Settings")) {
-			auto& fsSettings = emitter->fieldSettings;
-			ImGui::Checkbox("Acceleration Field Active", &fsSettings.isAccelerationFieldActive);
+			ParticleFieldSettings fsSettings = emitter->GetFieldSettings();
+			bool changed = false;
+			changed |= ImGui::Checkbox("Acceleration Field Active", &fsSettings.isAccelerationFieldActive);
 			if (fsSettings.isAccelerationFieldActive) {
-				ImGui::DragFloat3("Acceleration", &fsSettings.accelerationField.acceleration.x, 0.1f);
+				changed |= ImGui::DragFloat3("Acceleration", &fsSettings.accelerationField.acceleration.x, 0.1f);
 				DragFloat3MinMax("Area Min", "Area Max", &fsSettings.accelerationField.area.min, &fsSettings.accelerationField.area.max, 0.1f);
+				changed = true;
 			}
 			ImGui::Separator();
-			ImGui::Checkbox("Gravity Field Active", &fsSettings.isGravityFieldActive);
+			changed |= ImGui::Checkbox("Gravity Field Active", &fsSettings.isGravityFieldActive);
 			if (fsSettings.isGravityFieldActive) {
-				ImGui::DragFloat3("Gravity Vector", &fsSettings.gravity.x, 0.1f);
+				changed |= ImGui::DragFloat3("Gravity Vector", &fsSettings.gravity.x, 0.1f);
+			}
+			if (changed) {
+				emitter->SetFieldSettings(fsSettings);
 			}
 			ImGui::TreePop();
 		}
 
 		// UV Animation Settings
 		if (ImGui::TreeNode("UV Animation Settings")) {
-			auto& uvas = emitter->uvAnimationSettings;
-			ImGui::Checkbox("UV Animation Active", &uvas.isActive);
+			ParticleUVAnimationSettings uvas = emitter->GetUVAnimationSettings();
+			bool changed = false;
+			changed |= ImGui::Checkbox("UV Animation Active", &uvas.isActive);
 			if (uvas.isActive) {
-				ImGui::Checkbox("Individual UV Animation (Effect Mode)", &uvas.isIndividual);
-				ImGui::DragFloat2("Scroll Speed (U, V)", &uvas.scrollSpeed.x, 0.01f);
-				ImGui::DragFloat("Rotate Speed (rad/s)", &uvas.rotateSpeed, 0.01f);
-				ImGui::DragFloat2("Scale Speed (U, V)", &uvas.scaleSpeed.x, 0.01f);
+				changed |= ImGui::Checkbox("Individual UV Animation (Effect Mode)", &uvas.isIndividual);
+				changed |= ImGui::DragFloat2("Scroll Speed (U, V)", &uvas.scrollSpeed.x, 0.01f);
+				changed |= ImGui::DragFloat("Rotate Speed (rad/s)", &uvas.rotateSpeed, 0.01f);
+				changed |= ImGui::DragFloat2("Scale Speed (U, V)", &uvas.scaleSpeed.x, 0.01f);
 
 				if (ImGui::Button("Reset UV States")) {
 					uvas.currentTranslate = { 0.0f, 0.0f };
 					uvas.currentRotate = 0.0f;
 					uvas.currentScale = { 1.0f, 1.0f };
+					changed = true;
 				}
+			}
+			if (changed) {
+				emitter->SetUVAnimationSettings(uvas);
 			}
 			ImGui::TreePop();
 		}
@@ -901,94 +942,97 @@ void EffectEditor::DrawShapeSettingsSection(ParticleEmitter* emitter) {
 
 		if (auto* rs = emitter->GetRingShape()) {
 			if (ImGui::TreeNode("Ring Shape Settings")) {
-				bool isMeshChanged = false;
-				float tempInner = rs->settings.innerRadius;
-				float tempOuter = rs->settings.startOuterRadius;
+				RingSettings s = rs->GetSettings();
+				bool changed = false;
+				float tempInner = s.innerRadius;
+				float tempOuter = s.startOuterRadius;
 				DragFloatMinMax("Inner Radius", "Start Outer Radius", &tempInner, &tempOuter);
-				if (tempInner != rs->settings.innerRadius || tempOuter != rs->settings.startOuterRadius) {
-					rs->settings.innerRadius = tempInner;
-					rs->settings.startOuterRadius = tempOuter;
-					isMeshChanged = true;
+				if (tempInner != s.innerRadius || tempOuter != s.startOuterRadius) {
+					s.innerRadius = tempInner;
+					s.startOuterRadius = tempOuter;
+					changed = true;
 				}
-				if (ImGui::DragFloat("Mid Outer Radius", &rs->settings.midOuterRadius, 0.01f, 0.0f, 20.0f)) isMeshChanged = true;
-				if (ImGui::DragFloat("End Outer Radius", &rs->settings.endOuterRadius, 0.01f, 0.0f, 20.0f)) isMeshChanged = true;
-				if (ImGui::DragFloat("Start Angle (deg)", &rs->settings.startAngle, 1.0f) ||
-					ImGui::DragFloat("End Angle (deg)", &rs->settings.endAngle, 1.0f)) isMeshChanged = true;
+				changed |= ImGui::DragFloat("Mid Outer Radius", &s.midOuterRadius, 0.01f, 0.0f, 20.0f);
+				changed |= ImGui::DragFloat("End Outer Radius", &s.endOuterRadius, 0.01f, 0.0f, 20.0f);
+				changed |= ImGui::DragFloat("Start Angle (deg)", &s.startAngle, 1.0f);
+				changed |= ImGui::DragFloat("End Angle (deg)", &s.endAngle, 1.0f);
 
-				int division = static_cast<int>(rs->settings.division);
+				int division = static_cast<int>(s.division);
 				if (ImGui::DragInt("Division", &division, 1, 3, 256)) {
-					rs->settings.division = static_cast<uint32_t>(division);
-					isMeshChanged = true;
-				}
-				if (isMeshChanged) {
-					rs->MarkDirty();
+					s.division = static_cast<uint32_t>(division);
+					changed = true;
 				}
 
 				ImGui::Separator();
-				ImGui::Checkbox("Swap UV (U <-> V)", &rs->settings.isUvSwap);
-				ImGui::ColorEdit4("Inner Vertex Color", &rs->settings.innerColor.x);
-				ImGui::ColorEdit4("Outer Vertex Color", &rs->settings.outerColor.x);
-				ImGui::DragFloat("Fade Start Alpha", &rs->settings.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
-				ImGui::DragFloat("Fade End Alpha", &rs->settings.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
-				ImGui::DragFloat("Fade Range", &rs->settings.fadeRange, 0.01f, 0.0f, 0.5f);
+				changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
+				changed |= ImGui::ColorEdit4("Inner Vertex Color", &s.innerColor.x);
+				changed |= ImGui::ColorEdit4("Outer Vertex Color", &s.outerColor.x);
+				changed |= ImGui::DragFloat("Fade Start Alpha", &s.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
+				changed |= ImGui::DragFloat("Fade End Alpha", &s.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
+				changed |= ImGui::DragFloat("Fade Range", &s.fadeRange, 0.01f, 0.0f, 0.5f);
+				if (changed) {
+					rs->SetSettings(s);
+				}
 				ImGui::TreePop();
 			}
 		} else if (auto* cs = emitter->GetCylinderShape()) {
 			if (ImGui::TreeNode("Cylinder Shape Settings")) {
-				bool isMeshChanged = false;
-				if (ImGui::DragFloat("Height", &cs->settings.height, 0.01f, 0.0f, 50.0f)) isMeshChanged = true;
-				if (ImGui::DragFloat2("Top Radius (X, Z)", &cs->settings.topRadius.x, 0.01f, 0.0f, 20.0f)) isMeshChanged = true;
-				if (ImGui::DragFloat2("Bottom Radius (X, Z)", &cs->settings.bottomRadius.x, 0.01f, 0.0f, 20.0f)) isMeshChanged = true;
-				if (ImGui::DragFloat("Start Angle (deg)", &cs->settings.startAngle, 1.0f) ||
-					ImGui::DragFloat("End Angle (deg)", &cs->settings.endAngle, 1.0f)) isMeshChanged = true;
+				CylinderSettings s = cs->GetSettings();
+				bool changed = false;
+				changed |= ImGui::DragFloat("Height", &s.height, 0.01f, 0.0f, 50.0f);
+				changed |= ImGui::DragFloat2("Top Radius (X, Z)", &s.topRadius.x, 0.01f, 0.0f, 20.0f);
+				changed |= ImGui::DragFloat2("Bottom Radius (X, Z)", &s.bottomRadius.x, 0.01f, 0.0f, 20.0f);
+				changed |= ImGui::DragFloat("Start Angle (deg)", &s.startAngle, 1.0f);
+				changed |= ImGui::DragFloat("End Angle (deg)", &s.endAngle, 1.0f);
 
-				int division = static_cast<int>(cs->settings.division);
+				int division = static_cast<int>(s.division);
 				if (ImGui::DragInt("Division", &division, 1, 3, 256)) {
-					cs->settings.division = static_cast<uint32_t>(division);
-					isMeshChanged = true;
+					s.division = static_cast<uint32_t>(division);
+					changed = true;
 				}
-				int verticalDivision = static_cast<int>(cs->settings.verticalDivision);
+				int verticalDivision = static_cast<int>(s.verticalDivision);
 				if (ImGui::DragInt("Vertical Division", &verticalDivision, 1, 1, 256)) {
-					cs->settings.verticalDivision = static_cast<uint32_t>(verticalDivision);
-					isMeshChanged = true;
-				}
-				if (isMeshChanged) {
-					cs->MarkDirty();
+					s.verticalDivision = static_cast<uint32_t>(verticalDivision);
+					changed = true;
 				}
 
 				ImGui::Separator();
-				ImGui::Checkbox("Swap UV (U <-> V)", &cs->settings.isUvSwap);
-				ImGui::Checkbox("Flip V", &cs->settings.flipV);
-				ImGui::ColorEdit4("Top Vertex Color", &cs->settings.topColor.x);
-				ImGui::ColorEdit4("Bottom Vertex Color", &cs->settings.bottomColor.x);
-				ImGui::DragFloat("Fade Start Alpha", &cs->settings.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
-				ImGui::DragFloat("Fade End Alpha", &cs->settings.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
-				ImGui::DragFloat("Fade Range", &cs->settings.fadeRange, 0.01f, 0.0f, 0.5f);
-				ImGui::DragFloat("Alpha Reference (Discard)", &cs->settings.alphaReference, 0.01f, 0.0f, 1.0f);
+				changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
+				changed |= ImGui::Checkbox("Flip V", &s.flipV);
+				changed |= ImGui::ColorEdit4("Top Vertex Color", &s.topColor.x);
+				changed |= ImGui::ColorEdit4("Bottom Vertex Color", &s.bottomColor.x);
+				changed |= ImGui::DragFloat("Fade Start Alpha", &s.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
+				changed |= ImGui::DragFloat("Fade End Alpha", &s.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
+				changed |= ImGui::DragFloat("Fade Range", &s.fadeRange, 0.01f, 0.0f, 0.5f);
+				changed |= ImGui::DragFloat("Alpha Reference (Discard)", &s.alphaReference, 0.01f, 0.0f, 1.0f);
+				if (changed) {
+					cs->SetSettings(s);
+				}
 				ImGui::TreePop();
 			}
 		} else if (auto* ps = emitter->GetPlaneShape()) {
 			if (ImGui::TreeNode("Plane Shape Settings")) {
-				bool isMeshChanged = false;
-				if (ImGui::DragFloat2("Size", &ps->settings.size.x, 0.01f, 0.01f, 50.0f)) isMeshChanged = true;
-				int divX = static_cast<int>(ps->settings.divisionX);
-				int divY = static_cast<int>(ps->settings.divisionY);
+				PlaneSettings s = ps->GetSettings();
+				bool changed = false;
+				changed |= ImGui::DragFloat2("Size", &s.size.x, 0.01f, 0.01f, 50.0f);
+				int divX = static_cast<int>(s.divisionX);
+				int divY = static_cast<int>(s.divisionY);
 				if (ImGui::DragInt("Division X", &divX, 1, 1, 256)) {
-					ps->settings.divisionX = static_cast<uint32_t>(divX);
-					isMeshChanged = true;
+					s.divisionX = static_cast<uint32_t>(divX);
+					changed = true;
 				}
 				if (ImGui::DragInt("Division Y", &divY, 1, 1, 256)) {
-					ps->settings.divisionY = static_cast<uint32_t>(divY);
-					isMeshChanged = true;
-				}
-				if (isMeshChanged) {
-					ps->MarkDirty();
+					s.divisionY = static_cast<uint32_t>(divY);
+					changed = true;
 				}
 
 				ImGui::Separator();
-				ImGui::Checkbox("Flip V", &ps->settings.flipV);
-				ImGui::Checkbox("Swap UV (U <-> V)", &ps->settings.isUvSwap);
-				ImGui::ColorEdit4("Plane Color", &ps->settings.color.x);
+				changed |= ImGui::Checkbox("Flip V", &s.flipV);
+				changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
+				changed |= ImGui::ColorEdit4("Plane Color", &s.color.x);
+				if (changed) {
+					ps->SetSettings(s);
+				}
 				ImGui::TreePop();
 			}
 		}

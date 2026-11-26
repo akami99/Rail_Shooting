@@ -75,16 +75,25 @@ void GamePlayScene::Initialize() {
 		1,
 		0.4f
 	);
-	cylinderEmitter.isEffectMode = true;
-	cylinderEmitter.isLoop = true;
-	cylinderEmitter.generateSettings.isRandomScale = false;
-	cylinderEmitter.generateSettings.rotateMin = { 0.0f, 0.0f, 0.0f };
-	cylinderEmitter.generateSettings.rotateMax = { 0.0f, 1.0f, 0.0f };
-	cylinderEmitter.uvAnimationSettings.isActive = true;
-	cylinderEmitter.uvAnimationSettings.scrollSpeed = { 0.3f, 0.0f };
+	cylinderEmitter.SetIsEffectMode(true);
+	cylinderEmitter.SetIsLoop(true);
+	{
+		ParticleGenerateSettings gs = cylinderEmitter.GetGenerateSettings();
+		gs.isRandomScale = false;
+		gs.rotateMin = { 0.0f, 0.0f, 0.0f };
+		gs.rotateMax = { 0.0f, 1.0f, 0.0f };
+		cylinderEmitter.SetGenerateSettings(gs);
+
+		ParticleUVAnimationSettings uvas = cylinderEmitter.GetUVAnimationSettings();
+		uvas.isActive = true;
+		uvas.scrollSpeed = { 0.3f, 0.0f };
+		cylinderEmitter.SetUVAnimationSettings(uvas);
+	}
 	cylinderEmitter.SetShapeType(ParticleShapeType::Cylinder);
 	if (auto* cs = cylinderEmitter.GetCylinderShape()) {
-		cs->settings.flipV = true; 
+		CylinderSettings csSettings = cs->GetSettings();
+		csSettings.flipV = true;
+		cs->SetSettings(csSettings);
 	}
 	ParticleManager::GetInstance()->SetEmitter(cylinderParticleGroupName_, cylinderEmitter);
 
@@ -94,17 +103,26 @@ void GamePlayScene::Initialize() {
 		1,
 		0.4f
 	);
-	ringEmitter.isEffectMode = true;
-	ringEmitter.isLoop = true;
-	ringEmitter.generateSettings.isRandomScale = false;
-	ringEmitter.uvAnimationSettings.isActive = true;
-	ringEmitter.uvAnimationSettings.scrollSpeed = { 0.1f, 0.0f };
+	ringEmitter.SetIsEffectMode(true);
+	ringEmitter.SetIsLoop(true);
+	{
+		ParticleGenerateSettings gs = ringEmitter.GetGenerateSettings();
+		gs.isRandomScale = false;
+		ringEmitter.SetGenerateSettings(gs);
+
+		ParticleUVAnimationSettings uvas = ringEmitter.GetUVAnimationSettings();
+		uvas.isActive = true;
+		uvas.scrollSpeed = { 0.1f, 0.0f };
+		ringEmitter.SetUVAnimationSettings(uvas);
+	}
 	ringEmitter.SetShapeType(ParticleShapeType::Ring);
 	if (auto* rs = ringEmitter.GetRingShape()) {
-		rs->settings.innerRadius = 0.5f;
-		rs->settings.startOuterRadius = 1.0f;
-		rs->settings.midOuterRadius = 1.2f;
-		rs->settings.endOuterRadius = 1.5f;
+		RingSettings rsSettings = rs->GetSettings();
+		rsSettings.innerRadius = 0.5f;
+		rsSettings.startOuterRadius = 1.0f;
+		rsSettings.midOuterRadius = 1.2f;
+		rsSettings.endOuterRadius = 1.5f;
+		rs->SetSettings(rsSettings);
 	}
 	ParticleManager::GetInstance()->SetEmitter(ringParticleGroupName_, ringEmitter);
 
@@ -454,37 +472,49 @@ void GamePlayScene::UpdateImGui_LightSettings() {
 	if (ImGui::TreeNode("Light Settings")) {
 		// --- Directional Light ---
 		if (ImGui::TreeNode("DirectioalLight_")) {
-			DirectionalLight& lightData = LightManager::GetInstance()->GetDirectionalLightData();
-			ImGui::ColorEdit4("color", &lightData.color.x);
-			ImGui::DragFloat3("direction", &lightData.direction.x, 0.01f);
-			ImGui::DragFloat("intensity", &lightData.intensity, 0.01f);
+			DirectionalLight lightData = LightManager::GetInstance()->GetDirectionalLightData();
+			bool changed = false;
+			changed |= ImGui::ColorEdit4("color", &lightData.color.x);
+			changed |= ImGui::DragFloat3("direction", &lightData.direction.x, 0.01f);
+			changed |= ImGui::DragFloat("intensity", &lightData.intensity, 0.01f);
+			if (changed) {
+				LightManager::GetInstance()->SetDirectionalLightData(lightData);
+			}
 			ImGui::TreePop();
 		}
 		ImGui::Separator();
 
 		// --- Point Light ---
 		if (ImGui::TreeNode("PointLight_")) {
-			PointLight& pointLight = LightManager::GetInstance()->GetPointLightData();
-			ImGui::ColorEdit4("color", &pointLight.color.x);
-			ImGui::DragFloat3("position", &pointLight.position.x, 0.01f);
-			ImGui::DragFloat("intensity", &pointLight.intensity, 0.01f);
-			ImGui::DragFloat("radius", &pointLight.radius, 0.01f);
-			ImGui::DragFloat("decay", &pointLight.decay, 0.01f);
+			PointLight pointLight = LightManager::GetInstance()->GetPointLightData();
+			bool changed = false;
+			changed |= ImGui::ColorEdit4("color", &pointLight.color.x);
+			changed |= ImGui::DragFloat3("position", &pointLight.position.x, 0.01f);
+			changed |= ImGui::DragFloat("intensity", &pointLight.intensity, 0.01f);
+			changed |= ImGui::DragFloat("radius", &pointLight.radius, 0.01f);
+			changed |= ImGui::DragFloat("decay", &pointLight.decay, 0.01f);
+			if (changed) {
+				LightManager::GetInstance()->SetPointLightData(pointLight);
+			}
 			ImGui::TreePop();
 		}
 		ImGui::Separator();
 
 		// --- Spot Light ---
 		if (ImGui::TreeNode("SpotLight_")) {
-			SpotLight& spotLight = LightManager::GetInstance()->GetSpotLightData();
-			ImGui::ColorEdit4("color", &spotLight.color.x);
-			ImGui::DragFloat3("position", &spotLight.position.x, 0.01f);
-			ImGui::DragFloat("distance", &spotLight.distance, 0.01f);
-			ImGui::DragFloat3("direction", &spotLight.direction.x, 0.01f);
-			ImGui::DragFloat("intensity", &spotLight.intensity, 0.01f);
-			ImGui::DragFloat("decay", &spotLight.decay, 0.01f);
-			ImGui::DragFloat("cosAngle", &spotLight.cosAngle, 0.01f);
-			ImGui::DragFloat("cosFalloffStart", &spotLight.cosFalloffStart, 0.01f);
+			SpotLight spotLight = LightManager::GetInstance()->GetSpotLightData();
+			bool changed = false;
+			changed |= ImGui::ColorEdit4("color", &spotLight.color.x);
+			changed |= ImGui::DragFloat3("position", &spotLight.position.x, 0.01f);
+			changed |= ImGui::DragFloat("distance", &spotLight.distance, 0.01f);
+			changed |= ImGui::DragFloat3("direction", &spotLight.direction.x, 0.01f);
+			changed |= ImGui::DragFloat("intensity", &spotLight.intensity, 0.01f);
+			changed |= ImGui::DragFloat("decay", &spotLight.decay, 0.01f);
+			changed |= ImGui::DragFloat("cosAngle", &spotLight.cosAngle, 0.01f);
+			changed |= ImGui::DragFloat("cosFalloffStart", &spotLight.cosFalloffStart, 0.01f);
+			if (changed) {
+				LightManager::GetInstance()->SetSpotLightData(spotLight);
+			}
 			ImGui::TreePop();
 		}
 		ImGui::TreePop();
@@ -514,48 +544,62 @@ void GamePlayScene::UpdateImGui_Object3d() {
 			std::string label = "Object3d " + std::to_string(i + 1);
 
 			if (ImGui::TreeNode(label.c_str())) {
-				ImGui::DragFloat3("scale", &object3d->GetTransformDebug().scale.x, 0.01f);
-				ImGui::DragFloat3("rotate", &object3d->GetTransformDebug().rotate.x, 0.01f);
-				ImGui::DragFloat3("translate", &object3d->GetTransformDebug().translate.x, 0.01f);
-
-				ImGui::Separator();
-				bool enableLighting = object3d->GetModelDebug().IsEnableLighting();
-
-				ImGui::ColorEdit4("color", &object3d->GetModelDebug().GetColorDebug().x);
-				if (ImGui::Checkbox("enableLighting", &enableLighting)) {
-					object3d->GetModelDebug().SetEnableLighting(enableLighting);
+				Vector3 scale = object3d->GetScale();
+				if (ImGui::DragFloat3("scale", &scale.x, 0.01f)) {
+					object3d->SetScale(scale);
+				}
+				Vector3 rotate = object3d->GetRotation();
+				if (ImGui::DragFloat3("rotate", &rotate.x, 0.01f)) {
+					object3d->SetRotation(rotate);
+				}
+				Vector3 translate = object3d->GetTranslate();
+				if (ImGui::DragFloat3("translate", &translate.x, 0.01f)) {
+					object3d->SetTranslate(translate);
 				}
 
-				float environmentCoefficient = object3d->GetModelDebug().GetEnvironmentCoefficient();
-				if (ImGui::DragFloat("environmentCoefficient", &environmentCoefficient, 0.01f, 0.0f, 1.0f)) {
-					object3d->GetModelDebug().SetEnvironmentCoefficient(environmentCoefficient);
-				}
+				if (Model* model = object3d->GetModel()) {
+					ImGui::Separator();
+					bool enableLighting = model->IsEnableLighting();
 
-				ImGui::Separator();
-				ImGui::Text("Dissolve");
-				bool enableDissolve = object3d->GetModelDebug().GetDissolveEnable() != 0;
-				float dissolveThreshold = object3d->GetModelDebug().GetDissolveThreshold();
-				float dissolveEdgeRange = object3d->GetModelDebug().GetDissolveEdgeRange();
-				Vector3 dissolveEdgeColor = object3d->GetModelDebug().GetDissolveEdgeColor();
-				std::string currentMask = object3d->GetModelDebug().GetDissolveMaskTexturePath();
-				int maskIndex = (currentMask == "masks/noise1.png") ? 1 : 0;
-				const char* maskPaths[] = { "masks/noise0.png", "masks/noise1.png" };
-				const char* maskNames[] = { "noise0", "noise1" };
+					Vector4 color = model->GetColor();
+					if (ImGui::ColorEdit4("color", &color.x)) {
+						model->SetColor(color);
+					}
+					if (ImGui::Checkbox("enableLighting", &enableLighting)) {
+						model->SetEnableLighting(enableLighting);
+					}
 
-				bool dissolveChanged = false;
-				if (ImGui::Checkbox("Enable Dissolve", &enableDissolve)) { dissolveChanged = true; }
-				if (ImGui::SliderFloat("Threshold", &dissolveThreshold, 0.0f, 1.0f)) { dissolveChanged = true; }
-				if (ImGui::SliderFloat("Edge Range", &dissolveEdgeRange, 0.0f, 0.2f)) { dissolveChanged = true; }
-				float colorArr[3] = { dissolveEdgeColor.x, dissolveEdgeColor.y, dissolveEdgeColor.z };
-				if (ImGui::ColorEdit3("Edge Color", colorArr)) {
-					dissolveEdgeColor = { colorArr[0], colorArr[1], colorArr[2] };
-					dissolveChanged = true;
-				}
-				if (ImGui::Combo("Mask Texture", &maskIndex, maskNames, 2)) {
-					object3d->GetModelDebug().SetDissolveMaskTexture(maskPaths[maskIndex]);
-				}
-				if (dissolveChanged) {
-					object3d->GetModelDebug().SetDissolveParams(enableDissolve ? 1 : 0, dissolveThreshold, dissolveEdgeRange, dissolveEdgeColor);
+					float environmentCoefficient = model->GetEnvironmentCoefficient();
+					if (ImGui::DragFloat("environmentCoefficient", &environmentCoefficient, 0.01f, 0.0f, 1.0f)) {
+						model->SetEnvironmentCoefficient(environmentCoefficient);
+					}
+
+					ImGui::Separator();
+					ImGui::Text("Dissolve");
+					bool enableDissolve = model->GetDissolveEnable() != 0;
+					float dissolveThreshold = model->GetDissolveThreshold();
+					float dissolveEdgeRange = model->GetDissolveEdgeRange();
+					Vector3 dissolveEdgeColor = model->GetDissolveEdgeColor();
+					std::string currentMask = model->GetDissolveMaskTexturePath();
+					int maskIndex = (currentMask == "masks/noise1.png") ? 1 : 0;
+					const char* maskPaths[] = { "masks/noise0.png", "masks/noise1.png" };
+					const char* maskNames[] = { "noise0", "noise1" };
+
+					bool dissolveChanged = false;
+					if (ImGui::Checkbox("Enable Dissolve", &enableDissolve)) { dissolveChanged = true; }
+					if (ImGui::SliderFloat("Threshold", &dissolveThreshold, 0.0f, 1.0f)) { dissolveChanged = true; }
+					if (ImGui::SliderFloat("Edge Range", &dissolveEdgeRange, 0.0f, 0.2f)) { dissolveChanged = true; }
+					float colorArr[3] = { dissolveEdgeColor.x, dissolveEdgeColor.y, dissolveEdgeColor.z };
+					if (ImGui::ColorEdit3("Edge Color", colorArr)) {
+						dissolveEdgeColor = { colorArr[0], colorArr[1], colorArr[2] };
+						dissolveChanged = true;
+					}
+					if (ImGui::Combo("Mask Texture", &maskIndex, maskNames, 2)) {
+						model->SetDissolveMaskTexture(maskPaths[maskIndex]);
+					}
+					if (dissolveChanged) {
+						model->SetDissolveParams(enableDissolve ? 1 : 0, dissolveThreshold, dissolveEdgeRange, dissolveEdgeColor);
+					}
 				}
 
 				ImGui::TreePop();
@@ -595,12 +639,15 @@ void GamePlayScene::UpdateImGui_Particle() {
 			if (ImGui::TreeNode(groupName.c_str())) {
 				ParticleEmitter* emitter = ParticleManager::GetInstance()->GetEmitter(groupName);
 				if (emitter) {
-					ImGui::DragFloat3("Translate", &emitter->transform.translate.x, 0.01f);
-					ImGui::DragFloat3("Rotate", &emitter->transform.rotate.x, 0.01f);
-					ImGui::DragFloat3("Scale", &emitter->transform.scale.x, 0.01f);
+					Vector3 translate = emitter->GetTranslate();
+					if (ImGui::DragFloat3("Translate", &translate.x, 0.01f)) { emitter->SetTranslate(translate); }
+					Vector3 rotate = emitter->GetRotate();
+					if (ImGui::DragFloat3("Rotate", &rotate.x, 0.01f)) { emitter->SetRotate(rotate); }
+					Vector3 scale = emitter->GetScale();
+					if (ImGui::DragFloat3("Scale", &scale.x, 0.01f)) { emitter->SetScale(scale); }
 
-					int count = static_cast<int>(emitter->count);
-					if (ImGui::DragInt("Count", &count, 1, 1, 100)) { emitter->count = static_cast<uint32_t>(count); }
+					int count = static_cast<int>(emitter->GetCount());
+					if (ImGui::DragInt("Count", &count, 1, 1, 100)) { emitter->SetCount(static_cast<uint32_t>(count)); }
 
 					// テクスチャ選択
 					std::string currentTex = ParticleManager::GetInstance()->GetGroupTexture(groupName);
@@ -616,71 +663,86 @@ void GamePlayScene::UpdateImGui_Particle() {
 						}
 					}
 
-					ImGui::Checkbox("Enable Auto Emit", &emitter->isEmit);
-					ImGui::DragFloat("Frequency", &emitter->frequency, 0.01f, 0.01f, 10.0f);
+					bool isEmit = emitter->IsEmit();
+					if (ImGui::Checkbox("Enable Auto Emit", &isEmit)) { emitter->SetIsEmit(isEmit); }
+					float frequency = emitter->GetFrequency();
+					if (ImGui::DragFloat("Frequency", &frequency, 0.01f, 0.01f, 10.0f)) { emitter->SetFrequency(frequency); }
 
-					ImGui::Checkbox("Effect Mode (Single/Loop Effect)", &emitter->isEffectMode);
-					if (emitter->isEffectMode) {
-						ImGui::Checkbox("Loop Effect", &emitter->isLoop);
-						ImGui::Text("Playing State: %s", emitter->isPlaying ? "Playing" : "Stopped");
+					bool isEffectMode = emitter->IsEffectMode();
+					if (ImGui::Checkbox("Effect Mode (Single/Loop Effect)", &isEffectMode)) { emitter->SetIsEffectMode(isEffectMode); }
+					if (emitter->IsEffectMode()) {
+						bool isLoop = emitter->IsLoop();
+						if (ImGui::Checkbox("Loop Effect", &isLoop)) { emitter->SetIsLoop(isLoop); }
+						ImGui::Text("Playing State: %s", emitter->IsPlaying() ? "Playing" : "Stopped");
 					}
 
 					// Generate Settings
 					if (ImGui::TreeNode("Generate Settings")) {
-						auto& gs = emitter->generateSettings;
+						ParticleGenerateSettings gs = emitter->GetGenerateSettings();
+						bool changed = false;
 						// Scale
-						ImGui::Checkbox("Random Scale", &gs.isRandomScale);
-						if (gs.isRandomScale) { DragFloat3MinMax("Scale Min", "Scale Max", &gs.scaleMin, &gs.scaleMax); }
-						else { ImGui::DragFloat3("Fixed Scale", &gs.fixedScale.x, 0.01f); }
+						changed |= ImGui::Checkbox("Random Scale", &gs.isRandomScale);
+						if (gs.isRandomScale) { DragFloat3MinMax("Scale Min", "Scale Max", &gs.scaleMin, &gs.scaleMax); changed = true; }
+						else { changed |= ImGui::DragFloat3("Fixed Scale", &gs.fixedScale.x, 0.01f); }
 						// Rotate
-						ImGui::Checkbox("Random Rotate", &gs.isRandomRotate);
-						if (gs.isRandomRotate) { DragFloat3MinMax("Rotate Min", "Rotate Max", &gs.rotateMin, &gs.rotateMax); }
-						else { ImGui::DragFloat3("Fixed Rotate", &gs.fixedRotate.x, 0.01f); }
+						changed |= ImGui::Checkbox("Random Rotate", &gs.isRandomRotate);
+						if (gs.isRandomRotate) { DragFloat3MinMax("Rotate Min", "Rotate Max", &gs.rotateMin, &gs.rotateMax); changed = true; }
+						else { changed |= ImGui::DragFloat3("Fixed Rotate", &gs.fixedRotate.x, 0.01f); }
 						// Velocity
-						ImGui::Checkbox("Random Velocity", &gs.isRandomVelocity);
-						if (gs.isRandomVelocity) { DragFloat3MinMax("Velocity Min", "Velocity Max", &gs.velocityMin, &gs.velocityMax); }
-						else { ImGui::DragFloat3("Fixed Velocity", &gs.fixedVelocity.x, 0.01f); }
+						changed |= ImGui::Checkbox("Random Velocity", &gs.isRandomVelocity);
+						if (gs.isRandomVelocity) { DragFloat3MinMax("Velocity Min", "Velocity Max", &gs.velocityMin, &gs.velocityMax); changed = true; }
+						else { changed |= ImGui::DragFloat3("Fixed Velocity", &gs.fixedVelocity.x, 0.01f); }
 						// LifeTime
-						ImGui::Checkbox("Random LifeTime", &gs.isRandomLifeTime);
-						if (gs.isRandomLifeTime) { DragFloatMinMax("LifeTime Min", "LifeTime Max", &gs.lifeTimeMin, &gs.lifeTimeMax); }
-						else { ImGui::DragFloat("Fixed LifeTime", &gs.fixedLifeTime, 0.01f); }
+						changed |= ImGui::Checkbox("Random LifeTime", &gs.isRandomLifeTime);
+						if (gs.isRandomLifeTime) { DragFloatMinMax("LifeTime Min", "LifeTime Max", &gs.lifeTimeMin, &gs.lifeTimeMax); changed = true; }
+						else { changed |= ImGui::DragFloat("Fixed LifeTime", &gs.fixedLifeTime, 0.01f); }
 						// Color
-						ImGui::Checkbox("Random Color", &gs.isRandomColor);
-						if (gs.isRandomColor) { ImGui::ColorEdit4("Color Min", &gs.colorMin.x); ImGui::ColorEdit4("Color Max", &gs.colorMax.x); }
-						else { ImGui::ColorEdit4("Fixed Color", &gs.fixedColor.x); }
+						changed |= ImGui::Checkbox("Random Color", &gs.isRandomColor);
+						if (gs.isRandomColor) {
+							changed |= ImGui::ColorEdit4("Color Min", &gs.colorMin.x);
+							changed |= ImGui::ColorEdit4("Color Max", &gs.colorMax.x);
+						}
+						else { changed |= ImGui::ColorEdit4("Fixed Color", &gs.fixedColor.x); }
+						if (changed) { emitter->SetGenerateSettings(gs); }
 						ImGui::TreePop();
 					}
 
 					// Field Settings
 					if (ImGui::TreeNode("Field Settings")) {
-						auto& fs = emitter->fieldSettings;
+						ParticleFieldSettings fs = emitter->GetFieldSettings();
+						bool changed = false;
 						// Acceleration Field
-						ImGui::Checkbox("Acceleration Field Active", &fs.isAccelerationFieldActive);
+						changed |= ImGui::Checkbox("Acceleration Field Active", &fs.isAccelerationFieldActive);
 						if (fs.isAccelerationFieldActive) {
-							ImGui::DragFloat3("Acceleration", &fs.accelerationField.acceleration.x, 0.1f);
+							changed |= ImGui::DragFloat3("Acceleration", &fs.accelerationField.acceleration.x, 0.1f);
 							DragFloat3MinMax("Area Min", "Area Max", &fs.accelerationField.area.min, &fs.accelerationField.area.max, 0.1f);
+							changed = true;
 						}
 						ImGui::Separator();
 						// Gravity Field
-						ImGui::Checkbox("Gravity Field Active", &fs.isGravityFieldActive);
-						if (fs.isGravityFieldActive) { ImGui::DragFloat3("Gravity Vector", &fs.gravity.x, 0.1f); }
+						changed |= ImGui::Checkbox("Gravity Field Active", &fs.isGravityFieldActive);
+						if (fs.isGravityFieldActive) { changed |= ImGui::DragFloat3("Gravity Vector", &fs.gravity.x, 0.1f); }
+						if (changed) { emitter->SetFieldSettings(fs); }
 						ImGui::TreePop();
 					}
 
 					// UV Animation Settings
 					if (ImGui::TreeNode("UV Animation Settings")) {
-						auto& uvas = emitter->uvAnimationSettings;
-						ImGui::Checkbox("UV Animation Active", &uvas.isActive);
+						ParticleUVAnimationSettings uvas = emitter->GetUVAnimationSettings();
+						bool changed = false;
+						changed |= ImGui::Checkbox("UV Animation Active", &uvas.isActive);
 						if (uvas.isActive) {
-							ImGui::Checkbox("Individual UV Animation (Effect Mode)", &uvas.isIndividual);
-							ImGui::DragFloat2("Scroll Speed (U, V)", &uvas.scrollSpeed.x, 0.01f);
-							ImGui::DragFloat("Rotate Speed (rad/s)", &uvas.rotateSpeed, 0.01f);
-							ImGui::DragFloat2("Scale Speed (U, V)", &uvas.scaleSpeed.x, 0.01f);
+							changed |= ImGui::Checkbox("Individual UV Animation (Effect Mode)", &uvas.isIndividual);
+							changed |= ImGui::DragFloat2("Scroll Speed (U, V)", &uvas.scrollSpeed.x, 0.01f);
+							changed |= ImGui::DragFloat("Rotate Speed (rad/s)", &uvas.rotateSpeed, 0.01f);
+							changed |= ImGui::DragFloat2("Scale Speed (U, V)", &uvas.scaleSpeed.x, 0.01f);
 
 							if (ImGui::Button("Reset UV States")) {
 								uvas.currentTranslate = { 0.0f, 0.0f }; uvas.currentRotate = 0.0f; uvas.currentScale = { 1.0f, 1.0f };
+								changed = true;
 							}
 						}
+						if (changed) { emitter->SetUVAnimationSettings(uvas); }
 						ImGui::TreePop();
 					}
 
@@ -696,43 +758,42 @@ void GamePlayScene::UpdateImGui_Particle() {
 					// --- Ring Shape Settings ---
 					if (auto* rs = emitter->GetRingShape()) {
 						if (ImGui::TreeNode("Ring Shape Settings")) {
-							// 頂点構築に関わる変更があった場合は、モデルのリビルド（MarkDirty）を行う
-							bool isMeshChanged = false;
+							RingSettings s = rs->GetSettings();
+							bool changed = false;
 
 							// 元のコードの全設定項目を完全網羅
-							float tempInner = rs->settings.innerRadius;
-							float tempOuter = rs->settings.startOuterRadius;
+							float tempInner = s.innerRadius;
+							float tempOuter = s.startOuterRadius;
 							DragFloatMinMax("Inner Radius", "Start Outer Radius", &tempInner, &tempOuter);
-							if (tempInner != rs->settings.innerRadius || tempOuter != rs->settings.startOuterRadius) {
-								rs->settings.innerRadius = tempInner;
-								rs->settings.startOuterRadius = tempOuter;
-								isMeshChanged = true;
+							if (tempInner != s.innerRadius || tempOuter != s.startOuterRadius) {
+								s.innerRadius = tempInner;
+								s.startOuterRadius = tempOuter;
+								changed = true;
 							}
 
-							if (ImGui::DragFloat("Mid Outer Radius", &rs->settings.midOuterRadius, 0.01f, 0.0f, 20.0f)) isMeshChanged = true;
-							if (ImGui::DragFloat("End Outer Radius", &rs->settings.endOuterRadius, 0.01f, 0.0f, 20.0f)) isMeshChanged = true;
+							changed |= ImGui::DragFloat("Mid Outer Radius", &s.midOuterRadius, 0.01f, 0.0f, 20.0f);
+							changed |= ImGui::DragFloat("End Outer Radius", &s.endOuterRadius, 0.01f, 0.0f, 20.0f);
 
-							if (ImGui::DragFloat("Start Angle (deg)", &rs->settings.startAngle, 1.0f) ||
-								ImGui::DragFloat("End Angle (deg)", &rs->settings.endAngle, 1.0f)) isMeshChanged = true;
+							changed |= ImGui::DragFloat("Start Angle (deg)", &s.startAngle, 1.0f);
+							changed |= ImGui::DragFloat("End Angle (deg)", &s.endAngle, 1.0f);
 
-							int division = static_cast<int>(rs->settings.division);
+							int division = static_cast<int>(s.division);
 							if (ImGui::DragInt("Division", &division, 1, 3, 256)) {
-								rs->settings.division = static_cast<uint32_t>(division);
-								isMeshChanged = true;
-							}
-
-							if (isMeshChanged) {
-								rs->MarkDirty(); // メッシュ形状の再構築フラグ
+								s.division = static_cast<uint32_t>(division);
+								changed = true;
 							}
 
 							ImGui::Separator();
-							ImGui::Checkbox("Swap UV (U <-> V)", &rs->settings.isUvSwap);
-							ImGui::ColorEdit4("Inner Vertex Color", &rs->settings.innerColor.x);
-							ImGui::ColorEdit4("Outer Vertex Color", &rs->settings.outerColor.x);
-							ImGui::DragFloat("Fade Start Alpha", &rs->settings.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
-							ImGui::DragFloat("Fade End Alpha", &rs->settings.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
-							ImGui::DragFloat("Fade Range", &rs->settings.fadeRange, 0.01f, 0.0f, 0.5f);
+							changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
+							changed |= ImGui::ColorEdit4("Inner Vertex Color", &s.innerColor.x);
+							changed |= ImGui::ColorEdit4("Outer Vertex Color", &s.outerColor.x);
+							changed |= ImGui::DragFloat("Fade Start Alpha", &s.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
+							changed |= ImGui::DragFloat("Fade End Alpha", &s.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
+							changed |= ImGui::DragFloat("Fade Range", &s.fadeRange, 0.01f, 0.0f, 0.5f);
 
+							if (changed) {
+								rs->SetSettings(s);
+							}
 							ImGui::TreePop();
 						}
 					}
@@ -740,40 +801,40 @@ void GamePlayScene::UpdateImGui_Particle() {
 					// --- Cylinder Shape Settings ---
 					if (auto* cs = emitter->GetCylinderShape()) {
 						if (ImGui::TreeNode("Cylinder Shape Settings")) {
-							bool isMeshChanged = false;
+							CylinderSettings s = cs->GetSettings();
+							bool changed = false;
 
-							if (ImGui::DragFloat("Height", &cs->settings.height, 0.01f, 0.0f, 50.0f)) isMeshChanged = true;
-							if (ImGui::DragFloat2("Top Radius (X, Z)", &cs->settings.topRadius.x, 0.01f, 0.0f, 20.0f)) isMeshChanged = true;
-							if (ImGui::DragFloat2("Bottom Radius (X, Z)", &cs->settings.bottomRadius.x, 0.01f, 0.0f, 20.0f)) isMeshChanged = true;
+							changed |= ImGui::DragFloat("Height", &s.height, 0.01f, 0.0f, 50.0f);
+							changed |= ImGui::DragFloat2("Top Radius (X, Z)", &s.topRadius.x, 0.01f, 0.0f, 20.0f);
+							changed |= ImGui::DragFloat2("Bottom Radius (X, Z)", &s.bottomRadius.x, 0.01f, 0.0f, 20.0f);
 
-							if (ImGui::DragFloat("Start Angle (deg)", &cs->settings.startAngle, 1.0f) ||
-								ImGui::DragFloat("End Angle (deg)", &cs->settings.endAngle, 1.0f)) isMeshChanged = true;
+							changed |= ImGui::DragFloat("Start Angle (deg)", &s.startAngle, 1.0f);
+							changed |= ImGui::DragFloat("End Angle (deg)", &s.endAngle, 1.0f);
 
-							int division = static_cast<int>(cs->settings.division);
+							int division = static_cast<int>(s.division);
 							if (ImGui::DragInt("Division", &division, 1, 3, 256)) {
-								cs->settings.division = static_cast<uint32_t>(division);
-								isMeshChanged = true;
+								s.division = static_cast<uint32_t>(division);
+								changed = true;
 							}
-							int verticalDivision = static_cast<int>(cs->settings.verticalDivision);
+							int verticalDivision = static_cast<int>(s.verticalDivision);
 							if (ImGui::DragInt("Vertical Division", &verticalDivision, 1, 1, 256)) {
-								cs->settings.verticalDivision = static_cast<uint32_t>(verticalDivision);
-								isMeshChanged = true;
-							}
-
-							if (isMeshChanged) {
-								cs->MarkDirty(); // メッシュ形状の再構築フラグ
+								s.verticalDivision = static_cast<uint32_t>(verticalDivision);
+								changed = true;
 							}
 
 							ImGui::Separator();
-							ImGui::Checkbox("Swap UV (U <-> V)", &cs->settings.isUvSwap);
-							ImGui::Checkbox("Flip V", &cs->settings.flipV);
-							ImGui::ColorEdit4("Top Vertex Color", &cs->settings.topColor.x);
-							ImGui::ColorEdit4("Bottom Vertex Color", &cs->settings.bottomColor.x);
-							ImGui::DragFloat("Fade Start Alpha", &cs->settings.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
-							ImGui::DragFloat("Fade End Alpha", &cs->settings.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
-							ImGui::DragFloat("Fade Range", &cs->settings.fadeRange, 0.01f, 0.0f, 0.5f);
-							ImGui::DragFloat("Alpha Reference (Discard)", &cs->settings.alphaReference, 0.01f, 0.0f, 1.0f);
+							changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
+							changed |= ImGui::Checkbox("Flip V", &s.flipV);
+							changed |= ImGui::ColorEdit4("Top Vertex Color", &s.topColor.x);
+							changed |= ImGui::ColorEdit4("Bottom Vertex Color", &s.bottomColor.x);
+							changed |= ImGui::DragFloat("Fade Start Alpha", &s.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
+							changed |= ImGui::DragFloat("Fade End Alpha", &s.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
+							changed |= ImGui::DragFloat("Fade Range", &s.fadeRange, 0.01f, 0.0f, 0.5f);
+							changed |= ImGui::DragFloat("Alpha Reference (Discard)", &s.alphaReference, 0.01f, 0.0f, 1.0f);
 
+							if (changed) {
+								cs->SetSettings(s);
+							}
 							ImGui::TreePop();
 						}
 					}
@@ -781,30 +842,30 @@ void GamePlayScene::UpdateImGui_Particle() {
 					// --- Plane Shape Settings ---
 					if (auto* ps = emitter->GetPlaneShape()) {
 						if (ImGui::TreeNode("Plane Shape Settings")) {
-							bool isMeshChanged = false;
+							PlaneSettings s = ps->GetSettings();
+							bool changed = false;
 
-							if (ImGui::DragFloat2("Size", &ps->settings.size.x, 0.01f, 0.01f, 50.0f)) isMeshChanged = true;
+							changed |= ImGui::DragFloat2("Size", &s.size.x, 0.01f, 0.01f, 50.0f);
 							
-							int divX = static_cast<int>(ps->settings.divisionX);
-							int divY = static_cast<int>(ps->settings.divisionY);
+							int divX = static_cast<int>(s.divisionX);
+							int divY = static_cast<int>(s.divisionY);
 							if (ImGui::DragInt("Division X", &divX, 1, 1, 256)) {
-								ps->settings.divisionX = static_cast<uint32_t>(divX);
-								isMeshChanged = true;
+								s.divisionX = static_cast<uint32_t>(divX);
+								changed = true;
 							}
 							if (ImGui::DragInt("Division Y", &divY, 1, 1, 256)) {
-								ps->settings.divisionY = static_cast<uint32_t>(divY);
-								isMeshChanged = true;
-							}
-
-							if (isMeshChanged) {
-								ps->MarkDirty();
+								s.divisionY = static_cast<uint32_t>(divY);
+								changed = true;
 							}
 
 							ImGui::Separator();
-							ImGui::Checkbox("Flip V", &ps->settings.flipV);
-							ImGui::Checkbox("Swap UV (U <-> V)", &ps->settings.isUvSwap);
-							ImGui::ColorEdit4("Plane Color", &ps->settings.color.x);
+							changed |= ImGui::Checkbox("Flip V", &s.flipV);
+							changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
+							changed |= ImGui::ColorEdit4("Plane Color", &s.color.x);
 
+							if (changed) {
+								ps->SetSettings(s);
+							}
 							ImGui::TreePop();
 						}
 					}
@@ -812,12 +873,12 @@ void GamePlayScene::UpdateImGui_Particle() {
 					// ボタン類
 					std::string emitLabel = "Emit " + groupName;
 					if (ImGui::Button(emitLabel.c_str())) {
-						ParticleManager::GetInstance()->Emit(groupName, emitter->transform.translate, emitter->count);
+						ParticleManager::GetInstance()->Emit(groupName, emitter->GetTranslate(), emitter->GetCount());
 					}
 					std::string emitSelectedLabel = "Emit " + groupName + " from Selected Object";
 					if (ImGui::Button(emitSelectedLabel.c_str())) {
 						if (!object3ds_.empty()) {
-							ParticleManager::GetInstance()->Emit(groupName, object3ds_[objectControlIndex_]->GetTranslate(), emitter->count);
+							ParticleManager::GetInstance()->Emit(groupName, object3ds_[objectControlIndex_]->GetTranslate(), emitter->GetCount());
 						}
 					}
 				}
@@ -918,10 +979,22 @@ void GamePlayScene::UpdateImGui_Skybox() {
 	if (ImGui::TreeNode("Skybox")) {
 		ImGui::Checkbox("showSkybox", &isShowSkybox_);
 		if (skybox_) {
-			ImGui::DragFloat3("scale", &skybox_->GetScale().x, 0.1f);
-			ImGui::DragFloat3("rotate", &skybox_->GetRotate().x, 0.01f);
-			ImGui::DragFloat3("translate", &skybox_->GetTranslate().x, 0.1f);
-			ImGui::DragFloat2("UV Scale", &skybox_->GetUvScale().x, 0.1f);
+			Vector3 scale = skybox_->GetScale();
+			if (ImGui::DragFloat3("scale", &scale.x, 0.1f)) {
+				skybox_->SetScale(scale);
+			}
+			Vector3 rotate = skybox_->GetRotate();
+			if (ImGui::DragFloat3("rotate", &rotate.x, 0.01f)) {
+				skybox_->SetRotate(rotate);
+			}
+			Vector3 translate = skybox_->GetTranslate();
+			if (ImGui::DragFloat3("translate", &translate.x, 0.1f)) {
+				skybox_->SetTranslate(translate);
+			}
+			Vector2 uvScale = skybox_->GetUvScale();
+			if (ImGui::DragFloat2("UV Scale", &uvScale.x, 0.1f)) {
+				skybox_->SetUvScale(uvScale);
+			}
 		}
 		ImGui::TreePop();
 	}

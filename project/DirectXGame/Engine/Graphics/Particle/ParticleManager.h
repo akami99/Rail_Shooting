@@ -121,8 +121,9 @@ public: // メンバ関数
     // 全パーティクルグループ名の取得
     std::vector<std::string> GetParticleGroupNames() const;
 
-    // エミッターの取得(ImGui等での編集用)
+    // エミッターの取得(ImGui等での編集・参照用)
     ParticleEmitter* GetEmitter(const std::string& name);
+    const ParticleEmitter* GetEmitter(const std::string& name) const;
 
     // パーティクルグループのテクスチャ設定/取得
     void SetGroupTexture(const std::string& name, const std::string& textureFilePath);

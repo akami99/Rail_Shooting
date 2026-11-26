@@ -147,7 +147,7 @@ public: // メンバ関数
     return kSwapChainResourcesCount;
   }
 
-  ID3D12CommandAllocator *GetCommandAllocator() {
+  ID3D12CommandAllocator *GetCommandAllocator() const {
       return commandAllocator_.Get();
   }
 

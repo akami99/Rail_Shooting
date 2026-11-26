@@ -90,6 +90,8 @@ private: // 作成関数
 
 public: // getter
   
+  // モデルの取得
+  Model *GetModel() const { return model_; }
   // 変換行列の取得
   const Transform &GetTransform() const { return transform_; }
   // 座標の取得
@@ -100,13 +102,6 @@ public: // getter
   const Vector3 &GetScale() const { return transform_.scale; }
   // UVスケールの取得
   const Vector2 &GetUvScale() const { return uvScale_; }
-
-#ifdef USE_IMGUI
-  // モデルの取得
-  Model &GetModelDebug() const { return *model_; }
-  // ImGui用の参照ゲッター
-  Transform &GetTransformDebug() { return transform_; }
-#endif
 
 public: // setter
   // モデルの設定
