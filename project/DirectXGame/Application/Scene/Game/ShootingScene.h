@@ -24,7 +24,7 @@
 
 class Model;
 
-class ShootingScene : public BaseScene {
+class ShootingScene : public BaseScene, public IShootingEventObserver {
 public:
     ShootingScene();
     ~ShootingScene() override;
@@ -35,6 +35,8 @@ public:
     void Draw() override;
     void DrawForeground() override;
     void Finalize() override;
+
+    void OnScoreEarned(int scoreDelta) override { score_ += scoreDelta; }
 
     // ゲームオーバー/クリア/入場演出フェーズ
     enum class Phase {

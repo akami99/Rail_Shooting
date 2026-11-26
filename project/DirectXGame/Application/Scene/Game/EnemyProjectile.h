@@ -23,6 +23,8 @@ public:
     static std::unique_ptr<EnemyProjectile> Create(Type type, const Vector3& position, const Vector3& velocity);
 
     void Initialize(const Vector3& position, const Vector3& velocity);
+    // Object Pool 再利用時の状態リセット
+    virtual void Reset(const Vector3& position, const Vector3& velocity);
     // メインビュー用の更新
     void Update();
     // 指定したビュー用の更新
@@ -62,6 +64,7 @@ public:
     virtual bool ApplyDamage(int damage = 1);
 
 protected:
+    void ApplyTransformFromVelocity();
     virtual void SetupVisualAndStats() = 0;
     virtual void EmitTrailEffect(const Vector3& trailPos, const Vector3& rot) const = 0;
 
@@ -103,6 +106,7 @@ public:
     void UpdateHpGauge(Camera* camera, float clientWidth, float clientHeight) override;
     void DrawHpGauge() override;
     bool ApplyDamage(int damage = 1) override;
+    void Reset(const Vector3& position, const Vector3& velocity) override;
 
 protected:
     void SetupVisualAndStats() override;

@@ -1,5 +1,6 @@
 #pragma once
 #include "MathTypes.h"
+#include "ShootingWaveManager.h"
 #include "Sprite.h"
 #include <memory>
 #include <string>
@@ -11,7 +12,7 @@ class ShootingEffectManager;
 /// <summary>
 /// シューティングシーンのプレイヤー状態（HP・無敵・カバー）・武器・弾薬・照準・関連UIを管理するクラス
 /// </summary>
-class ShootingPlayerController {
+class ShootingPlayerController : public IShootingEventObserver {
 public:
     enum class WeaponType {
         Handgun,    // ハンドガン (9発マガジン、単発)
@@ -50,7 +51,7 @@ public:
     // イベント・ダメージ
     bool ApplyDamage(int damage);
     void HealToFull() { hp_ = kMaxHp; }
-    void OnEliteEnemyDefeated(const Vector3& worldPos);
+    void OnEliteEnemyDefeated(const Vector3& worldPos) override;
 
     // 描画
     void DrawAmmoAndWeaponUI();

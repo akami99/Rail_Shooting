@@ -74,6 +74,7 @@ std::unique_ptr<EnemyProjectile> EnemyProjectile::Create(Type type, const Vector
 void EnemyProjectile::Initialize(const Vector3& position, const Vector3& velocity) {
     position_ = position;
     velocity_ = velocity;
+    isDead_ = false;
     isHitShot_ = true;
     trailRotation_ = 0.0f;
 
@@ -81,7 +82,21 @@ void EnemyProjectile::Initialize(const Vector3& position, const Vector3& velocit
     object_->Initialize();
 
     SetupVisualAndStats();
+    ApplyTransformFromVelocity();
+}
 
+void EnemyProjectile::Reset(const Vector3& position, const Vector3& velocity) {
+    position_ = position;
+    velocity_ = velocity;
+    hp_ = maxHp_;
+    isDead_ = false;
+    isHitShot_ = true;
+    trailRotation_ = 0.0f;
+    ApplyTransformFromVelocity();
+}
+
+void EnemyProjectile::ApplyTransformFromVelocity() {
+    if (!object_) return;
     object_->SetTranslate(position_);
     object_->SetScale({radius_, radius_, radius_});
     float speed = MathUtils::Length(velocity_);
@@ -208,6 +223,12 @@ bool BlastEnemyProjectile::ApplyDamage(int damage) {
         return true;
     }
     return false;
+}
+
+void BlastEnemyProjectile::Reset(const Vector3& position, const Vector3& velocity) {
+    EnemyProjectile::Reset(position, velocity);
+    damageBarRatio_ = 1.0f;
+    isHpGaugeVisible_ = false;
 }
 
 void BlastEnemyProjectile::UpdateHpGauge(Camera* camera, float clientWidth, float clientHeight) {

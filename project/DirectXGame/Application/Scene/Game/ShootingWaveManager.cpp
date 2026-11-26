@@ -262,9 +262,41 @@ void ShootingWaveManager::Initialize(const LevelData* levelData,
   bossHpFrameSprite_->SetScale({380.0f, 22.0f});
 }
 
+void ShootingWaveManager::AddObserver(IShootingEventObserver* observer) {
+  if (!observer) return;
+  if (std::find(observers_.begin(), observers_.end(), observer) == observers_.end()) {
+    observers_.push_back(observer);
+  }
+}
+
+void ShootingWaveManager::RemoveObserver(IShootingEventObserver* observer) {
+  observers_.erase(std::remove(observers_.begin(), observers_.end(), observer), observers_.end());
+}
+
+void ShootingWaveManager::NotifyScoreEarned(int scoreDelta) {
+  if (scoreDelta <= 0) return;
+  for (auto* observer : observers_) {
+    if (observer) {
+      observer->OnScoreEarned(scoreDelta);
+    }
+  }
+}
+
+void ShootingWaveManager::NotifyEliteEnemyDefeated(const Vector3& worldPos) {
+  for (auto* observer : observers_) {
+    if (observer) {
+      observer->OnEliteEnemyDefeated(worldPos);
+    }
+  }
+}
+
 void ShootingWaveManager::Finalize() {
+  observers_.clear();
   enemies_.clear();
   projectiles_.clear();
+  for (auto& pool : projectilePools_) {
+    pool.clear();
+  }
   if (swarmManager_) {
     swarmManager_->ClearDrones();
   }
@@ -300,7 +332,30 @@ void ShootingWaveManager::ClearAmbientSwarmDrones() {
 }
 
 void ShootingWaveManager::ClearProjectiles() {
+  for (auto& p : projectiles_) {
+    ReleaseProjectileToPool(std::move(p));
+  }
   projectiles_.clear();
+}
+
+std::unique_ptr<EnemyProjectile> ShootingWaveManager::AcquireProjectile(
+    EnemyProjectile::Type type, const Vector3& position, const Vector3& velocity) {
+  size_t poolIndex = static_cast<size_t>(type);
+  if (poolIndex < projectilePools_.size() && !projectilePools_[poolIndex].empty()) {
+    auto proj = std::move(projectilePools_[poolIndex].back());
+    projectilePools_[poolIndex].pop_back();
+    proj->Reset(position, velocity);
+    return proj;
+  }
+  return EnemyProjectile::Create(type, position, velocity);
+}
+
+void ShootingWaveManager::ReleaseProjectileToPool(std::unique_ptr<EnemyProjectile> projectile) {
+  if (!projectile) return;
+  size_t poolIndex = static_cast<size_t>(projectile->GetType());
+  if (poolIndex < projectilePools_.size()) {
+    projectilePools_[poolIndex].push_back(std::move(projectile));
+  }
 }
 
 void ShootingWaveManager::UpdateAliveEnemiesTransforms(int mainViewIndex, Camera* camera) {
@@ -617,7 +672,7 @@ void ShootingWaveManager::UpdateEnemiesAndProjectiles(float deltaTime, float rai
         }
         Vector3 velocity = Multiply(bulletSpeed, dir);
 
-        auto newProjectile = EnemyProjectile::Create(pType, startPos, velocity);
+        auto newProjectile = AcquireProjectile(pType, startPos, velocity);
         newProjectile->SetHitShot(isHitShot);
         projectiles_.push_back(std::move(newProjectile));
 
@@ -724,17 +779,24 @@ ShootingWaveManager::PlayerHitReport ShootingWaveManager::ResolveProjectileHits(
 }
 
 void ShootingWaveManager::RemoveDeadProjectiles() {
-  projectiles_.erase(
-      std::remove_if(projectiles_.begin(), projectiles_.end(),
-                     [](const std::unique_ptr<EnemyProjectile>& p) { return p->IsDead(); }),
-      projectiles_.end());
+  size_t writeIdx = 0;
+  for (size_t i = 0; i < projectiles_.size(); ++i) {
+    if (projectiles_[i] && projectiles_[i]->IsDead()) {
+      ReleaseProjectileToPool(std::move(projectiles_[i]));
+    } else {
+      if (writeIdx != i) {
+        projectiles_[writeIdx] = std::move(projectiles_[i]);
+      }
+      ++writeIdx;
+    }
+  }
+  projectiles_.resize(writeIdx);
 }
 
-ShootingWaveManager::PlayerShotResult ShootingWaveManager::ProcessPlayerShot(
+void ShootingWaveManager::ProcessPlayerShot(
     const Vector2& mousePos, float clientWidth, float clientHeight,
     Camera* camera, float railProgress, ShootingEffectManager* effectManager) {
-  PlayerShotResult result;
-  if (!camera) return result;
+  if (!camera) return;
 
   float x = mousePos.x / clientWidth * 2.0f - 1.0f;
   float y = 1.0f - mousePos.y / clientHeight * 2.0f;
@@ -796,7 +858,7 @@ ShootingWaveManager::PlayerShotResult ShootingWaveManager::ProcessPlayerShot(
     bool isDestroyed = hitProjectile->ApplyDamage(1);
     if (isDestroyed) {
       if (effectManager) effectManager->EmitSpark(pPos, 24);
-      result.scoreDelta += 5;
+      NotifyScoreEarned(5);
     } else {
       if (effectManager) effectManager->EmitAmmoSpark(pPos, 6);
     }
@@ -814,8 +876,7 @@ ShootingWaveManager::PlayerShotResult ShootingWaveManager::ProcessPlayerShot(
       hitEnemy->isHpGaugeVisible = false;
       hitEnemy->deathTimer = 0.0f;
       if (hitEnemy->behavior->DropsMachineGunAmmoOnDeath()) {
-        result.killedElite = true;
-        result.elitePos = hitEnemy->object->GetTranslate();
+        NotifyEliteEnemyDefeated(enemyPos);
       }
       if (hitEnemy->isHitShotReserved) {
         hitEnemy->isHitShotReserved = false;
@@ -826,7 +887,7 @@ ShootingWaveManager::PlayerShotResult ShootingWaveManager::ProcessPlayerShot(
       if (hitEnemy->model) {
         hitEnemy->model->SetDissolveParams(1, 0.0f, 0.05f, Vector3(1.0f, 0.4f, 0.3f));
       }
-      result.scoreDelta += 10;
+      NotifyScoreEarned(10);
       if (effectManager) effectManager->EmitCylinder(enemyPos, 32);
     }
   } else if (hitType == HitTargetType::None) {
@@ -840,8 +901,6 @@ ShootingWaveManager::PlayerShotResult ShootingWaveManager::ProcessPlayerShot(
       }
     }
   }
-
-  return result;
 }
 
 bool ShootingWaveManager::UpdateAutoClearBossAttack(float deltaTime, Camera* camera, float& autoClearAttackTimer, Vector3& outTargetPos) {
@@ -899,7 +958,7 @@ ShootingWaveManager::SwarmStepResult ShootingWaveManager::UpdateSwarmSimulation(
     }
   }
 
-  res.scoreDelta = swarmEvents.dronesKilledByPlayer * 5;
+  NotifyScoreEarned(swarmEvents.dronesKilledByPlayer * 5);
   res.groupBlastHits = swarmEvents.playerGroupBlastHits;
   res.directHits = swarmEvents.playerDirectHits;
   res.bossDefeated = swarmEvents.bossDefeated;

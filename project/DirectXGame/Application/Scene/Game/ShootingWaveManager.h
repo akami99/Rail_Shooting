@@ -7,6 +7,7 @@
 #include "ShootingDemoAI.h"
 #include "Sprite.h"
 #include "Swarm/SwarmManager.h"
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -15,6 +16,16 @@
 class Camera;
 class ShootingEffectManager;
 class StageRailManager;
+
+/// <summary>
+/// Observer パターン：ウェーブ・敵・スウォーム戦イベントの購読インターフェース
+/// </summary>
+class IShootingEventObserver {
+public:
+    virtual ~IShootingEventObserver() = default;
+    virtual void OnScoreEarned(int scoreDelta) { (void)scoreDelta; }
+    virtual void OnEliteEnemyDefeated(const Vector3& worldPos) { (void)worldPos; }
+};
 
 /// <summary>
 /// シューティングシーンの通常敵ウェーブ・プロジェクタイル・スウォーム/ボス戦を管理するクラス
@@ -30,14 +41,7 @@ public:
         bool triggerDirectNormalFx = false;
     };
 
-    struct PlayerShotResult {
-        int scoreDelta = 0;
-        bool killedElite = false;
-        Vector3 elitePos{};
-    };
-
     struct SwarmStepResult {
-        int scoreDelta = 0;
         int groupBlastHits = 0;
         int directHits = 0;
         bool bossDefeated = false;
@@ -80,9 +84,13 @@ public:
                                           const Vector3& railTargetPos, const Vector3& camPos,
                                           int playerHp, int directDamage);
     void RemoveDeadProjectiles();
-    PlayerShotResult ProcessPlayerShot(const Vector2& mousePos, float clientWidth, float clientHeight,
-                                         Camera* camera, float railProgress, ShootingEffectManager* effectManager);
+    void ProcessPlayerShot(const Vector2& mousePos, float clientWidth, float clientHeight,
+                           Camera* camera, float railProgress, ShootingEffectManager* effectManager);
     bool UpdateAutoClearBossAttack(float deltaTime, Camera* camera, float& autoClearAttackTimer, Vector3& outTargetPos);
+
+    // Observer 管理
+    void AddObserver(IShootingEventObserver* observer);
+    void RemoveObserver(IShootingEventObserver* observer);
     SwarmStepResult UpdateSwarmSimulation(float deltaTime, const Vector3& playerPos, Camera* camera,
                                           bool isCovering, ShootingEffectManager* effectManager);
     void UpdateHpGauges(Camera* camera, float clientWidth, float clientHeight, float railProgress, bool isSwarmBattle);
@@ -187,6 +195,17 @@ private:
 
     Vector3 CalculateRingRotation(const Vector3& direction) const;
     Vector3 CalculateBossEntranceAnchor(float t, const Vector3& basePos, float baseYaw) const;
+    void NotifyScoreEarned(int scoreDelta);
+    void NotifyEliteEnemyDefeated(const Vector3& worldPos);
+
+    // Object Pool パターン：弾種ごとの再利用プール
+    std::unique_ptr<EnemyProjectile> AcquireProjectile(EnemyProjectile::Type type,
+                                                       const Vector3& position,
+                                                       const Vector3& velocity);
+    void ReleaseProjectileToPool(std::unique_ptr<EnemyProjectile> projectile);
+
+    std::vector<IShootingEventObserver*> observers_;
+    std::array<std::vector<std::unique_ptr<EnemyProjectile>>, 3> projectilePools_;
 
     static constexpr uint32_t kSpawnSwarmCount = 100;
     static constexpr uint32_t kAmbientSwarmCount = 1000;

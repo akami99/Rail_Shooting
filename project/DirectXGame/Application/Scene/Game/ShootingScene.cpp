@@ -138,6 +138,8 @@ void ShootingScene::Initialize() {
                            transitionDirector_->GetIntroSwarmOffset(),
                            transitionDirector_->GetIntroSwarmRadius(),
                            transitionDirector_->GetIntroSwarmCount());
+  waveManager_->AddObserver(this);
+  waveManager_->AddObserver(playerController_.get());
 
   // --- デバッグ用区間リストの構築 ---
   sectionProgresses_.clear();
@@ -871,17 +873,13 @@ void ShootingScene::Update() {
     effectManager_->EmitAmmoSpark(spawnPos, 1);
 
     if (waveManager_) {
-      auto shotRes = waveManager_->ProcessPlayerShot(
+      waveManager_->ProcessPlayerShot(
           mPos,
           static_cast<float>(Win32Window::kClientWidth),
           static_cast<float>(Win32Window::kClientHeight),
           camera_.get(),
           railManager_->GetProgress(),
           effectManager_.get());
-      score_ += shotRes.scoreDelta;
-      if (shotRes.killedElite && playerController_) {
-        playerController_->OnEliteEnemyDefeated(shotRes.elitePos);
-      }
     }
   }
 
@@ -925,7 +923,6 @@ void ShootingScene::Update() {
     const bool isCovering = playerController_ && playerController_->IsCovering();
     auto swarmRes = waveManager_->UpdateSwarmSimulation(
         ApplicationConfig::kDeltaTime, camPos, camera_.get(), isCovering, effectManager_.get());
-    score_ += swarmRes.scoreDelta;
 
     if (swarmRes.groupBlastHits > 0 && !isForceInvincible && playerController_) {
       radialBlurStrength_ = 0.04f;
@@ -1194,6 +1191,8 @@ void ShootingScene::DrawForeground() {
 void ShootingScene::Finalize() {
   Object3dCommon::GetInstance()->SetDefaultCamera(nullptr);
   if (waveManager_) {
+    waveManager_->RemoveObserver(this);
+    waveManager_->RemoveObserver(playerController_.get());
     waveManager_->Finalize();
   }
   if (railManager_) {
