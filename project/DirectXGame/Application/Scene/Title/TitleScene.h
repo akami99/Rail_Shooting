@@ -62,13 +62,21 @@ private:
   void DrawObjectWithTransition(Object3d *obj, float startTime, float duration);
 
 private:
-  // --- シーンの進行フェーズ ---
-  enum class Phase {
-      IntroBlink,    // 入場演出（瞬き明転）
-      Main,          // 通常状態
-      TransitionOut  // 退場演出中
+  // --- シーンの進行フェーズ (State Pattern) ---
+  class ITitlePhaseState {
+  public:
+    virtual ~ITitlePhaseState() = default;
+    virtual void OnEnter(TitleScene& scene) { (void)scene; }
+    virtual void Update(TitleScene& scene) = 0;
+    virtual bool IsTransitionOut() const { return false; }
   };
-  Phase phase_ = Phase::IntroBlink;
+  class IntroBlinkPhaseState;
+  class MainPhaseState;
+  class TransitionOutPhaseState;
+
+  void ChangePhaseState(std::unique_ptr<ITitlePhaseState> nextState);
+  std::unique_ptr<ITitlePhaseState> phaseState_;
+
   float introTimer_ = 0.0f;                   // 入場演出の経過時間(s)
   static constexpr float kIntroBlinkDuration = 1.0f; // 入場まばたきの長さ(s)
   float transitionTimer_ = 0.0f;              // 退場演出の経過時間(s)
@@ -86,12 +94,11 @@ private:
   DebugCamera debugCamera_;
   bool useDebugCamera_ = false;
 
-  // --- 的の状態 ---
-  enum class TargetState {
-      Standing, // 直立（撃てる状態）
-      Falling,  // 倒れ中（アニメーション）
-      Down,     // 倒れ切って待機中（5秒タイマー中）
-      Rising    // 起き上がり中（アニメーション）
+  // --- スタート看板の状態 ---
+  enum class StartBoardState {
+      Standing,
+      Falling,
+      Down
   };
 
   // ゲームオブジェクト(必ずスマートポインタにすること)
@@ -164,24 +171,46 @@ private:
     Vector3 position_;
     Vector3 rotation_;
     Vector3 aabbSize_;
-    TargetState state_ = TargetState::Standing;
+    StartBoardState state_ = StartBoardState::Standing;
     float fallAngle_ = 0.0f; // 倒れた角度
   };
   StartBoardObjectInfo startBoardObjectSettings_ = {
       {0.0f, 0.0f, 22.0f}, {0.0f, 0.0f, 0.0f}, {3.0f, 1.5f, 0.3f}};
+
+  struct TargetBoardInfo;
+  // 的の状態の State Pattern 基底インターフェース
+  class ITargetState {
+  public:
+    virtual ~ITargetState() = default;
+    virtual void OnEnter(TargetBoardInfo& target) { (void)target; }
+    virtual void Update(TargetBoardInfo& target, float deltaTime) = 0;
+    virtual bool CanBeShot() const { return false; }
+    virtual void OnShot(TargetBoardInfo& target) { (void)target; }
+  };
+  class StandingTargetState;
+  class FallingTargetState;
+  class DownTargetState;
+  class RisingTargetState;
 
   struct TargetBoardInfo {
     std::unique_ptr<Object3d> object_;
     Vector3 basePosition_ = {0.0f, 0.0f, 0.0f};
     Vector3 rotation_ = {0.0f, 0.0f, 0.0f};
     Vector3 aabbSize_ = {1.0f, 1.5f, 0.3f};
-    TargetState state_ = TargetState::Standing;
+    std::unique_ptr<ITargetState> state_;
     float fallAngle_ = 0.0f; // 倒れた角度
     float downTimer_ = 0.0f; // 倒れてからの経過時間(カウント用)
     bool isMoving_ = false;      // 移動するか
     float moveSpeed_ = 0.0f;     // 移動速度（角周波数）
     float moveAmplitude_ = 1.0f; // 振幅（±1.0m で計2m移動）
     float moveTimer_ = 0.0f;     // 移動用タイマー
+
+    void ChangeState(std::unique_ptr<ITargetState> nextState) {
+      state_ = std::move(nextState);
+      if (state_) {
+        state_->OnEnter(*this);
+      }
+    }
   };
   std::vector<TargetBoardInfo> targetBoards_;
 

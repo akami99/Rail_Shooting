@@ -38,11 +38,7 @@ public:
 
     // ゲームオーバー/クリア/入場演出フェーズ
     enum class Phase {
-        IntroConstruct,     // 入場演出（逆順展開：ワイヤーフレーム出現 ＋ ソリッド構築）
-        IntroFastForward,   // スタート演出:終点へ急加速移動
-        IntroSwarmShowcase, // スタート演出:終点上空のスウォーム偵察
-        IntroRewind,        // スタート演出:引き戻し
-        IntroReadyGo,       // スタート演出:Ready Go帯リール演出
+        Intro,              // 入場演出（Construct -> FastForward -> SwarmShowcase -> Rewind -> ReadyGo）
         Playing,            // 通常プレイ
         BossIntro,          // ボス登場時の演出
         SwarmBattle,        // レール終点でのスウォーム演出/戦闘
@@ -148,7 +144,7 @@ private:
     static constexpr int kBossGroupBlastDamage = 3;
     static constexpr int kLifeSegments = 3;
 
-    Phase phase_ = Phase::IntroConstruct;
+    Phase phase_ = Phase::Intro;
     float phaseTimer_ = 0.0f;
 
     // ボス登場・撃破演出パラメータ

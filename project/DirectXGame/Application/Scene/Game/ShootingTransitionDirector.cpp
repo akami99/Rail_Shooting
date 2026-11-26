@@ -23,6 +23,115 @@ namespace {
 constexpr float kHalfPI = std::numbers::pi_v<float> * 0.5f;
 }
 
+// =========================================================================
+// 入場カットシーン State Pattern 実装
+// =========================================================================
+class ShootingTransitionDirector::IntroConstructState final : public ShootingTransitionDirector::IIntroState {
+public:
+  void Update(ShootingTransitionDirector& director, IntroContext& ctx) override;
+  bool NeedsCrosshairUpdate() const override { return true; }
+  bool IsConstructState() const override { return true; }
+};
+
+class ShootingTransitionDirector::IntroFastForwardState final : public ShootingTransitionDirector::IIntroState {
+public:
+  void Update(ShootingTransitionDirector& director, IntroContext& ctx) override;
+};
+
+class ShootingTransitionDirector::IntroSwarmShowcaseState final : public ShootingTransitionDirector::IIntroState {
+public:
+  void Update(ShootingTransitionDirector& director, IntroContext& ctx) override;
+};
+
+class ShootingTransitionDirector::IntroRewindState final : public ShootingTransitionDirector::IIntroState {
+public:
+  void Update(ShootingTransitionDirector& director, IntroContext& ctx) override;
+  bool NeedsCrosshairUpdate() const override { return true; }
+};
+
+class ShootingTransitionDirector::IntroReadyGoState final : public ShootingTransitionDirector::IIntroState {
+public:
+  void Update(ShootingTransitionDirector& director, IntroContext& ctx) override;
+  bool IsReadyGoState() const override { return true; }
+};
+
+void ShootingTransitionDirector::IntroConstructState::Update(ShootingTransitionDirector& director, IntroContext& ctx) {
+  if (director.UpdateIntroConstruct(ctx.phaseTimer, ctx.railManager, ctx.camera, ctx.skybox, ctx.mainViewIndex)) {
+    director.ChangeIntroState(std::make_unique<IntroFastForwardState>());
+  }
+}
+
+void ShootingTransitionDirector::IntroFastForwardState::Update(ShootingTransitionDirector& director, IntroContext& ctx) {
+  if (ctx.isPaused) return;
+  if (director.UpdateIntroFastForward(ctx.phaseTimer, ctx.railManager, ctx.playerController,
+                                      ctx.waveManager, ctx.camera, ctx.skybox, ctx.mainViewIndex)) {
+    director.ChangeIntroState(std::make_unique<IntroSwarmShowcaseState>());
+  }
+}
+
+void ShootingTransitionDirector::IntroSwarmShowcaseState::Update(ShootingTransitionDirector& director, IntroContext& ctx) {
+  if (ctx.isPaused) return;
+  if (director.UpdateIntroSwarmShowcase(ctx.phaseTimer, ctx.railManager, ctx.playerController,
+                                        ctx.waveManager, ctx.camera, ctx.skybox,
+                                        ctx.cameraBasePitch, ctx.cameraYaw, ctx.mainViewIndex)) {
+    director.ChangeIntroState(std::make_unique<IntroRewindState>());
+  }
+}
+
+void ShootingTransitionDirector::IntroRewindState::Update(ShootingTransitionDirector& director, IntroContext& ctx) {
+  if (ctx.isPaused) return;
+  if (director.UpdateIntroRewind(ctx.phaseTimer, ctx.railManager, ctx.playerController,
+                                 ctx.waveManager, ctx.camera, ctx.skybox,
+                                 ctx.cameraBasePitch, ctx.cameraYaw, ctx.cameraBaseRoll,
+                                 ctx.baseCombatPitch, ctx.baseCombatYaw, ctx.mainViewIndex)) {
+    director.ChangeIntroState(std::make_unique<IntroReadyGoState>());
+  }
+}
+
+void ShootingTransitionDirector::IntroReadyGoState::Update(ShootingTransitionDirector& director, IntroContext& ctx) {
+  if (ctx.isPaused) return;
+  if (director.UpdateIntroReadyGo(ctx.phaseTimer, ctx.hud, ctx.railManager,
+                                  ctx.camera, ctx.skybox, ctx.mainViewIndex)) {
+    director.ChangeIntroState(nullptr);
+  }
+}
+
+void ShootingTransitionDirector::ChangeIntroState(std::unique_ptr<IIntroState> nextState) {
+  introState_ = std::move(nextState);
+}
+
+void ShootingTransitionDirector::StartIntroConstruct() {
+  ChangeIntroState(std::make_unique<IntroConstructState>());
+}
+
+void ShootingTransitionDirector::StartIntroFastForward() {
+  ChangeIntroState(std::make_unique<IntroFastForwardState>());
+}
+
+void ShootingTransitionDirector::StartIntroReadyGo() {
+  ChangeIntroState(std::make_unique<IntroReadyGoState>());
+}
+
+bool ShootingTransitionDirector::UpdateIntro(IntroContext& ctx) {
+  if (!introState_) {
+    return true;
+  }
+  introState_->Update(*this, ctx);
+  return introState_ == nullptr;
+}
+
+bool ShootingTransitionDirector::NeedsCrosshairUpdateInIntro() const {
+  return introState_ && introState_->NeedsCrosshairUpdate();
+}
+
+bool ShootingTransitionDirector::IsIntroConstructActive() const {
+  return introState_ && introState_->IsConstructState();
+}
+
+bool ShootingTransitionDirector::IsIntroReadyGoActive() const {
+  return introState_ && introState_->IsReadyGoState();
+}
+
 void ShootingTransitionDirector::InitializeBlackout() {
   vignetteScale_ = 0.0f;
   vignetteExponent_ = 5.0f;

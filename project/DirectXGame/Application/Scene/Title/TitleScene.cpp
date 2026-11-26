@@ -38,6 +38,182 @@ Vector2 WorldToScreen(const Vector3& worldPos, Camera* camera) {
   float screenY = (1.0f - y) * 0.5f * static_cast<float>(Win32Window::kClientHeight);
   return { screenX, screenY };
 }
+} // namespace
+
+// =========================================================================
+// 的の状態 (TargetState) State Pattern 実装
+// =========================================================================
+class TitleScene::StandingTargetState final : public TitleScene::ITargetState {
+public:
+  void OnEnter(TargetBoardInfo& target) override {
+    target.fallAngle_ = 0.0f;
+  }
+
+  void Update(TargetBoardInfo& target, float deltaTime) override {
+    if (target.isMoving_ && target.object_) {
+      target.moveTimer_ += deltaTime;
+      Vector3 pos = target.basePosition_;
+      pos.x += std::sin(target.moveTimer_ * target.moveSpeed_) * target.moveAmplitude_;
+      target.object_->SetTranslate(pos);
+    }
+    target.fallAngle_ = 0.0f;
+  }
+
+  bool CanBeShot() const override { return true; }
+
+  void OnShot(TargetBoardInfo& target) override;
+};
+
+class TitleScene::FallingTargetState final : public TitleScene::ITargetState {
+public:
+  void Update(TargetBoardInfo& target, float deltaTime) override;
+};
+
+class TitleScene::DownTargetState final : public TitleScene::ITargetState {
+public:
+  void OnEnter(TargetBoardInfo& target) override {
+    target.downTimer_ = 0.0f;
+  }
+
+  void Update(TargetBoardInfo& target, float deltaTime) override;
+};
+
+class TitleScene::RisingTargetState final : public TitleScene::ITargetState {
+public:
+  void Update(TargetBoardInfo& target, float deltaTime) override {
+    target.fallAngle_ -= kTargetRiseSpeed * deltaTime;
+    if (target.fallAngle_ <= 0.0f) {
+      target.fallAngle_ = 0.0f;
+      target.ChangeState(std::make_unique<StandingTargetState>());
+    }
+  }
+};
+
+void TitleScene::StandingTargetState::OnShot(TargetBoardInfo& target) {
+  target.ChangeState(std::make_unique<FallingTargetState>());
+}
+
+void TitleScene::FallingTargetState::Update(TargetBoardInfo& target, float deltaTime) {
+  const float maxAngle = std::numbers::pi_v<float> * 0.5f;
+  target.fallAngle_ += kTargetFallSpeed * deltaTime;
+  if (target.fallAngle_ >= maxAngle) {
+    target.fallAngle_ = maxAngle;
+    target.ChangeState(std::make_unique<DownTargetState>());
+  }
+}
+
+void TitleScene::DownTargetState::Update(TargetBoardInfo& target, float deltaTime) {
+  target.downTimer_ += deltaTime;
+  if (target.downTimer_ >= kTargetWaitDuration) {
+    target.ChangeState(std::make_unique<RisingTargetState>());
+  }
+}
+
+// =========================================================================
+// シーン進行フェーズ (Phase) State Pattern 実装
+// =========================================================================
+class TitleScene::IntroBlinkPhaseState final : public TitleScene::ITitlePhaseState {
+public:
+  void Update(TitleScene& scene) override {
+    scene.UpdateIntroBlink();
+    scene.UpdateCrosshairAndRaycast();
+  }
+};
+
+class TitleScene::MainPhaseState final : public TitleScene::ITitlePhaseState {
+public:
+  void Update(TitleScene& scene) override {
+    POINT curMouse;
+    GetCursorPos(&curMouse);
+    ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &curMouse);
+    Vector2 currentMousePos = { static_cast<float>(curMouse.x), static_cast<float>(curMouse.y) };
+
+    bool hasUserInput = false;
+    if (Length(Vector3{ currentMousePos.x - scene.lastRecordedMousePos_.x,
+                        currentMousePos.y - scene.lastRecordedMousePos_.y, 0.0f }) > 2.0f) {
+      hasUserInput = true;
+    }
+    scene.lastRecordedMousePos_ = currentMousePos;
+    if (Input::GetInstance()->IsMouseButtonTriggered(0) || Input::GetInstance()->IsMouseButtonTriggered(1)) {
+      hasUserInput = true;
+    }
+    for (int k = 0; k < 256; ++k) {
+      if (Input::GetInstance()->IsKeyDown(k)) {
+        hasUserInput = true;
+        break;
+      }
+    }
+
+    if (hasUserInput) {
+      scene.idleTimer_ = 0.0f;
+      if (scene.isStartingDemo_) {
+        scene.isStartingDemo_ = false;
+        GameSession::GetInstance().SetDemoMode(false);
+      }
+    } else {
+      scene.idleTimer_ += ApplicationConfig::kDeltaTime;
+    }
+
+    // 1秒間無入力でデモシーケンス開始
+    if (scene.idleTimer_ >= kDemoIdleTimeout && !scene.isStartingDemo_) {
+      scene.isStartingDemo_ = true;
+      scene.demoCursorPos_ = currentMousePos;
+      GameSession::GetInstance().SetDemoMode(true);
+    }
+
+    // デモ開始時：スタート看板へ自動エイム＆自動射撃
+    if (scene.isStartingDemo_) {
+      Vector3 boardWorldPos = scene.startBoardObjectSettings_.position_;
+      boardWorldPos.y += 0.3f;
+      Vector2 boardScreenPos = WorldToScreen(boardWorldPos, scene.camera_.get());
+
+      scene.demoCursorPos_.x += (boardScreenPos.x - scene.demoCursorPos_.x) * 0.10f;
+      scene.demoCursorPos_.y += (boardScreenPos.y - scene.demoCursorPos_.y) * 0.10f;
+
+      float distToBoard = Length(Vector3{ scene.demoCursorPos_.x - boardScreenPos.x,
+                                          scene.demoCursorPos_.y - boardScreenPos.y, 0.0f });
+      if (distToBoard < 30.0f) {
+        if (scene.startBoardObjectSettings_.state_ == StartBoardState::Standing) {
+          scene.startBoardObjectSettings_.state_ = StartBoardState::Falling;
+        }
+      }
+    }
+
+    scene.UpdateCrosshairAndRaycast();
+    scene.UpdateEnemyShooting();
+    scene.UpdateProjectiles();
+    scene.UpdateCover();
+    scene.UpdatePlayerShot();
+    scene.UpdateTargetsAnimation();
+    scene.UpdateStartBoardAnimation();
+  }
+};
+
+class TitleScene::TransitionOutPhaseState final : public TitleScene::ITitlePhaseState {
+public:
+  void OnEnter(TitleScene& scene) override {
+    scene.transitionTimer_ = 0.0f;
+    scene.projectiles_.clear();
+    ParticleManager::GetInstance()->ClearAllParticles();
+    scene.isAutoCovering_ = false;
+    scene.isCovering_ = false;
+  }
+
+  void Update(TitleScene& scene) override {
+    // カバー中に遷移が始まった場合もカメラが自然な高さに戻るようにカバー更新だけ行う
+    scene.isCovering_ = false;
+    scene.UpdateCover();
+    scene.UpdateTransitionOut();
+  }
+
+  bool IsTransitionOut() const override { return true; }
+};
+
+void TitleScene::ChangePhaseState(std::unique_ptr<ITitlePhaseState> nextState) {
+  phaseState_ = std::move(nextState);
+  if (phaseState_) {
+    phaseState_->OnEnter(*this);
+  }
 }
 
 void TitleScene::Initialize() {
@@ -47,7 +223,7 @@ void TitleScene::Initialize() {
   ShowCursor(FALSE);
 #endif
 
-  phase_ = Phase::IntroBlink;
+  ChangePhaseState(std::make_unique<IntroBlinkPhaseState>());
   introTimer_ = 0.0f;
   transitionTimer_ = 0.0f;
   idleTimer_ = 0.0f;
@@ -179,6 +355,7 @@ void TitleScene::Initialize() {
     info.object_->SetTranslate(info.basePosition_);
     info.object_->SetRotation(info.rotation_);
     info.object_->SetCamera(camera_.get());
+    info.ChangeState(std::make_unique<StandingTargetState>());
     targetBoards_.push_back(std::move(info));
   }
 
@@ -250,87 +427,8 @@ void TitleScene::Update() {
   // カメラの更新処理
   UpdateGameCamera();
 
-  if (phase_ == Phase::IntroBlink) {
-      UpdateIntroBlink();
-      UpdateCrosshairAndRaycast();
-  } else if (phase_ == Phase::Main) {
-      // ユーザー入力の監視（無入力タイマー）
-      POINT curMouse;
-      GetCursorPos(&curMouse);
-      ScreenToClient(Win32Window::GetInstance()->GetHwnd(), &curMouse);
-      Vector2 currentMousePos = { static_cast<float>(curMouse.x), static_cast<float>(curMouse.y) };
-
-      bool hasUserInput = false;
-      if (Length(Vector3{ currentMousePos.x - lastRecordedMousePos_.x, currentMousePos.y - lastRecordedMousePos_.y, 0.0f }) > 2.0f) {
-          hasUserInput = true;
-      }
-      lastRecordedMousePos_ = currentMousePos;
-      if (Input::GetInstance()->IsMouseButtonTriggered(0) || Input::GetInstance()->IsMouseButtonTriggered(1)) {
-          hasUserInput = true;
-      }
-      for (int k = 0; k < 256; ++k) {
-          if (Input::GetInstance()->IsKeyDown(k)) {
-              hasUserInput = true;
-              break;
-          }
-      }
-
-      if (hasUserInput) {
-          idleTimer_ = 0.0f;
-          if (isStartingDemo_) {
-              isStartingDemo_ = false;
-              GameSession::GetInstance().SetDemoMode(false);
-          }
-      } else {
-          idleTimer_ += ApplicationConfig::kDeltaTime;
-      }
-
-      // 10秒間無入力でデモシーケンス開始
-      if (idleTimer_ >= kDemoIdleTimeout && !isStartingDemo_) {
-          isStartingDemo_ = true;
-          demoCursorPos_ = currentMousePos;
-          GameSession::GetInstance().SetDemoMode(true);
-      }
-
-      // デモ開始時：スタート看板へ自動エイム＆自動射撃
-      if (isStartingDemo_) {
-          Vector3 boardWorldPos = startBoardObjectSettings_.position_;
-          boardWorldPos.y += 0.3f; // 看板中央付近
-          Vector2 boardScreenPos = WorldToScreen(boardWorldPos, camera_.get());
-
-          // 照準を看板へスムーズに移動
-          demoCursorPos_.x += (boardScreenPos.x - demoCursorPos_.x) * 0.10f;
-          demoCursorPos_.y += (boardScreenPos.y - demoCursorPos_.y) * 0.10f;
-
-          float distToBoard = Length(Vector3{ demoCursorPos_.x - boardScreenPos.x, demoCursorPos_.y - boardScreenPos.y, 0.0f });
-          if (distToBoard < 30.0f) {
-              if (startBoardObjectSettings_.state_ == TargetState::Standing) {
-                  startBoardObjectSettings_.state_ = TargetState::Falling;
-              }
-          }
-      }
-
-      UpdateCrosshairAndRaycast();
-
-      UpdateEnemyShooting();
-
-      UpdateProjectiles();
-
-      UpdateCover();
-
-      UpdatePlayerShot();
-
-      UpdateTargetsAnimation();
-
-      UpdateStartBoardAnimation();
-  } else if (phase_ == Phase::TransitionOut) {
-      // カバー中に遷移が始まった場合もカメラが自然な高さに戻るようにカバー更新だけ行う
-      isCovering_ = false;
-
-      UpdateCover();
-
-      // 退場演出の更新
-      UpdateTransitionOut();
+  if (phaseState_) {
+    phaseState_->Update(*this);
   }
 
   // オブジェクトの更新
@@ -398,7 +496,7 @@ void TitleScene::Draw() {
       static_cast<BlendState>(currentBlendMode_));
 
   // 背景遮蔽壁を描画（遷移中に手前の壁・床がディゾルブしても、奥の初期クリア色が露出しないよう背後を完全に覆う）
-  if (phase_ == Phase::TransitionOut && backdropWallObject_) {
+  if (phaseState_ && phaseState_->IsTransitionOut() && backdropWallObject_) {
       backdropWallObject_->Draw();
   }
 
@@ -522,7 +620,7 @@ void TitleScene::UpdateCrosshairAndRaycast() {
     }
     // START看板との判定 (幅3.0m, 高さ1.5m, 奥行0.3m)
     if (startBoardObject_ &&
-        startBoardObjectSettings_.state_ == TargetState::Standing) {
+        startBoardObjectSettings_.state_ == StartBoardState::Standing) {
       Vector3 startBoardCenter = startBoardObject_->GetTranslate();
       startBoardCenter.y += startBoardObjectSettings_.aabbSize_.y * 0.5f +
                             0.75f; // 高さの中心を計算
@@ -537,7 +635,7 @@ void TitleScene::UpdateCrosshairAndRaycast() {
     aimedTargetIndex_ = -1;
     for (size_t i = 0; i < targetBoards_.size(); ++i) {
       if (!targetBoards_[i].object_) { continue; }
-      if (targetBoards_[i].state_ != TargetState::Standing) { continue; }
+      if (!targetBoards_[i].state_ || !targetBoards_[i].state_->CanBeShot()) { continue; }
       // 現在の座標を取得してAABB判定（移動中も正確に追従）
       Vector3 targetCenter =
           targetBoards_[i].object_->GetTranslate();
@@ -584,13 +682,13 @@ void TitleScene::UpdateCover() {
 void TitleScene::UpdatePlayerShot() {
   // カバー中でなく、左クリックが押されたら射撃（無限弾薬）
   if (!isCovering_ && Input::GetInstance()->IsMouseButtonTriggered(0)) {
-    if (!isCovering_ && Input::GetInstance()->IsMouseButtonTriggered(0)) {
-      if (currentAimTarget_ == TargetType::StartBoard) { // START看板
-        startBoardObjectSettings_.state_ = TargetState::Falling;
-      } else if (currentAimTarget_ == TargetType::TargetBoard) { // 的
-        if (aimedTargetIndex_ >= 0 &&
-            aimedTargetIndex_ < (int)targetBoards_.size()) {
-          targetBoards_[aimedTargetIndex_].state_ = TargetState::Falling;
+    if (currentAimTarget_ == TargetType::StartBoard) { // START看板
+      startBoardObjectSettings_.state_ = StartBoardState::Falling;
+    } else if (currentAimTarget_ == TargetType::TargetBoard) { // 的
+      if (aimedTargetIndex_ >= 0 &&
+          aimedTargetIndex_ < (int)targetBoards_.size()) {
+        if (targetBoards_[aimedTargetIndex_].state_) {
+          targetBoards_[aimedTargetIndex_].state_->OnShot(targetBoards_[aimedTargetIndex_]);
         }
       }
     }
@@ -598,47 +696,9 @@ void TitleScene::UpdatePlayerShot() {
 }
 
 void TitleScene::UpdateTargetsAnimation() {
-  const float maxAngle = std::numbers::pi_v<float> * 0.5f; // 90度 (π/2)
   for (auto &target : targetBoards_) {
-    // --- 横移動の更新（立っている時のみ移動）---
-    if (target.isMoving_ && target.state_ == TargetState::Standing) {
-      target.moveTimer_ += ApplicationConfig::kDeltaTime;
-      Vector3 pos = target.basePosition_;
-      // sin波で左右に ±1.0m 往復
-      pos.x += std::sin(target.moveTimer_ * target.moveSpeed_) * target.moveAmplitude_;
-      target.object_->SetTranslate(pos);
-    }
-
-    // --- 倒れ・復帰アニメーション ---
-    switch (target.state_) {
-    case TargetState::Standing:
-      // 直立維持
-      target.fallAngle_ = 0.0f;
-      break;
-    case TargetState::Falling:
-      // 奥へ倒れるアニメーション
-      target.fallAngle_ += kTargetFallSpeed * ApplicationConfig::kDeltaTime;
-      if (target.fallAngle_ >= maxAngle) {
-        target.fallAngle_ = maxAngle;
-        target.state_ = TargetState::Down;
-        target.downTimer_ = 0.0f; // タイマースタート
-      }
-      break;
-    case TargetState::Down:
-      // 倒れたまま5秒待機
-      target.downTimer_ += ApplicationConfig::kDeltaTime;
-      if (target.downTimer_ >= kTargetWaitDuration) {
-        target.state_ = TargetState::Rising; // 起き上がり開始
-      }
-      break;
-    case TargetState::Rising:
-      // 手前に起き上がるアニメーション
-      target.fallAngle_ -= kTargetRiseSpeed * ApplicationConfig::kDeltaTime;
-      if (target.fallAngle_ <= 0.0f) {
-        target.fallAngle_ = 0.0f;
-        target.state_ = TargetState::Standing; // 復帰完了
-      }
-      break;
+    if (target.state_) {
+      target.state_->Update(target, ApplicationConfig::kDeltaTime);
     }
     // オブジェクトの回転に反映（X軸回転で奥へ倒す）
     if (target.object_) {
@@ -651,12 +711,12 @@ void TitleScene::UpdateTargetsAnimation() {
 
 void TitleScene::UpdateStartBoardAnimation() {
   const float maxAngle = std::numbers::pi_v<float> * 0.5f;
-  if (startBoardObjectSettings_.state_ == TargetState::Falling) {
+  if (startBoardObjectSettings_.state_ == StartBoardState::Falling) {
     startBoardObjectSettings_.fallAngle_ += kTargetFallSpeed * ApplicationConfig::kDeltaTime;
     // 倒れ切ったタイミングでシーン遷移
     if (startBoardObjectSettings_.fallAngle_ >= maxAngle) {
       startBoardObjectSettings_.fallAngle_ = maxAngle;
-      startBoardObjectSettings_.state_ = TargetState::Down;
+      startBoardObjectSettings_.state_ = StartBoardState::Down;
       StartTransitionOut();
       return;
     }
@@ -680,7 +740,7 @@ void TitleScene::UpdateEnemyShooting() {
   auto canShoot = [&](int idx) {
     if (idx < 0 || idx >= (int)targetBoards_.size()) { return false; }
     // 1. 立っていること
-    if (targetBoards_[idx].state_ != TargetState::Standing) { return false; }
+    if (!targetBoards_[idx].state_ || !targetBoards_[idx].state_->CanBeShot()) { return false; }
     // 2. 一番左の敵はカバーに隠れていないこと
     if (idx == 0 && IsTargetHiddenByCover(0)) { return false; }
     return true;
@@ -762,9 +822,9 @@ void TitleScene::UpdateIntroBlink() {
     }
 
     if (introTimer_ >= kIntroBlinkDuration) {
-        phase_ = Phase::Main;
         introTimer_ = 0.0f;
         PostProcessManager::GetInstance()->SetMode(PostProcessManager::kModeCopy);
+        ChangePhaseState(std::make_unique<MainPhaseState>());
         return;
     }
 
@@ -796,17 +856,10 @@ void TitleScene::UpdateIntroBlink() {
 }
 
 void TitleScene::StartTransitionOut() {
-    if (phase_ == Phase::TransitionOut) {
+    if (phaseState_ && phaseState_->IsTransitionOut()) {
         return; // 既に演出中なら何もしない
     }
-    phase_ = Phase::TransitionOut;
-    transitionTimer_ = 0.0f;
-
-    // 演出中に邪魔にならないよう、とんでいる敵弾とパーティクルを消去しカバーを解除
-    projectiles_.clear();
-    ParticleManager::GetInstance()->ClearAllParticles();
-    isAutoCovering_ = false;
-    isCovering_ = false;
+    ChangePhaseState(std::make_unique<TransitionOutPhaseState>());
 }
 
 void TitleScene::UpdateTransitionOut(){
@@ -1046,7 +1099,7 @@ AABB TitleScene::MakeAABB(const Vector3 &center, const Vector3 &size) {
 void TitleScene::DrawObjectWithTransition(Object3d *obj, float startTime, float duration) {
     if (!obj) return;
     // 1. 通常フェーズ、またはまだこのオブジェクトの解体開始時間に達していない場合
-    if (phase_ != Phase::TransitionOut || transitionTimer_ <= startTime) {
+    if (!phaseState_ || !phaseState_->IsTransitionOut() || transitionTimer_ <= startTime) {
         obj->SetDissolveParams(0, 0.0f, 0.05f, kTransitionEdgeColor);
         obj->Draw();
         return;

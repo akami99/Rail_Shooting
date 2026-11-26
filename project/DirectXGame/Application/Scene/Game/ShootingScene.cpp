@@ -165,13 +165,14 @@ void ShootingScene::Initialize() {
   }
 
   // 初期フェーズの設定（入場・逆順展開演出から開始）
-  phase_ = Phase::IntroConstruct;
+  phase_ = Phase::Intro;
   phaseTimer_ = 0.0f;
   isAutoClearing_ = false;
   autoClearAttackTimer_ = 0.0f;
 
   // 入場演出開始時：画面全体を完全ブラックアウト（暗転）状態に設定
   transitionDirector_->InitializeBlackout();
+  transitionDirector_->StartIntroConstruct();
 
   // -----------------------------------------------------------------
   // UIスプライトの初期化
@@ -325,18 +326,6 @@ void ShootingScene::Update() {
 
   const float kHalfPI = std::numbers::pi_v<float> / 2.0f;
 
-  // =====================================================
-  // フェーズ: 入場演出（ワイヤーフレーム出現 ＋ 逆順展開構築）
-  // =====================================================
-  if (phase_ == Phase::IntroConstruct && transitionDirector_) {
-    if (transitionDirector_->UpdateIntroConstruct(phaseTimer_, railManager_.get(), camera_.get(), skybox_.get(), mainViewIndex_)) {
-      phase_ = Phase::IntroFastForward;
-    }
-    Vector2 mPos = GetActiveMousePos();
-    if (playerController_) { playerController_->UpdateCrosshair(mPos, CheckCrosshairAiming(mPos)); }
-    return;
-  }
-
   // 終点プレビュー固定モード (ImGui確認用)
   if (transitionDirector_ && transitionDirector_->UpdatePreviewMode(
           railManager_.get(), playerController_.get(), waveManager_.get(),
@@ -344,44 +333,35 @@ void ShootingScene::Update() {
     return;
   }
 
-  // スタート演出フェーズ群
-  if (!isPaused_ && transitionDirector_) {
-    if (phase_ == Phase::IntroFastForward) {
-      if (transitionDirector_->UpdateIntroFastForward(phaseTimer_, railManager_.get(), playerController_.get(),
-                                                      waveManager_.get(), camera_.get(), skybox_.get(), mainViewIndex_)) {
-        phase_ = Phase::IntroSwarmShowcase;
-      }
-      return;
-    }
-
-    if (phase_ == Phase::IntroSwarmShowcase) {
-      if (transitionDirector_->UpdateIntroSwarmShowcase(phaseTimer_, railManager_.get(), playerController_.get(),
-                                                        waveManager_.get(), camera_.get(), skybox_.get(),
-                                                        cameraBasePitch_, cameraYaw_, mainViewIndex_)) {
-        phase_ = Phase::IntroRewind;
-      }
-      return;
-    }
-
-    if (phase_ == Phase::IntroRewind) {
-      if (transitionDirector_->UpdateIntroRewind(phaseTimer_, railManager_.get(), playerController_.get(),
-                                                 waveManager_.get(), camera_.get(), skybox_.get(),
-                                                 cameraBasePitch_, cameraYaw_, cameraBaseRoll_,
-                                                 baseCombatPitch_, baseCombatYaw_, mainViewIndex_)) {
-        phase_ = Phase::IntroReadyGo;
-      }
+  // =====================================================
+  // フェーズ: 入場カットシーン演出群 (State Pattern)
+  // =====================================================
+  if (phase_ == Phase::Intro && transitionDirector_) {
+    ShootingTransitionDirector::IntroContext introCtx{
+        phaseTimer_,
+        isPaused_,
+        railManager_.get(),
+        playerController_.get(),
+        waveManager_.get(),
+        hud_.get(),
+        camera_.get(),
+        skybox_.get(),
+        cameraBasePitch_,
+        cameraYaw_,
+        cameraBaseRoll_,
+        baseCombatPitch_,
+        baseCombatYaw_,
+        mainViewIndex_
+    };
+    bool introFinished = transitionDirector_->UpdateIntro(introCtx);
+    if (transitionDirector_->NeedsCrosshairUpdateInIntro()) {
       Vector2 mPos = GetActiveMousePos();
       if (playerController_) { playerController_->UpdateCrosshair(mPos, CheckCrosshairAiming(mPos)); }
-      return;
     }
-
-    if (phase_ == Phase::IntroReadyGo) {
-      if (transitionDirector_->UpdateIntroReadyGo(phaseTimer_, hud_.get(), railManager_.get(),
-                                                  camera_.get(), skybox_.get(), mainViewIndex_)) {
-        phase_ = Phase::Playing;
-      }
-      return;
+    if (introFinished) {
+      phase_ = Phase::Playing;
     }
+    return;
   }
 
   // タイトル戻り（目を閉じる退場暗転）
@@ -1057,7 +1037,7 @@ void ShootingScene::Draw() {
   // メインカメラ (ViewIndex 0)
   // 1. 地形オブジェクト（床・エスカレーター・高台/坂道）の描画
   if (isShowMaterial_ && railManager_) {
-    if (phase_ == Phase::IntroConstruct && transitionDirector_) {
+    if (phase_ == Phase::Intro && transitionDirector_ && transitionDirector_->IsIntroConstructActive()) {
       railManager_->ForEachTerrainObject([this](Object3d* obj) {
         transitionDirector_->DrawObjectWithIntroTransition(obj, 0.0f, 1.4f, true, phaseTimer_, currentBlendMode_);
       });
@@ -1163,7 +1143,7 @@ void ShootingScene::Draw() {
   }
 
   // スタート演出（Ready / Go 帯リール演出）
-  if (phase_ == Phase::IntroReadyGo && hud_) {
+  if (phase_ == Phase::Intro && transitionDirector_ && transitionDirector_->IsIntroReadyGoActive() && hud_) {
     hud_->DrawReadyGo();
   }
 

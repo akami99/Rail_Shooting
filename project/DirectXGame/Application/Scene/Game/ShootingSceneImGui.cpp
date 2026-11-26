@@ -263,12 +263,14 @@ void ShootingScene::UpdateImGui_IntroSettings() {
   if (!transitionDirector_) return;
   auto actions = transitionDirector_->UpdateIntroImGui(railManager_.get(), waveManager_.get(), hud_.get());
   if (actions.replayIntro) {
-    phase_ = Phase::IntroFastForward;
+    phase_ = Phase::Intro;
+    transitionDirector_->StartIntroFastForward();
     phaseTimer_ = 0.0f;
     SceneManager::GetInstance()->ChangeScene("SHOOTING");
   }
   if (actions.playReadyGoOnly) {
-    phase_ = Phase::IntroReadyGo;
+    phase_ = Phase::Intro;
+    transitionDirector_->StartIntroReadyGo();
     phaseTimer_ = 0.0f;
   }
 }
@@ -362,7 +364,7 @@ void ShootingScene::UpdateImGui_GameStatus() {
     }
   } else if (phase_ == Phase::RestartSmoothing) {
     ImGui::Text("Restarting...");
-  } else if (phase_ == Phase::IntroConstruct) {
+  } else if (phase_ == Phase::Intro && transitionDirector_ && transitionDirector_->IsIntroConstructActive()) {
     ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.8f, 1.0f), "CONSTRUCTING STAGE... (%.1f s)", phaseTimer_);
     if (ImGui::Button("Skip Intro")) {
       phaseTimer_ = ShootingTransitionDirector::kIntroConstructDuration;

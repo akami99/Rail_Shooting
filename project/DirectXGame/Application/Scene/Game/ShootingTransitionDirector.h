@@ -2,6 +2,7 @@
 #include "MathTypes.h"
 #include "Object3d.h"
 #include <cstdint>
+#include <memory>
 
 class Camera;
 class ShootingHUD;
@@ -15,6 +16,23 @@ class StageRailManager;
 /// </summary>
 class ShootingTransitionDirector {
 public:
+    struct IntroContext {
+        float& phaseTimer;
+        bool isPaused;
+        StageRailManager* railManager;
+        ShootingPlayerController* playerController;
+        ShootingWaveManager* waveManager;
+        ShootingHUD* hud;
+        Camera* camera;
+        Skybox* skybox;
+        float& cameraBasePitch;
+        float& cameraYaw;
+        float cameraBaseRoll;
+        float baseCombatPitch;
+        float baseCombatYaw;
+        int mainViewIndex;
+    };
+
     static constexpr float kIntroConstructDuration = 2.5f;
     static constexpr float kBlinkDuration = 1.0f;
     static constexpr float kFastForwardDuration = 2.0f;
@@ -33,6 +51,15 @@ public:
     void BeginClearVignette();
     void BeginReturnToTitleVignette();
     void BeginRestartSmoothing();
+
+    // 入場カットシーン State Pattern 制御
+    void StartIntroConstruct();
+    void StartIntroFastForward();
+    void StartIntroReadyGo();
+    bool UpdateIntro(IntroContext& ctx);
+    bool NeedsCrosshairUpdateInIntro() const;
+    bool IsIntroConstructActive() const;
+    bool IsIntroReadyGoActive() const;
 
     // 各フェーズ更新（終了条件到達時に true を返す）
     bool UpdateIntroConstruct(float& phaseTimer, StageRailManager* railManager, Camera* camera, Skybox* skybox, int mainViewIndex);
@@ -78,6 +105,23 @@ public:
 #endif // USE_IMGUI
 
 private:
+    class IIntroState {
+    public:
+        virtual ~IIntroState() = default;
+        virtual void Update(ShootingTransitionDirector& director, IntroContext& ctx) = 0;
+        virtual bool NeedsCrosshairUpdate() const { return false; }
+        virtual bool IsConstructState() const { return false; }
+        virtual bool IsReadyGoState() const { return false; }
+    };
+    class IntroConstructState;
+    class IntroFastForwardState;
+    class IntroSwarmShowcaseState;
+    class IntroRewindState;
+    class IntroReadyGoState;
+
+    void ChangeIntroState(std::unique_ptr<IIntroState> nextState);
+    std::unique_ptr<IIntroState> introState_;
+
     static inline const Vector3 kTransitionEdgeColor = { 0.0f, 1.0f, 0.8f };
     static inline const Vector4 kWireframeColor = { 0.0f, 0.9f, 1.0f, 1.0f };
 
