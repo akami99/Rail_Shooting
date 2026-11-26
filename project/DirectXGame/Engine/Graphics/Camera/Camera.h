@@ -32,19 +32,22 @@ private: // メンバ変数
 
   bool isMapped_ = false;
 
+protected: // 派生クラスと共有する行列・定数バッファ更新
+  void UpdateProjectionAndConstantBuffer(const Matrix4x4& worldMatrix, const Matrix4x4& viewMatrix);
+
 public: // メンバ関数
   // コンストラクタ
   Camera();
-  ~Camera();
+  virtual ~Camera();
   // コピー禁止にする（これを追加）
   Camera(const Camera&) = delete;
   Camera& operator=(const Camera&) = delete;
 
   // 初期化関数
-  void Initialize();
+  virtual void Initialize();
 
   // 更新
-  void Update();
+  virtual void Update();
 
   // getter
 

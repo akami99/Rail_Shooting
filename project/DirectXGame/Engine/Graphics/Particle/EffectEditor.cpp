@@ -15,7 +15,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <memory>
 #include <sstream>
+#include <unordered_map>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -51,6 +53,230 @@ std::string FmtFloat(float v) {
 }
 
 std::string BoolStr(bool b) { return b ? "true" : "false"; }
+
+class IShapeInspector {
+public:
+	virtual ~IShapeInspector() = default;
+	virtual void ExportCppCode(std::ostringstream& oss, const std::string& emitterVar, const ParticleShape* shape) const = 0;
+#ifdef USE_IMGUI
+	virtual void DrawImGui(ParticleShape* shape) const = 0;
+#endif
+};
+
+class BillboardInspector final : public IShapeInspector {
+public:
+	void ExportCppCode(std::ostringstream& oss, const std::string& emitterVar, const ParticleShape* shape) const override {
+		(void)shape;
+		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Billboard);\n";
+	}
+#ifdef USE_IMGUI
+	void DrawImGui(ParticleShape* shape) const override { (void)shape; }
+#endif
+};
+
+class RingInspector final : public IShapeInspector {
+public:
+	void ExportCppCode(std::ostringstream& oss, const std::string& emitterVar, const ParticleShape* shape) const override {
+		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Ring);\n";
+		if (const auto* rs = dynamic_cast<const RingShape*>(shape)) {
+			const auto& s = rs->GetSettings();
+			oss << "  if (auto *rs = " << emitterVar << ".GetRingShape()) {\n";
+			oss << "    RingSettings s;\n";
+			oss << "    s.innerRadius = " << FmtFloat(s.innerRadius) << ";\n";
+			oss << "    s.startOuterRadius = " << FmtFloat(s.startOuterRadius) << ";\n";
+			oss << "    s.midOuterRadius = " << FmtFloat(s.midOuterRadius) << ";\n";
+			oss << "    s.endOuterRadius = " << FmtFloat(s.endOuterRadius) << ";\n";
+			oss << "    s.startAngle = " << FmtFloat(s.startAngle) << ";\n";
+			oss << "    s.endAngle = " << FmtFloat(s.endAngle) << ";\n";
+			oss << "    s.division = " << s.division << ";\n";
+			oss << "    s.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
+			oss << "    s.innerColor = " << FmtVec4(s.innerColor) << ";\n";
+			oss << "    s.outerColor = " << FmtVec4(s.outerColor) << ";\n";
+			oss << "    s.fadeStartAlpha = " << FmtFloat(s.fadeStartAlpha) << ";\n";
+			oss << "    s.fadeEndAlpha = " << FmtFloat(s.fadeEndAlpha) << ";\n";
+			oss << "    s.fadeRange = " << FmtFloat(s.fadeRange) << ";\n";
+			oss << "    rs->SetSettings(s);\n";
+			oss << "  }\n";
+		}
+	}
+#ifdef USE_IMGUI
+	void DrawImGui(ParticleShape* shape) const override {
+		auto* rs = dynamic_cast<RingShape*>(shape);
+		if (!rs) return;
+		if (ImGui::TreeNode("Ring Shape Settings")) {
+			RingSettings s = rs->GetSettings();
+			bool changed = false;
+			float tempInner = s.innerRadius;
+			float tempOuter = s.startOuterRadius;
+			if (ImGui::DragFloat("Inner Radius", &tempInner, 0.01f, 0.0f, 100.0f)) {
+				if (tempOuter < tempInner) tempOuter = tempInner;
+			}
+			if (ImGui::DragFloat("Start Outer Radius", &tempOuter, 0.01f, tempInner, 100.0f)) {
+				if (tempOuter < tempInner) tempOuter = tempInner;
+			}
+			if (tempInner != s.innerRadius || tempOuter != s.startOuterRadius) {
+				s.innerRadius = tempInner;
+				s.startOuterRadius = tempOuter;
+				changed = true;
+			}
+			changed |= ImGui::DragFloat("Mid Outer Radius", &s.midOuterRadius, 0.01f, 0.0f, 20.0f);
+			changed |= ImGui::DragFloat("End Outer Radius", &s.endOuterRadius, 0.01f, 0.0f, 20.0f);
+			changed |= ImGui::DragFloat("Start Angle (deg)", &s.startAngle, 1.0f);
+			changed |= ImGui::DragFloat("End Angle (deg)", &s.endAngle, 1.0f);
+
+			int division = static_cast<int>(s.division);
+			if (ImGui::DragInt("Division", &division, 1, 3, 256)) {
+				s.division = static_cast<uint32_t>(division);
+				changed = true;
+			}
+
+			ImGui::Separator();
+			changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
+			changed |= ImGui::ColorEdit4("Inner Vertex Color", &s.innerColor.x);
+			changed |= ImGui::ColorEdit4("Outer Vertex Color", &s.outerColor.x);
+			changed |= ImGui::DragFloat("Fade Start Alpha", &s.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
+			changed |= ImGui::DragFloat("Fade End Alpha", &s.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
+			changed |= ImGui::DragFloat("Fade Range", &s.fadeRange, 0.01f, 0.0f, 0.5f);
+			if (changed) {
+				rs->SetSettings(s);
+			}
+			ImGui::TreePop();
+		}
+	}
+#endif
+};
+
+class CylinderInspector final : public IShapeInspector {
+public:
+	void ExportCppCode(std::ostringstream& oss, const std::string& emitterVar, const ParticleShape* shape) const override {
+		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Cylinder);\n";
+		if (const auto* cs = dynamic_cast<const CylinderShape*>(shape)) {
+			const auto& s = cs->GetSettings();
+			oss << "  if (auto *cs = " << emitterVar << ".GetCylinderShape()) {\n";
+			oss << "    CylinderSettings s;\n";
+			oss << "    s.height = " << FmtFloat(s.height) << ";\n";
+			oss << "    s.topRadius = " << FmtVec2(s.topRadius) << ";\n";
+			oss << "    s.bottomRadius = " << FmtVec2(s.bottomRadius) << ";\n";
+			oss << "    s.startAngle = " << FmtFloat(s.startAngle) << ";\n";
+			oss << "    s.endAngle = " << FmtFloat(s.endAngle) << ";\n";
+			oss << "    s.division = " << s.division << ";\n";
+			oss << "    s.verticalDivision = " << s.verticalDivision << ";\n";
+			oss << "    s.flipV = " << BoolStr(s.flipV) << ";\n";
+			oss << "    s.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
+			oss << "    s.topColor = " << FmtVec4(s.topColor) << ";\n";
+			oss << "    s.bottomColor = " << FmtVec4(s.bottomColor) << ";\n";
+			oss << "    s.fadeStartAlpha = " << FmtFloat(s.fadeStartAlpha) << ";\n";
+			oss << "    s.fadeEndAlpha = " << FmtFloat(s.fadeEndAlpha) << ";\n";
+			oss << "    s.fadeRange = " << FmtFloat(s.fadeRange) << ";\n";
+			oss << "    s.alphaReference = " << FmtFloat(s.alphaReference) << ";\n";
+			oss << "    cs->SetSettings(s);\n";
+			oss << "  }\n";
+		}
+	}
+#ifdef USE_IMGUI
+	void DrawImGui(ParticleShape* shape) const override {
+		auto* cs = dynamic_cast<CylinderShape*>(shape);
+		if (!cs) return;
+		if (ImGui::TreeNode("Cylinder Shape Settings")) {
+			CylinderSettings s = cs->GetSettings();
+			bool changed = false;
+			changed |= ImGui::DragFloat("Height", &s.height, 0.01f, 0.0f, 50.0f);
+			changed |= ImGui::DragFloat2("Top Radius (X, Z)", &s.topRadius.x, 0.01f, 0.0f, 20.0f);
+			changed |= ImGui::DragFloat2("Bottom Radius (X, Z)", &s.bottomRadius.x, 0.01f, 0.0f, 20.0f);
+			changed |= ImGui::DragFloat("Start Angle (deg)", &s.startAngle, 1.0f);
+			changed |= ImGui::DragFloat("End Angle (deg)", &s.endAngle, 1.0f);
+
+			int division = static_cast<int>(s.division);
+			if (ImGui::DragInt("Division", &division, 1, 3, 256)) {
+				s.division = static_cast<uint32_t>(division);
+				changed = true;
+			}
+			int verticalDivision = static_cast<int>(s.verticalDivision);
+			if (ImGui::DragInt("Vertical Division", &verticalDivision, 1, 1, 256)) {
+				s.verticalDivision = static_cast<uint32_t>(verticalDivision);
+				changed = true;
+			}
+
+			ImGui::Separator();
+			changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
+			changed |= ImGui::Checkbox("Flip V", &s.flipV);
+			changed |= ImGui::ColorEdit4("Top Vertex Color", &s.topColor.x);
+			changed |= ImGui::ColorEdit4("Bottom Vertex Color", &s.bottomColor.x);
+			changed |= ImGui::DragFloat("Fade Start Alpha", &s.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
+			changed |= ImGui::DragFloat("Fade End Alpha", &s.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
+			changed |= ImGui::DragFloat("Fade Range", &s.fadeRange, 0.01f, 0.0f, 0.5f);
+			changed |= ImGui::DragFloat("Alpha Reference (Discard)", &s.alphaReference, 0.01f, 0.0f, 1.0f);
+			if (changed) {
+				cs->SetSettings(s);
+			}
+			ImGui::TreePop();
+		}
+	}
+#endif
+};
+
+class PlaneInspector final : public IShapeInspector {
+public:
+	void ExportCppCode(std::ostringstream& oss, const std::string& emitterVar, const ParticleShape* shape) const override {
+		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Plane);\n";
+		if (const auto* ps = dynamic_cast<const PlaneShape*>(shape)) {
+			const auto& s = ps->GetSettings();
+			oss << "  if (auto *ps = " << emitterVar << ".GetPlaneShape()) {\n";
+			oss << "    PlaneSettings s;\n";
+			oss << "    s.size = " << FmtVec2(s.size) << ";\n";
+			oss << "    s.divisionX = " << s.divisionX << ";\n";
+			oss << "    s.divisionY = " << s.divisionY << ";\n";
+			oss << "    s.flipV = " << BoolStr(s.flipV) << ";\n";
+			oss << "    s.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
+			oss << "    s.color = " << FmtVec4(s.color) << ";\n";
+			oss << "    ps->SetSettings(s);\n";
+			oss << "  }\n";
+		}
+	}
+#ifdef USE_IMGUI
+	void DrawImGui(ParticleShape* shape) const override {
+		auto* ps = dynamic_cast<PlaneShape*>(shape);
+		if (!ps) return;
+		if (ImGui::TreeNode("Plane Shape Settings")) {
+			PlaneSettings s = ps->GetSettings();
+			bool changed = false;
+			changed |= ImGui::DragFloat2("Size", &s.size.x, 0.01f, 0.01f, 50.0f);
+			int divX = static_cast<int>(s.divisionX);
+			int divY = static_cast<int>(s.divisionY);
+			if (ImGui::DragInt("Division X", &divX, 1, 1, 256)) {
+				s.divisionX = static_cast<uint32_t>(divX);
+				changed = true;
+			}
+			if (ImGui::DragInt("Division Y", &divY, 1, 1, 256)) {
+				s.divisionY = static_cast<uint32_t>(divY);
+				changed = true;
+			}
+
+			ImGui::Separator();
+			changed |= ImGui::Checkbox("Flip V", &s.flipV);
+			changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
+			changed |= ImGui::ColorEdit4("Plane Color", &s.color.x);
+			if (changed) {
+				ps->SetSettings(s);
+			}
+			ImGui::TreePop();
+		}
+	}
+#endif
+};
+
+const IShapeInspector* GetShapeInspector(ParticleShapeType type) {
+	static const std::unordered_map<ParticleShapeType, std::unique_ptr<IShapeInspector>> kInspectors = [] {
+		std::unordered_map<ParticleShapeType, std::unique_ptr<IShapeInspector>> m;
+		m.emplace(ParticleShapeType::Billboard, std::make_unique<BillboardInspector>());
+		m.emplace(ParticleShapeType::Ring, std::make_unique<RingInspector>());
+		m.emplace(ParticleShapeType::Cylinder, std::make_unique<CylinderInspector>());
+		m.emplace(ParticleShapeType::Plane, std::make_unique<PlaneInspector>());
+		return m;
+	}();
+	auto it = kInspectors.find(type);
+	return (it != kInspectors.end()) ? it->second.get() : nullptr;
+}
 
 } // namespace
 
@@ -201,52 +427,8 @@ bool EffectEditor::SaveEffectToJson(const std::string& groupName, const std::str
 	};
 
 	root["shapeType"] = static_cast<int>(emitter->GetShapeType());
-	if (const auto* rs = emitter->GetRingShape()) {
-		const auto& s = rs->GetSettings();
-		root["ringSettings"] = {
-			{ "innerRadius", s.innerRadius },
-			{ "startOuterRadius", s.startOuterRadius },
-			{ "midOuterRadius", s.midOuterRadius },
-			{ "endOuterRadius", s.endOuterRadius },
-			{ "startAngle", s.startAngle },
-			{ "endAngle", s.endAngle },
-			{ "division", s.division },
-			{ "isUvSwap", s.isUvSwap },
-			{ "innerColor", ToJson(s.innerColor) },
-			{ "outerColor", ToJson(s.outerColor) },
-			{ "fadeStartAlpha", s.fadeStartAlpha },
-			{ "fadeEndAlpha", s.fadeEndAlpha },
-			{ "fadeRange", s.fadeRange }
-		};
-	} else if (const auto* cs = emitter->GetCylinderShape()) {
-		const auto& s = cs->GetSettings();
-		root["cylinderSettings"] = {
-			{ "height", s.height },
-			{ "topRadius", ToJson(s.topRadius) },
-			{ "bottomRadius", ToJson(s.bottomRadius) },
-			{ "startAngle", s.startAngle },
-			{ "endAngle", s.endAngle },
-			{ "division", s.division },
-			{ "verticalDivision", s.verticalDivision },
-			{ "flipV", s.flipV },
-			{ "isUvSwap", s.isUvSwap },
-			{ "topColor", ToJson(s.topColor) },
-			{ "bottomColor", ToJson(s.bottomColor) },
-			{ "fadeStartAlpha", s.fadeStartAlpha },
-			{ "fadeEndAlpha", s.fadeEndAlpha },
-			{ "fadeRange", s.fadeRange },
-			{ "alphaReference", s.alphaReference }
-		};
-	} else if (const auto* ps = emitter->GetPlaneShape()) {
-		const auto& s = ps->GetSettings();
-		root["planeSettings"] = {
-			{ "size", ToJson(s.size) },
-			{ "divisionX", s.divisionX },
-			{ "divisionY", s.divisionY },
-			{ "flipV", s.flipV },
-			{ "isUvSwap", s.isUvSwap },
-			{ "color", ToJson(s.color) }
-		};
+	if (const auto* shape = emitter->GetShape()) {
+		shape->SaveToJson(root);
 	}
 
 	fs::path path(filePath);
@@ -361,74 +543,8 @@ std::string EffectEditor::GenerateCppCode(const std::string& groupName, const st
 	}
 	oss << "  " << emitterVar << ".SetUVAnimationSettings(uvas);\n\n";
 
-	switch (emitter->GetShapeType()) {
-	case ParticleShapeType::Billboard:
-		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Billboard);\n";
-		break;
-	case ParticleShapeType::Ring:
-		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Ring);\n";
-		if (const auto* rs = emitter->GetRingShape()) {
-			const auto& s = rs->GetSettings();
-			oss << "  if (auto *rs = " << emitterVar << ".GetRingShape()) {\n";
-			oss << "    RingSettings s;\n";
-			oss << "    s.innerRadius = " << FmtFloat(s.innerRadius) << ";\n";
-			oss << "    s.startOuterRadius = " << FmtFloat(s.startOuterRadius) << ";\n";
-			oss << "    s.midOuterRadius = " << FmtFloat(s.midOuterRadius) << ";\n";
-			oss << "    s.endOuterRadius = " << FmtFloat(s.endOuterRadius) << ";\n";
-			oss << "    s.startAngle = " << FmtFloat(s.startAngle) << ";\n";
-			oss << "    s.endAngle = " << FmtFloat(s.endAngle) << ";\n";
-			oss << "    s.division = " << s.division << ";\n";
-			oss << "    s.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
-			oss << "    s.innerColor = " << FmtVec4(s.innerColor) << ";\n";
-			oss << "    s.outerColor = " << FmtVec4(s.outerColor) << ";\n";
-			oss << "    s.fadeStartAlpha = " << FmtFloat(s.fadeStartAlpha) << ";\n";
-			oss << "    s.fadeEndAlpha = " << FmtFloat(s.fadeEndAlpha) << ";\n";
-			oss << "    s.fadeRange = " << FmtFloat(s.fadeRange) << ";\n";
-			oss << "    rs->SetSettings(s);\n";
-			oss << "  }\n";
-		}
-		break;
-	case ParticleShapeType::Cylinder:
-		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Cylinder);\n";
-		if (const auto* cs = emitter->GetCylinderShape()) {
-			const auto& s = cs->GetSettings();
-			oss << "  if (auto *cs = " << emitterVar << ".GetCylinderShape()) {\n";
-			oss << "    CylinderSettings s;\n";
-			oss << "    s.height = " << FmtFloat(s.height) << ";\n";
-			oss << "    s.topRadius = " << FmtVec2(s.topRadius) << ";\n";
-			oss << "    s.bottomRadius = " << FmtVec2(s.bottomRadius) << ";\n";
-			oss << "    s.startAngle = " << FmtFloat(s.startAngle) << ";\n";
-			oss << "    s.endAngle = " << FmtFloat(s.endAngle) << ";\n";
-			oss << "    s.division = " << s.division << ";\n";
-			oss << "    s.verticalDivision = " << s.verticalDivision << ";\n";
-			oss << "    s.flipV = " << BoolStr(s.flipV) << ";\n";
-			oss << "    s.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
-			oss << "    s.topColor = " << FmtVec4(s.topColor) << ";\n";
-			oss << "    s.bottomColor = " << FmtVec4(s.bottomColor) << ";\n";
-			oss << "    s.fadeStartAlpha = " << FmtFloat(s.fadeStartAlpha) << ";\n";
-			oss << "    s.fadeEndAlpha = " << FmtFloat(s.fadeEndAlpha) << ";\n";
-			oss << "    s.fadeRange = " << FmtFloat(s.fadeRange) << ";\n";
-			oss << "    s.alphaReference = " << FmtFloat(s.alphaReference) << ";\n";
-			oss << "    cs->SetSettings(s);\n";
-			oss << "  }\n";
-		}
-		break;
-	case ParticleShapeType::Plane:
-		oss << "  " << emitterVar << ".SetShapeType(ParticleShapeType::Plane);\n";
-		if (const auto* ps = emitter->GetPlaneShape()) {
-			const auto& s = ps->GetSettings();
-			oss << "  if (auto *ps = " << emitterVar << ".GetPlaneShape()) {\n";
-			oss << "    PlaneSettings s;\n";
-			oss << "    s.size = " << FmtVec2(s.size) << ";\n";
-			oss << "    s.divisionX = " << s.divisionX << ";\n";
-			oss << "    s.divisionY = " << s.divisionY << ";\n";
-			oss << "    s.flipV = " << BoolStr(s.flipV) << ";\n";
-			oss << "    s.isUvSwap = " << BoolStr(s.isUvSwap) << ";\n";
-			oss << "    s.color = " << FmtVec4(s.color) << ";\n";
-			oss << "    ps->SetSettings(s);\n";
-			oss << "  }\n";
-		}
-		break;
+	if (const auto* inspector = GetShapeInspector(emitter->GetShapeType())) {
+		inspector->ExportCppCode(oss, emitterVar, emitter->GetShape());
 	}
 
 	oss << "  ParticleManager::GetInstance()->SetEmitter(\"" << groupName << "\", " << emitterVar << ");\n";
@@ -748,15 +864,6 @@ void EffectEditor::DrawEmitterSettingsSection(const std::string& groupName, Part
 }
 
 void EffectEditor::DrawShapeSettingsSection(ParticleEmitter* emitter) {
-	auto DragFloatMinMax = [](const char* labelMin, const char* labelMax, float* minVal, float* maxVal, float speed = 0.01f) {
-		if (ImGui::DragFloat(labelMin, minVal, speed, 0.0f, *maxVal)) {
-			if (*minVal > *maxVal) *minVal = *maxVal;
-		}
-		if (ImGui::DragFloat(labelMax, maxVal, speed, *minVal, 100.0f)) {
-			if (*maxVal < *minVal) *maxVal = *minVal;
-		}
-	};
-
 	if (ImGui::CollapsingHeader("Shape Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
 		const char* shapeItems[] = { "Billboard", "Ring", "Cylinder", "Plane" };
 		int shapeIndex = static_cast<int>(emitter->GetShapeType());
@@ -764,101 +871,8 @@ void EffectEditor::DrawShapeSettingsSection(ParticleEmitter* emitter) {
 			emitter->SetShapeType(static_cast<ParticleShapeType>(shapeIndex));
 		}
 
-		if (auto* rs = emitter->GetRingShape()) {
-			if (ImGui::TreeNode("Ring Shape Settings")) {
-				RingSettings s = rs->GetSettings();
-				bool changed = false;
-				float tempInner = s.innerRadius;
-				float tempOuter = s.startOuterRadius;
-				DragFloatMinMax("Inner Radius", "Start Outer Radius", &tempInner, &tempOuter);
-				if (tempInner != s.innerRadius || tempOuter != s.startOuterRadius) {
-					s.innerRadius = tempInner;
-					s.startOuterRadius = tempOuter;
-					changed = true;
-				}
-				changed |= ImGui::DragFloat("Mid Outer Radius", &s.midOuterRadius, 0.01f, 0.0f, 20.0f);
-				changed |= ImGui::DragFloat("End Outer Radius", &s.endOuterRadius, 0.01f, 0.0f, 20.0f);
-				changed |= ImGui::DragFloat("Start Angle (deg)", &s.startAngle, 1.0f);
-				changed |= ImGui::DragFloat("End Angle (deg)", &s.endAngle, 1.0f);
-
-				int division = static_cast<int>(s.division);
-				if (ImGui::DragInt("Division", &division, 1, 3, 256)) {
-					s.division = static_cast<uint32_t>(division);
-					changed = true;
-				}
-
-				ImGui::Separator();
-				changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
-				changed |= ImGui::ColorEdit4("Inner Vertex Color", &s.innerColor.x);
-				changed |= ImGui::ColorEdit4("Outer Vertex Color", &s.outerColor.x);
-				changed |= ImGui::DragFloat("Fade Start Alpha", &s.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
-				changed |= ImGui::DragFloat("Fade End Alpha", &s.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
-				changed |= ImGui::DragFloat("Fade Range", &s.fadeRange, 0.01f, 0.0f, 0.5f);
-				if (changed) {
-					rs->SetSettings(s);
-				}
-				ImGui::TreePop();
-			}
-		} else if (auto* cs = emitter->GetCylinderShape()) {
-			if (ImGui::TreeNode("Cylinder Shape Settings")) {
-				CylinderSettings s = cs->GetSettings();
-				bool changed = false;
-				changed |= ImGui::DragFloat("Height", &s.height, 0.01f, 0.0f, 50.0f);
-				changed |= ImGui::DragFloat2("Top Radius (X, Z)", &s.topRadius.x, 0.01f, 0.0f, 20.0f);
-				changed |= ImGui::DragFloat2("Bottom Radius (X, Z)", &s.bottomRadius.x, 0.01f, 0.0f, 20.0f);
-				changed |= ImGui::DragFloat("Start Angle (deg)", &s.startAngle, 1.0f);
-				changed |= ImGui::DragFloat("End Angle (deg)", &s.endAngle, 1.0f);
-
-				int division = static_cast<int>(s.division);
-				if (ImGui::DragInt("Division", &division, 1, 3, 256)) {
-					s.division = static_cast<uint32_t>(division);
-					changed = true;
-				}
-				int verticalDivision = static_cast<int>(s.verticalDivision);
-				if (ImGui::DragInt("Vertical Division", &verticalDivision, 1, 1, 256)) {
-					s.verticalDivision = static_cast<uint32_t>(verticalDivision);
-					changed = true;
-				}
-
-				ImGui::Separator();
-				changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
-				changed |= ImGui::Checkbox("Flip V", &s.flipV);
-				changed |= ImGui::ColorEdit4("Top Vertex Color", &s.topColor.x);
-				changed |= ImGui::ColorEdit4("Bottom Vertex Color", &s.bottomColor.x);
-				changed |= ImGui::DragFloat("Fade Start Alpha", &s.fadeStartAlpha, 0.01f, 0.0f, 1.0f);
-				changed |= ImGui::DragFloat("Fade End Alpha", &s.fadeEndAlpha, 0.01f, 0.0f, 1.0f);
-				changed |= ImGui::DragFloat("Fade Range", &s.fadeRange, 0.01f, 0.0f, 0.5f);
-				changed |= ImGui::DragFloat("Alpha Reference (Discard)", &s.alphaReference, 0.01f, 0.0f, 1.0f);
-				if (changed) {
-					cs->SetSettings(s);
-				}
-				ImGui::TreePop();
-			}
-		} else if (auto* ps = emitter->GetPlaneShape()) {
-			if (ImGui::TreeNode("Plane Shape Settings")) {
-				PlaneSettings s = ps->GetSettings();
-				bool changed = false;
-				changed |= ImGui::DragFloat2("Size", &s.size.x, 0.01f, 0.01f, 50.0f);
-				int divX = static_cast<int>(s.divisionX);
-				int divY = static_cast<int>(s.divisionY);
-				if (ImGui::DragInt("Division X", &divX, 1, 1, 256)) {
-					s.divisionX = static_cast<uint32_t>(divX);
-					changed = true;
-				}
-				if (ImGui::DragInt("Division Y", &divY, 1, 1, 256)) {
-					s.divisionY = static_cast<uint32_t>(divY);
-					changed = true;
-				}
-
-				ImGui::Separator();
-				changed |= ImGui::Checkbox("Flip V", &s.flipV);
-				changed |= ImGui::Checkbox("Swap UV (U <-> V)", &s.isUvSwap);
-				changed |= ImGui::ColorEdit4("Plane Color", &s.color.x);
-				if (changed) {
-					ps->SetSettings(s);
-				}
-				ImGui::TreePop();
-			}
+		if (const auto* inspector = GetShapeInspector(emitter->GetShapeType())) {
+			inspector->DrawImGui(emitter->GetShape());
 		}
 	}
 }

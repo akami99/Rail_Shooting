@@ -197,6 +197,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="DirectXGame\Engine\Graphics\Object3d\Object3dCommon.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\Object3d\Object3d.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\PSO\PipelineManager.cpp" />
+    <ClCompile Include="DirectXGame\Engine\Graphics\PSO\PostEffects.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\PSO\PostProcessManager.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\Model\Model.cpp" />
     <ClCompile Include="DirectXGame\Engine\Graphics\Model\ModelManager.cpp" />
@@ -421,7 +422,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="DirectXGame\Engine\Graphics\Texture\TextureManager.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Object3d\Object3dCommon.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Object3d\Object3d.h" />
+    <ClInclude Include="DirectXGame\Engine\Graphics\PSO\IPostEffect.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\PSO\PipelineManager.h" />
+    <ClInclude Include="DirectXGame\Engine\Graphics\PSO\PostEffects.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\PSO\PostProcessManager.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Model\Model.h" />
     <ClInclude Include="DirectXGame\Engine\Graphics\Model\ModelManager.h" />

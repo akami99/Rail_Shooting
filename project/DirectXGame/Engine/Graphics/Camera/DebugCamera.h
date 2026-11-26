@@ -1,11 +1,12 @@
 #pragma once
+#include "Camera.h"
 #include "Math/MathTypes.h"
 #include "Math/Matrix/MatrixGenerators.h"
 
 /// <summary>
 /// デバッグカメラ
 /// </summary>
-class DebugCamera {
+class DebugCamera : public Camera {
 private:
   // X,Y,Z周りのローカル回転角
   Vector3 rotation_ = {0, 0, 0};
@@ -13,10 +14,6 @@ private:
   Vector3 translation_ = {0, 0, -50};
   // 累積回転行列
   Matrix4x4 matRot_;
-  // カメラのワールド行列
-  Matrix4x4 worldMatrix_;
-  // ビュー行列
-  Matrix4x4 viewMatrix_;
   // カメラがオービットモードかどうか
   bool isOrbitMode_ = false;
   // オービットカメラのオイラー角 (ピボット回転用)
@@ -31,24 +28,18 @@ public:
   /// コンストラクタ
   /// </summary>
   DebugCamera();
+  ~DebugCamera() override = default;
 
   /// <summary>
   /// 初期化
   /// </summary>
-  void Initialize();
+  void Initialize() override;
 
   /// <summary>
   /// 更新
   /// </summary>
-  void Update();
+  void Update() override;
 
-  // getter
-  const Matrix4x4 &GetWorldMatrix() const { return worldMatrix_; }
-
-  const Matrix4x4 &GetViewMatrix() const { return viewMatrix_; }
-
-  // 座標の取得
-  const Vector3 &GetTranslate() const { return translation_; }
-  // 回転の取得
-  const Vector3 &GetRotation() const { return rotation_; }
+  // 回転の取得（既存呼び出し元との互換用エイリアス）
+  const Vector3 &GetRotation() const { return GetRotate(); }
 };

@@ -13,12 +13,17 @@ using namespace MathGenerators;
 DebugCamera::DebugCamera() { Initialize(); }
 
 void DebugCamera::Initialize() {
+  Camera::Initialize();
+
   // 初期値の計算
   rotation_ = {0, 0, 0};
   translation_ = {0, 0, -20};
   matRot_ = MakeIdentity4x4(); // 初期回転行列は単位行列
-  worldMatrix_ = MakeAffineMatrix({1.0f, 1.0f, 1.0f}, matRot_, translation_);
-  viewMatrix_ = Inverse(worldMatrix_);
+  Matrix4x4 worldMatrix = MakeAffineMatrix({1.0f, 1.0f, 1.0f}, matRot_, translation_);
+  Matrix4x4 viewMatrix = Inverse(worldMatrix);
+  SetTranslate(translation_);
+  SetRotate(rotation_);
+  UpdateProjectionAndConstantBuffer(worldMatrix, viewMatrix);
 
   isOrbitMode_ = false;                      // オービットモードは無効
   cameraEulerRotation_ = {0.0f, 0.0f, 0.0f}; // カメラのオイラー角初期化
@@ -290,10 +295,13 @@ void DebugCamera::Update() {
   }
 
   // カメラのワールド行列を再計算
-  worldMatrix_ = MakeAffineMatrix({1.0f, 1.0f, 1.0f}, matRot_, translation_);
+  Matrix4x4 worldMatrix = MakeAffineMatrix({1.0f, 1.0f, 1.0f}, matRot_, translation_);
 
   // ビュー行列を更新
-  viewMatrix_ = Inverse(worldMatrix_);
+  Matrix4x4 viewMatrix = Inverse(worldMatrix);
+  SetTranslate(translation_);
+  SetRotate(rotation_);
+  UpdateProjectionAndConstantBuffer(worldMatrix, viewMatrix);
 
   ImGui::Separator();
   ImGui::Text("Translation: (%.2f, %.2f, %.2f)", translation_.x, translation_.y,
@@ -302,20 +310,20 @@ void DebugCamera::Update() {
               rotation_.z);
   ImGui::Text("World Matrix: \n%.2f %.2f %.2f %.2f\n%.2f %.2f %.2f %.2f\n%.2f "
               "%.2f %.2f %.2f\n%.2f %.2f %.2f %.2f",
-              worldMatrix_.m[0][0], worldMatrix_.m[0][1], worldMatrix_.m[0][2],
-              worldMatrix_.m[0][3], worldMatrix_.m[1][0], worldMatrix_.m[1][1],
-              worldMatrix_.m[1][2], worldMatrix_.m[1][3], worldMatrix_.m[2][0],
-              worldMatrix_.m[2][1], worldMatrix_.m[2][2], worldMatrix_.m[2][3],
-              worldMatrix_.m[3][0], worldMatrix_.m[3][1], worldMatrix_.m[3][2],
-              worldMatrix_.m[3][3]);
+              worldMatrix.m[0][0], worldMatrix.m[0][1], worldMatrix.m[0][2],
+              worldMatrix.m[0][3], worldMatrix.m[1][0], worldMatrix.m[1][1],
+              worldMatrix.m[1][2], worldMatrix.m[1][3], worldMatrix.m[2][0],
+              worldMatrix.m[2][1], worldMatrix.m[2][2], worldMatrix.m[2][3],
+              worldMatrix.m[3][0], worldMatrix.m[3][1], worldMatrix.m[3][2],
+              worldMatrix.m[3][3]);
   ImGui::Text("View Matrix: \n%.2f %.2f %.2f %.2f\n%.2f %.2f %.2f %.2f\n%.2f "
               "%.2f %.2f %.2f\n%.2f %.2f %.2f %.2f",
-              viewMatrix_.m[0][0], viewMatrix_.m[0][1], viewMatrix_.m[0][2],
-              viewMatrix_.m[0][3], viewMatrix_.m[1][0], viewMatrix_.m[1][1],
-              viewMatrix_.m[1][2], viewMatrix_.m[1][3], viewMatrix_.m[2][0],
-              viewMatrix_.m[2][1], viewMatrix_.m[2][2], viewMatrix_.m[2][3],
-              viewMatrix_.m[3][0], viewMatrix_.m[3][1], viewMatrix_.m[3][2],
-              viewMatrix_.m[3][3]);
+              viewMatrix.m[0][0], viewMatrix.m[0][1], viewMatrix.m[0][2],
+              viewMatrix.m[0][3], viewMatrix.m[1][0], viewMatrix.m[1][1],
+              viewMatrix.m[1][2], viewMatrix.m[1][3], viewMatrix.m[2][0],
+              viewMatrix.m[2][1], viewMatrix.m[2][2], viewMatrix.m[2][3],
+              viewMatrix.m[3][0], viewMatrix.m[3][1], viewMatrix.m[3][2],
+              viewMatrix.m[3][3]);
   ImGui::Text(
       "matRot_:\n%.2f %.2f %.2f %.2f\n%.2f %.2f %.2f %.2f\n%.2f %.2f %.2f "
       "%.2f\n%.2f %.2f %.2f %.2f",

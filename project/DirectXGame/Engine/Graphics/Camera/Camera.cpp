@@ -29,6 +29,9 @@ Camera::~Camera() {
 }
 
 void Camera::Initialize() {
+    if (constBuffer_) {
+        return;
+    }
     // カメラ用の定数バッファリソースを作成
     // ※ 16バイトアライメントされた構造体サイズを指定
     constBuffer_ = DX12Context::GetInstance()->CreateBufferResource(sizeof(CameraForGPU));
@@ -41,13 +44,9 @@ void Camera::Initialize() {
     }
 }
 
-// 更新処理
-void Camera::Update() {
-  // transformからworldMatrixを作る
-  worldMatrix_ = MakeAffineMatrix(transform_.scale, transform_.rotate,
-                                  transform_.translate);
-  // worldMatrixからViewMatrixを作る
-  viewMatrix_ = Inverse(worldMatrix_);
+void Camera::UpdateProjectionAndConstantBuffer(const Matrix4x4& worldMatrix, const Matrix4x4& viewMatrix) {
+  worldMatrix_ = worldMatrix;
+  viewMatrix_ = viewMatrix;
 
   // ProjectionMatrixを作って透視投影行列を書き込む
   projectionMatrix_ =
@@ -60,4 +59,15 @@ void Camera::Update() {
   if (constData_) {
       constData_->worldPosition = transform_.translate;
   }
+}
+
+// 更新処理
+void Camera::Update() {
+  // transformからworldMatrixを作る
+  Matrix4x4 worldMatrix = MakeAffineMatrix(transform_.scale, transform_.rotate,
+                                           transform_.translate);
+  // worldMatrixからViewMatrixを作る
+  Matrix4x4 viewMatrix = Inverse(worldMatrix);
+
+  UpdateProjectionAndConstantBuffer(worldMatrix, viewMatrix);
 }

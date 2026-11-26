@@ -929,52 +929,8 @@ bool ParticleManager::LoadEffectFromJson(
 	int shapeTypeInt = root.value("shapeType", 0);
 	emitter.SetShapeType(static_cast<ParticleShapeType>(shapeTypeInt));
 
-	if (auto* rs = emitter.GetRingShape(); rs && root.contains("ringSettings")) {
-		const auto& jr = root["ringSettings"];
-		RingSettings s = rs->GetSettings();
-		s.innerRadius = jr.value("innerRadius", s.innerRadius);
-		s.startOuterRadius = jr.value("startOuterRadius", s.startOuterRadius);
-		s.midOuterRadius = jr.value("midOuterRadius", s.midOuterRadius);
-		s.endOuterRadius = jr.value("endOuterRadius", s.endOuterRadius);
-		s.startAngle = jr.value("startAngle", s.startAngle);
-		s.endAngle = jr.value("endAngle", s.endAngle);
-		s.division = jr.value("division", s.division);
-		s.isUvSwap = jr.value("isUvSwap", s.isUvSwap);
-		s.innerColor = FromJsonVec4(jr.value("innerColor", json::array()), s.innerColor);
-		s.outerColor = FromJsonVec4(jr.value("outerColor", json::array()), s.outerColor);
-		s.fadeStartAlpha = jr.value("fadeStartAlpha", s.fadeStartAlpha);
-		s.fadeEndAlpha = jr.value("fadeEndAlpha", s.fadeEndAlpha);
-		s.fadeRange = jr.value("fadeRange", s.fadeRange);
-		rs->SetSettings(s);
-	} else if (auto* cs = emitter.GetCylinderShape(); cs && root.contains("cylinderSettings")) {
-		const auto& jc = root["cylinderSettings"];
-		CylinderSettings s = cs->GetSettings();
-		s.height = jc.value("height", s.height);
-		s.topRadius = FromJsonVec2(jc.value("topRadius", json::array()), s.topRadius);
-		s.bottomRadius = FromJsonVec2(jc.value("bottomRadius", json::array()), s.bottomRadius);
-		s.startAngle = jc.value("startAngle", s.startAngle);
-		s.endAngle = jc.value("endAngle", s.endAngle);
-		s.division = jc.value("division", s.division);
-		s.verticalDivision = jc.value("verticalDivision", s.verticalDivision);
-		s.flipV = jc.value("flipV", s.flipV);
-		s.isUvSwap = jc.value("isUvSwap", s.isUvSwap);
-		s.topColor = FromJsonVec4(jc.value("topColor", json::array()), s.topColor);
-		s.bottomColor = FromJsonVec4(jc.value("bottomColor", json::array()), s.bottomColor);
-		s.fadeStartAlpha = jc.value("fadeStartAlpha", s.fadeStartAlpha);
-		s.fadeEndAlpha = jc.value("fadeEndAlpha", s.fadeEndAlpha);
-		s.fadeRange = jc.value("fadeRange", s.fadeRange);
-		s.alphaReference = jc.value("alphaReference", s.alphaReference);
-		cs->SetSettings(s);
-	} else if (auto* ps = emitter.GetPlaneShape(); ps && root.contains("planeSettings")) {
-		const auto& jp = root["planeSettings"];
-		PlaneSettings s = ps->GetSettings();
-		s.size = FromJsonVec2(jp.value("size", json::array()), s.size);
-		s.divisionX = jp.value("divisionX", s.divisionX);
-		s.divisionY = jp.value("divisionY", s.divisionY);
-		s.flipV = jp.value("flipV", s.flipV);
-		s.isUvSwap = jp.value("isUvSwap", s.isUvSwap);
-		s.color = FromJsonVec4(jp.value("color", json::array()), s.color);
-		ps->SetSettings(s);
+	if (auto* shape = emitter.GetShape()) {
+		shape->LoadFromJson(root);
 	}
 
 	SetEmitter(groupName, emitter);

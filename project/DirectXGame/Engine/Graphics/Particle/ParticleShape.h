@@ -1,6 +1,7 @@
 #pragma once
 #include "Types/GraphicsTypes.h"
 #include "Types/ParticleTypes.h"
+#include <externals/nlohmann/json.hpp>
 #include <memory>
 #include <string>
 
@@ -36,6 +37,10 @@ public:
 
     // ImGui の型識別用
     virtual ParticleShapeType GetType() const = 0;
+
+    // JSON シリアライズ / デシリアライズ
+    virtual void SaveToJson(nlohmann::json& root) const { (void)root; }
+    virtual void LoadFromJson(const nlohmann::json& root) { (void)root; }
 
     // 設定変更があった場合に呼ぶ (ダーティフラグをセット)
     void MarkDirty() { isDirty_ = true; }
@@ -82,6 +87,8 @@ public:
     void ApplyMaterial(Material* mat) const override;
     Model* GetOrBuildModel(const std::string& texPath) override;
     ParticleShapeType GetType() const override { return ParticleShapeType::Ring; }
+    void SaveToJson(nlohmann::json& root) const override;
+    void LoadFromJson(const nlohmann::json& root) override;
 
 private:
     RingSettings settings_;
@@ -106,6 +113,8 @@ public:
     void ApplyMaterial(Material* mat) const override;
     Model* GetOrBuildModel(const std::string& texPath) override;
     ParticleShapeType GetType() const override { return ParticleShapeType::Cylinder; }
+    void SaveToJson(nlohmann::json& root) const override;
+    void LoadFromJson(const nlohmann::json& root) override;
 
 private:
     CylinderSettings settings_;
@@ -130,6 +139,8 @@ public:
     void ApplyMaterial(Material* mat) const override;
     Model* GetOrBuildModel(const std::string& texPath) override;
     ParticleShapeType GetType() const override { return ParticleShapeType::Plane; }
+    void SaveToJson(nlohmann::json& root) const override;
+    void LoadFromJson(const nlohmann::json& root) override;
 
 private:
     PlaneSettings settings_;
