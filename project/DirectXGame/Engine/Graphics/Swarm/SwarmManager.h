@@ -172,6 +172,31 @@ private:
     void UpdateIntroSimulation(float deltaTime, const Vector3& targetCenter);
     void UpdateCrashingDrones(float deltaTime);
 
+    // ボス戦フェーズの State Pattern 基底インターフェース（内部実装詳細としてカプセル化）
+    class ISwarmBossPhaseState {
+    public:
+        virtual ~ISwarmBossPhaseState() = default;
+        virtual int GetPhaseNumber() const = 0;
+        virtual void OnEnter(SwarmManager& manager, const Vector3& playerPos) {
+            (void)manager;
+            (void)playerPos;
+        }
+        virtual void CheckTransition(SwarmManager& manager, const Vector3& playerPos) = 0;
+        virtual void Update(SwarmManager& manager, float deltaTime, const Vector3& playerPos) = 0;
+        virtual bool CanTriggerNormalCharge() const { return true; }
+        virtual void ExecuteCharge(SwarmManager& manager, const std::vector<uint32_t>& selectedIndices, const Vector3& playerPos) const = 0;
+        virtual bool ShouldUpdateCameraSection() const { return true; }
+        virtual float ComputeAnchorLateral(float bossMoveTimer) const { return std::sin(bossMoveTimer * 0.55f) * 14.5f; }
+        virtual float GetTargetCameraYaw(const SwarmManager& manager) const;
+        virtual float GetTargetCameraPitch(const SwarmManager& manager) const;
+    };
+    class BossPhase1State;
+    class BossPhase2State;
+    class BossPhaseFinalState;
+
+    void ChangeBossPhaseState(std::unique_ptr<ISwarmBossPhaseState> nextState, const Vector3& playerPos = { 0.0f, 0.0f, 0.0f });
+    void TriggerFinalChargeGroup(const Vector3& playerPos);
+
 private:
     template <class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
@@ -232,7 +257,7 @@ private:
     // ボス戦専用パラメータ
     bool isBossMode_ = false;
     bool isBossDefeated_ = false;
-    bool isFinalPhaseTriggered_ = false;
+    std::unique_ptr<ISwarmBossPhaseState> bossPhaseState_;
     uint32_t bossMaxHp_ = 100;
     Vector3 bossPlayerBasePos_ = { 0.0f, 0.0f, 0.0f };
     float bossBaseYaw_ = 0.0f;

@@ -52,7 +52,7 @@ void MyGame::Initialize() {
   auto sceneFactory = std::make_unique<SceneFactory>();
   SceneManager::GetInstance()->SetSceneFactory(std::move(sceneFactory));
 
-  // 文字列で指定(TITLE/GAMEPLAY/SHOOTINGなど)してシーン切り替え予約
+  // 文字列で指定(TITLE/DEMO/SHOOTINGなど)してシーン切り替え予約
 #ifdef USE_IMGUI
   SceneManager::GetInstance()->ChangeScene("SHOOTING");
 #else

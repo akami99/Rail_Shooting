@@ -13,6 +13,192 @@
 
 using namespace Microsoft::WRL;
 
+// =========================================================================
+// ボス形態フェーズ State Pattern 実装
+// =========================================================================
+float SwarmManager::ISwarmBossPhaseState::GetTargetCameraYaw(const SwarmManager& manager) const {
+    const float kSectionYawStep = 0.48f;
+    return manager.bossBaseYaw_ + static_cast<float>(manager.currentSection_) * kSectionYawStep;
+}
+
+float SwarmManager::ISwarmBossPhaseState::GetTargetCameraPitch(const SwarmManager& manager) const {
+    (void)manager;
+    return -0.18f;
+}
+
+class SwarmManager::BossPhaseFinalState final : public SwarmManager::ISwarmBossPhaseState {
+public:
+    int GetPhaseNumber() const override { return 3; }
+
+    void OnEnter(SwarmManager& manager, const Vector3& playerPos) override {
+        manager.chargeGroups_.clear();
+        manager.TriggerFinalChargeGroup(playerPos);
+    }
+
+    void CheckTransition(SwarmManager& manager, const Vector3& playerPos) override {
+        (void)manager;
+        (void)playerPos;
+    }
+
+    void Update(SwarmManager& manager, float deltaTime, const Vector3& playerPos) override {
+        (void)deltaTime;
+        if (manager.chargeGroups_.empty()) {
+            // 最終突撃がカバーされて帰還中の場合、全生存機が帰還完了したら再度最終突撃を開始
+            bool anyReturning = false;
+            bool hasRemaining = false;
+            for (uint32_t i = 0; i < manager.droneCount_; ++i) {
+                const auto& d = manager.dronesShadow_[i];
+                if (d.hp > 0.0f && d.state != 2) {
+                    if (d.state == 4) {
+                        anyReturning = true;
+                        break;
+                    }
+                    hasRemaining = true;
+                }
+            }
+            if (!anyReturning && hasRemaining) {
+                manager.TriggerFinalChargeGroup(playerPos);
+            }
+        }
+    }
+
+    bool CanTriggerNormalCharge() const override { return false; }
+
+    void ExecuteCharge(SwarmManager& manager, const std::vector<uint32_t>& selectedIndices, const Vector3& playerPos) const override {
+        (void)manager;
+        (void)selectedIndices;
+        (void)playerPos;
+    }
+
+    bool ShouldUpdateCameraSection() const override { return false; }
+    float ComputeAnchorLateral(float bossMoveTimer) const override {
+        (void)bossMoveTimer;
+        return 0.0f;
+    }
+
+    float GetTargetCameraYaw(const SwarmManager& manager) const override {
+        if (!manager.chargeGroups_.empty()) {
+            Vector3 diff = MathUtils::Subtract(manager.chargeGroups_[0].centerPos, manager.bossPlayerBasePos_);
+            float distXZ = std::sqrt(diff.x * diff.x + diff.z * diff.z);
+            if (distXZ > 2.5f) {
+                Vector3 forward = { std::sin(manager.bossBaseYaw_), 0.0f, std::cos(manager.bossBaseYaw_) };
+                Vector3 right = { std::cos(manager.bossBaseYaw_), 0.0f, -std::sin(manager.bossBaseYaw_) };
+                float localX = MathUtils::Dot(diff, right);
+                float localZ = MathUtils::Dot(diff, forward);
+                float relYaw = std::atan2(localX, (std::max)(0.1f, localZ));
+                return manager.bossBaseYaw_ + std::clamp(relYaw, -0.65f, 0.65f);
+            }
+        }
+        return manager.bossBaseYaw_;
+    }
+
+    float GetTargetCameraPitch(const SwarmManager& manager) const override {
+        if (!manager.chargeGroups_.empty()) {
+            Vector3 diff = MathUtils::Subtract(manager.chargeGroups_[0].centerPos, manager.bossPlayerBasePos_);
+            float dist = MathUtils::Length(diff);
+            if (dist > 1.0f) {
+                return -std::clamp(std::atan2(diff.y, dist), -0.35f, 0.35f);
+            }
+        }
+        return -0.18f;
+    }
+};
+
+class SwarmManager::BossPhase2State final : public SwarmManager::ISwarmBossPhaseState {
+public:
+    int GetPhaseNumber() const override { return 2; }
+
+    void CheckTransition(SwarmManager& manager, const Vector3& playerPos) override {
+        uint32_t aliveCount = manager.GetAliveDroneCount();
+        if (aliveCount <= 15 && aliveCount > 0) {
+            manager.ChangeBossPhaseState(std::make_unique<BossPhaseFinalState>(), playerPos);
+        }
+    }
+
+    void Update(SwarmManager& manager, float deltaTime, const Vector3& playerPos) override {
+        CheckTransition(manager, playerPos);
+        if (manager.bossPhaseState_.get() != this) {
+            return;
+        }
+        manager.noShootTimer_ += deltaTime;
+        manager.periodicAttackTimer_ += deltaTime;
+
+        if (manager.noShootTimer_ >= 2.0f) {
+            manager.noShootTimer_ = 0.0f;
+            manager.TriggerCharge(3, playerPos);
+        }
+        if (manager.periodicAttackTimer_ >= 10.0f) {
+            manager.periodicAttackTimer_ -= 10.0f;
+            manager.TriggerCharge(10, playerPos);
+        }
+    }
+
+    void ExecuteCharge(SwarmManager& manager, const std::vector<uint32_t>& selectedIndices, const Vector3& playerPos) const override {
+        manager.CreateChargeGroup(selectedIndices, false, playerPos);
+    }
+};
+
+class SwarmManager::BossPhase1State final : public SwarmManager::ISwarmBossPhaseState {
+public:
+    int GetPhaseNumber() const override { return 1; }
+
+    void CheckTransition(SwarmManager& manager, const Vector3& playerPos) override {
+        uint32_t aliveCount = manager.GetAliveDroneCount();
+        if (aliveCount <= 15 && aliveCount > 0) {
+            manager.ChangeBossPhaseState(std::make_unique<BossPhaseFinalState>(), playerPos);
+        } else if (aliveCount <= manager.bossMaxHp_ / 2) {
+            manager.ChangeBossPhaseState(std::make_unique<BossPhase2State>(), playerPos);
+        }
+    }
+
+    void Update(SwarmManager& manager, float deltaTime, const Vector3& playerPos) override {
+        CheckTransition(manager, playerPos);
+        if (manager.bossPhaseState_.get() != this) {
+            return;
+        }
+        manager.noShootTimer_ += deltaTime;
+        manager.periodicAttackTimer_ += deltaTime;
+
+        if (manager.noShootTimer_ >= 2.0f) {
+            manager.noShootTimer_ = 0.0f;
+            manager.TriggerCharge(3, playerPos);
+        }
+        if (manager.periodicAttackTimer_ >= 10.0f) {
+            manager.periodicAttackTimer_ -= 10.0f;
+            manager.TriggerCharge(10, playerPos);
+        }
+    }
+
+    void ExecuteCharge(SwarmManager& manager, const std::vector<uint32_t>& selectedIndices, const Vector3& playerPos) const override {
+        (void)playerPos;
+        for (size_t i = 0; i < selectedIndices.size(); ++i) {
+            uint32_t idx = selectedIndices[i];
+            manager.dronesShadow_[idx].state = 1; // Charge
+            manager.dronesShadow_[idx].stateTimer = -static_cast<float>(i) * 0.18f;
+            manager.frameEvents_.chargeStartPositions.push_back(manager.dronesShadow_[idx].position);
+        }
+    }
+};
+
+void SwarmManager::ChangeBossPhaseState(std::unique_ptr<ISwarmBossPhaseState> nextState, const Vector3& playerPos) {
+    bossPhaseState_ = std::move(nextState);
+    if (bossPhaseState_) {
+        bossPhaseState_->OnEnter(*this, playerPos);
+    }
+}
+
+void SwarmManager::TriggerFinalChargeGroup(const Vector3& playerPos) {
+    std::vector<uint32_t> remainingIndices;
+    for (uint32_t i = 0; i < droneCount_; ++i) {
+        if (dronesShadow_[i].hp > 0.0f && dronesShadow_[i].state != 2) {
+            remainingIndices.push_back(i);
+        }
+    }
+    if (!remainingIndices.empty()) {
+        CreateChargeGroup(remainingIndices, true, playerPos);
+    }
+}
+
 void SwarmManager::Initialize(uint32_t droneCount,
                               const std::string& modelDirectory,
                               const std::string& modelFilename) {
@@ -357,7 +543,7 @@ void SwarmManager::StartBossBattle(uint32_t count, const Vector3& playerBasePos,
 
     isBossMode_ = true;
     isBossDefeated_ = false;
-    isFinalPhaseTriggered_ = false;
+    ChangeBossPhaseState(std::make_unique<BossPhase1State>());
     crashDissolveThreshold_ = 0.0f;
     bossMaxHp_ = actualCount;
     bossPlayerBasePos_ = playerBasePos;
@@ -452,7 +638,7 @@ void SwarmManager::StartBossEntrance(uint32_t count, const Vector3& playerBasePo
 
     isBossMode_ = false;
     isBossDefeated_ = false;
-    isFinalPhaseTriggered_ = false;
+    ChangeBossPhaseState(std::make_unique<BossPhase1State>());
     crashDissolveThreshold_ = 0.0f;
     bossMaxHp_ = actualCount;
     bossPlayerBasePos_ = playerBasePos;
@@ -638,7 +824,7 @@ void SwarmManager::CreateChargeGroup(const std::vector<uint32_t>& indices, bool 
 }
 
 void SwarmManager::TriggerCharge(uint32_t count, const Vector3& playerPos) {
-    if (!isActive_ || !isBossMode_ || isFinalPhaseTriggered_) return;
+    if (!isActive_ || !isBossMode_ || !bossPhaseState_ || !bossPhaseState_->CanTriggerNormalCharge()) return;
 
     uint32_t aliveCount = GetAliveDroneCount();
     if (aliveCount <= 15) return; // 15機以下は最終突撃フェーズで一括処理
@@ -674,18 +860,7 @@ void SwarmManager::TriggerCharge(uint32_t count, const Vector3& playerPos) {
         selectedIndices.push_back(candidates[i].index);
     }
 
-    // HPが半分（50%）を切った後は第二形態として突撃グループ化
-    if (aliveCount <= bossMaxHp_ / 2) {
-        CreateChargeGroup(selectedIndices, false, playerPos);
-    } else {
-        // 第一形態：個別に突撃（同時着弾で即死しないよう僅かにディレイを付与）
-        for (size_t i = 0; i < selectedIndices.size(); ++i) {
-            uint32_t idx = selectedIndices[i];
-            dronesShadow_[idx].state = 1; // Charge
-            dronesShadow_[idx].stateTimer = -static_cast<float>(i) * 0.18f;
-            frameEvents_.chargeStartPositions.push_back(dronesShadow_[idx].position);
-        }
-    }
+    bossPhaseState_->ExecuteCharge(*this, selectedIndices, playerPos);
 }
 
 void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPos, const AttackCommand* attackCmd, bool isPlayerCovering) {
@@ -899,55 +1074,12 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
     }
 
     // =========================================================
-    // 2. 残り15機以下の最終突撃移行チェック ＆ 攻撃タイマー更新
+    // 2. ボス形態フェーズの遷移チェック ＆ 攻撃タイマー更新 (State Pattern)
     // =========================================================
-    uint32_t aliveCount = GetAliveDroneCount();
-    if (aliveCount <= 15 && aliveCount > 0 && !isFinalPhaseTriggered_) {
-        isFinalPhaseTriggered_ = true;
-        chargeGroups_.clear();
-
-        std::vector<uint32_t> remainingIndices;
-        for (uint32_t i = 0; i < droneCount_; ++i) {
-            if (dronesShadow_[i].hp > 0.0f && dronesShadow_[i].state != 2) {
-                remainingIndices.push_back(i);
-            }
-        }
-        CreateChargeGroup(remainingIndices, true, playerPos);
+    if (!bossPhaseState_) {
+        ChangeBossPhaseState(std::make_unique<BossPhase1State>(), playerPos);
     }
-
-    if (!isFinalPhaseTriggered_) {
-        noShootTimer_ += deltaTime;
-        periodicAttackTimer_ += deltaTime;
-
-        // 2秒間撃たれていなかった場合、最もプレイヤーに近い3機を突撃させる
-        if (noShootTimer_ >= 2.0f) {
-            noShootTimer_ = 0.0f;
-            TriggerCharge(3, playerPos);
-        }
-
-        // 10秒ごとに最もプレイヤーに近い10機を突撃させる
-        if (periodicAttackTimer_ >= 10.0f) {
-            periodicAttackTimer_ -= 10.0f;
-            TriggerCharge(10, playerPos);
-        }
-    } else if (chargeGroups_.empty()) {
-        // 最終突撃がカバーされて帰還中の場合、全生存機が帰還完了したら再度最終突撃を開始
-        bool anyReturning = false;
-        std::vector<uint32_t> remainingIndices;
-        for (uint32_t i = 0; i < droneCount_; ++i) {
-            const auto& d = dronesShadow_[i];
-            if (d.hp > 0.0f && d.state != 2) {
-                if (d.state == 4) {
-                    anyReturning = true;
-                    break;
-                }
-                remainingIndices.push_back(i);
-            }
-        }
-        if (!anyReturning && !remainingIndices.empty()) {
-            CreateChargeGroup(remainingIndices, true, playerPos);
-        }
-    }
+    bossPhaseState_->Update(*this, deltaTime, playerPos);
 
     // =========================================================
     // 3. 突撃グループ（第二形態・最終形態）の移動と到達判定
@@ -1059,19 +1191,18 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
         chargeGroups_.end());
 
     // グループ自爆によって残り15機以下になった場合も即座に最終突撃グループへ移行
-    aliveCount = GetAliveDroneCount();
-    if (aliveCount <= 15 && aliveCount > 0 && !isFinalPhaseTriggered_) {
-        isFinalPhaseTriggered_ = true;
-        chargeGroups_.clear();
-
-        std::vector<uint32_t> remainingIndices;
-        for (uint32_t i = 0; i < droneCount_; ++i) {
-            if (dronesShadow_[i].hp > 0.0f && dronesShadow_[i].state != 2) {
-                remainingIndices.push_back(i);
-                inActiveGroup[i] = true;
+    if (bossPhaseState_) {
+        bossPhaseState_->CheckTransition(*this, playerPos);
+        if (bossPhaseState_->GetPhaseNumber() == 3) {
+            for (const auto& group : chargeGroups_) {
+                if (group.isDead) continue;
+                for (uint32_t dIdx : group.droneIndices) {
+                    if (dIdx < droneCount_) {
+                        inActiveGroup[dIdx] = true;
+                    }
+                }
             }
         }
-        CreateChargeGroup(remainingIndices, true, playerPos);
     }
 
     // =========================================================
@@ -1094,7 +1225,7 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
     }
 
     // 正面少し上（高さ+4.5m, 前方22m）を中心に、左・正面・右の3区間を左右に往復（最終フェーズ時は正面固定）
-    float anchorLateral = isFinalPhaseTriggered_ ? 0.0f : (std::sin(bossMoveTimer_ * 0.55f) * 14.5f);
+    float anchorLateral = bossPhaseState_ ? bossPhaseState_->ComputeAnchorLateral(bossMoveTimer_) : 0.0f;
     float anchorHeight = 4.5f + std::sin(bossMoveTimer_ * 1.2f) * 0.6f;
     float anchorDepth = 22.0f;
     Vector3 anchorWorld = MathUtils::Add(
@@ -1290,7 +1421,7 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
     // 5. カメラの3区間（左: -1, 正面: 0, 右: +1）切り替え判定
     // =========================================================
     // 突撃中（通常突撃・グループ突撃）および最終突撃発動後はカメラ区間を固定し、不要なカメラ切り替えを防ぐ
-    if (!isChargingActive && !isFinalPhaseTriggered_) {
+    if (!isChargingActive && (!bossPhaseState_ || bossPhaseState_->ShouldUpdateCameraSection())) {
         float refLocalX = anchorLateral;
         if (cruisingSampleCount > 0) {
             refLocalX = sumLocalX / static_cast<float>(cruisingSampleCount);
@@ -1320,37 +1451,18 @@ void SwarmManager::UpdateBossSimulation(float deltaTime, const Vector3& playerPo
 
 float SwarmManager::GetTargetCameraYaw() const {
     if (!isBossMode_) return bossBaseYaw_;
-    if (isFinalPhaseTriggered_) {
-        if (!chargeGroups_.empty()) {
-            Vector3 diff = MathUtils::Subtract(chargeGroups_[0].centerPos, bossPlayerBasePos_);
-            float distXZ = std::sqrt(diff.x * diff.x + diff.z * diff.z);
-            if (distXZ > 2.5f) {
-                Vector3 forward = { std::sin(bossBaseYaw_), 0.0f, std::cos(bossBaseYaw_) };
-                Vector3 right = { std::cos(bossBaseYaw_), 0.0f, -std::sin(bossBaseYaw_) };
-                float localX = MathUtils::Dot(diff, right);
-                float localZ = MathUtils::Dot(diff, forward);
-                float relYaw = std::atan2(localX, (std::max)(0.1f, localZ));
-                return bossBaseYaw_ + std::clamp(relYaw, -0.65f, 0.65f);
-            }
-        }
-        return bossBaseYaw_;
+    if (bossPhaseState_) {
+        return bossPhaseState_->GetTargetCameraYaw(*this);
     }
-    // 左(-1)・正面(0)・右(+1)の3区間に応じてカメラYaw角を切り替え (約±28度)
     const float kSectionYawStep = 0.48f;
     return bossBaseYaw_ + static_cast<float>(currentSection_) * kSectionYawStep;
 }
 
 float SwarmManager::GetTargetCameraPitch() const {
     if (!isBossMode_) return 0.0f;
-    // 最終突撃グループ接近時はグループの高さに合わせて見上げ角を補間
-    if (isFinalPhaseTriggered_ && !chargeGroups_.empty()) {
-        Vector3 diff = MathUtils::Subtract(chargeGroups_[0].centerPos, bossPlayerBasePos_);
-        float dist = MathUtils::Length(diff);
-        if (dist > 1.0f) {
-            return -std::clamp(std::atan2(diff.y, dist), -0.35f, 0.35f);
-        }
+    if (bossPhaseState_) {
+        return bossPhaseState_->GetTargetCameraPitch(*this);
     }
-    // 通常時は正面少し上（+4.5m / 22m）を映す見上げ角度
     return -0.18f;
 }
 
@@ -1445,9 +1557,7 @@ bool SwarmManager::GetAutoAimTarget(Vector3& outTargetPos) const {
 }
 
 int SwarmManager::GetBossPhase() const {
-    if (isFinalPhaseTriggered_ || GetAliveDroneCount() <= 15) return 3;
-    if (GetAliveDroneCount() <= bossMaxHp_ / 2) return 2;
-    return 1;
+    return bossPhaseState_ ? bossPhaseState_->GetPhaseNumber() : 1;
 }
 
 void SwarmManager::UpdateHpGauges(Camera* camera, float clientWidth, float clientHeight) {
